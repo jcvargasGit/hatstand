@@ -1,0 +1,3 @@
+# Skip releases newer than 15 days (in minutes). Fresh releases are the riskiest,
+# and offline package mirrors often do not carry them yet.
+minimumReleaseAge: 21600

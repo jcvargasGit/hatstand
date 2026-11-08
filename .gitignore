@@ -1,0 +1,28 @@
+node_modules/
+out/
+dist/
+coverage/
+*.log
+.DS_Store
+
+# Client data lives in ~/.hatstand and must never enter this repository.
+.env
+.env.*
+*.enc
+company.yaml
+accounts.yaml
+.hatstand/
+secrets/
+knowledge/
+
+# Agent files stay out of this repository. src/main/agents is product code.
+.git/
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+.agents/
+.claude/
+.codex/
+.cursor/
+/agents/
+/skills/

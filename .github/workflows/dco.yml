@@ -1,0 +1,27 @@
+name: DCO
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  sign-off:
+    if: github.event.pull_request.user.login != 'dependabot[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check that every commit is signed off
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          missing=$(git log "$BASE..$HEAD" --no-merges --format='%h %(trailers:key=Signed-off-by,valueonly,separator=%x2C)' | awk 'NF < 2 { print $1 }')
+          if [ -n "$missing" ]; then
+            echo "These commits have no Signed-off-by line: $missing"
+            echo "Add it with: git rebase --signoff $BASE"
+            exit 1
+          fi

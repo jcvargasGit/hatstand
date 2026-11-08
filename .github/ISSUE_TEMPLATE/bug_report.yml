@@ -1,0 +1,37 @@
+name: Bug report
+description: Something does not work as it should
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Use made-up data only. Remove client names, keys, ticket numbers, internal URLs and private logs before you submit.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open a client
+        2. Start a task
+        3. ...
+  - type: dropdown
+    id: system
+    attributes:
+      label: System
+      options:
+        - macOS
+        - Linux
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: The commit of Hatstand, your distribution for Linux, and the agent you use.
+      placeholder: abc1234, Ubuntu 24.04, Claude Code 2.x
