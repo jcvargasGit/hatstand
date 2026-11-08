@@ -10,6 +10,11 @@ import { companySchema, taskSchema, type Task } from '../../src/shared/schemas';
 vi.mock('../../src/renderer/src/lib/api', () => ({
   api: { updateTask: vi.fn(async () => undefined), deleteTask: vi.fn(async () => undefined), addIdeas: vi.fn(async () => undefined), reorderTasks: vi.fn(async () => undefined) },
 }));
+vi.mock('../../src/renderer/src/components/MarkdownField', () => ({
+  MarkdownField: ({ label, value, onChange, onCommit }: { label: string; value: string; onChange: (value: string) => void; onCommit?: (value: string) => void }) => (
+    <textarea aria-label={label} value={value} onChange={(event) => onChange(event.target.value)} onBlur={(event) => onCommit?.(event.target.value)} />
+  ),
+}));
 
 const company = companySchema.parse({ id: 'c', name: 'Client', color: '#5BB8A6', rootDir: '/code' });
 const idea = (id: string, title: string, change: Record<string, unknown> = {}): Task => taskSchema.parse({ id, companyId: 'c', title, status: 'idea', createdAt: 'x', updatedAt: 'x', ...change });

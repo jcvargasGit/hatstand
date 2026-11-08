@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import type { Task } from '../../../shared/schemas';
 import { useAction } from '../hooks/useAction';
 import { api } from '../lib/api';
+import { MarkdownField } from './MarkdownField';
 import { PrioritySelect } from './PrioritySelect';
 import { TaskChecklist } from './TaskChecklist';
 
@@ -19,9 +20,9 @@ export function IdeaDetails({ task, onClose, onChanged, onMadeTask }: IdeaDetail
   const { error, busy, run } = useAction();
   const saving = useAction();
 
-  const save = () =>
+  const save = (latestDescription = description) =>
     saving.run(async () => {
-      if (title.trim() && (title !== task.title || description !== task.description)) await api.updateTask(task.id, { title: title.trim(), customTitle: true, description });
+      if (title.trim() && (title !== task.title || latestDescription !== task.description)) await api.updateTask(task.id, { title: title.trim(), customTitle: true, description: latestDescription });
       await onChanged();
     });
 
@@ -49,10 +50,10 @@ export function IdeaDetails({ task, onClose, onChanged, onMadeTask }: IdeaDetail
         Title
         <input value={title} onChange={(event) => setTitle(event.target.value)} onBlur={() => void save()} />
       </label>
-      <label>
-        Details
-        <textarea rows={8} value={description} placeholder="What you know so far." onChange={(event) => setDescription(event.target.value)} onBlur={() => void save()} />
-      </label>
+      <div className="idea-details-field">
+        <span>Details</span>
+        <MarkdownField label="Details" rows={8} value={description} placeholder="What you know so far." onChange={setDescription} onCommit={(text) => void save(text)} />
+      </div>
       <label>
         Priority
         <PrioritySelect

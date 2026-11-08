@@ -1,5 +1,6 @@
 import { ArrowDown, ArrowUp, CircleHelp, ListOrdered, Plus, Trash2, X } from 'lucide-react';
 import { planItemName, type BacklogPlan, type PlanItem } from '../../../shared/backlog-plan';
+import { MarkdownField } from './MarkdownField';
 import { addGroup, bringIntoOrder, changeGroup, changeOutOfScope, changeStep, leaveOutOfScope, moveStep, removeGroup } from '../lib/backlog-plan-edit';
 
 type TaskChipsProps = {
@@ -58,10 +59,10 @@ export function BacklogPlanEditor({ plan, items, onChange }: BacklogPlanEditorPr
 
   return (
     <div className="plan-editor">
-      <label className="plan-field">
-        Summary
-        <textarea rows={3} value={plan.summary} onChange={(event) => onChange({ ...plan, summary: event.target.value })} />
-      </label>
+      <div className="plan-field">
+        <span>Summary</span>
+        <MarkdownField label="Summary" value={plan.summary} onChange={(summary) => onChange({ ...plan, summary })} />
+      </div>
 
       <section className="plan-section" aria-label="Order">
         <h4>Order</h4>

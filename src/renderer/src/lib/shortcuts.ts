@@ -12,3 +12,5 @@ export const shortcutKey = ({ key, code, shiftKey }: Pick<KeyboardEvent, 'key' |
 export const shortcutLabel =(key: string) => (isMac() ? `⌘${key}` : `Ctrl+Shift+${key}`);
 
 export const submitShortcutLabel = () => (isMac() ? '⌘ Enter' : 'Ctrl+Enter');
+
+export const editorShortcutLabel = (key: string) => (isMac() ? `⌘${key}` : `Ctrl+${key}`);

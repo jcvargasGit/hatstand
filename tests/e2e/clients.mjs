@@ -116,14 +116,20 @@ try {
   // A row opens its details beside the table, and Escape saves and closes them.
   const details = page.getByRole('complementary', { name: 'Inbox item details' });
   await group.getByRole('button', { name: 'Segunda tarea', exact: true }).click();
-  await details.getByRole('textbox', { name: 'Details' }).fill('Lo que se sabe hasta ahora');
+  await details.getByRole('button', { name: 'Details', exact: true }).click();
+  await details.getByRole('textbox', { name: 'Details' }).fill('Lo que se sabe **hasta ahora**');
+  const sourceToggle = details.getByRole('button', { name: 'Markdown' });
+  assert.equal(await sourceToggle.getAttribute('aria-pressed'), 'false', 'Editing starts in the rich editor.');
+  await sourceToggle.click();
+  assert.equal(await sourceToggle.getAttribute('aria-pressed'), 'true', 'The Markdown source can be shown.');
+  await details.getByRole('textbox', { name: 'Details' }).focus();
   const tableBox = await group.locator('table').boundingBox();
   const detailsBox = await details.boundingBox();
   assert.ok(tableBox.x + tableBox.width <= detailsBox.x + 1, 'A wide window shows the details beside the table.');
   await shot('inbox-details');
   await page.keyboard.press('Escape');
   await details.waitFor({ state: 'detached' });
-  await group.getByText('Lo que se sabe hasta ahora').first().waitFor();
+  await group.getByText('Lo que se sabe **hasta ahora**').first().waitFor();
 
   // Long text stays inside the page, at a large, a normal and a narrow size.
   await page.setViewportSize({ width: 2560, height: 1300 });
