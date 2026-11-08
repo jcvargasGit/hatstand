@@ -4,10 +4,10 @@ import type { Company, PlanningPlace, Task } from '../shared/schemas';
 import { findGitRoot } from './paths';
 
 const PLACE_RULES: { name: string; folders: string[] }[] = [
-  { name: 'Tickets', folders: ['backlog/pending', 'backlog', 'tickets', 'issues', 'stories'] },
+  { name: 'Tickets', folders: ['backlog', 'tickets', 'issues', 'stories'] },
   { name: 'Decisions', folders: ['adr', 'adrs', 'decisions'] },
   { name: 'Specs', folders: ['specs', 'spec', 'rfc', 'rfcs'] },
-  { name: 'Reviews', folders: ['pr-reviews', 'code-reviews', 'reviews'] },
+  { name: 'Reviews', folders: ['code-reviews', 'reviews'] },
 ];
 
 export const isInside = (path: string, root: string) => path === root || path.startsWith(`${root}${sep}`);

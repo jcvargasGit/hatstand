@@ -167,7 +167,7 @@ export function PlanningStep({ company, defaultPath, onSave, onChanged }: Planni
             {places.map((place, index) => (
               <li key={index}>
                 <input aria-label={`Name of place ${index + 1}`} placeholder="Tickets" value={place.name} onChange={(event) => edit(index, { name: event.target.value })} onBlur={() => savePlaces(places)} />
-                <input aria-label={`Folder of place ${index + 1}`} list="planning-folders" placeholder="backlog/pending" value={place.folder} onChange={(event) => edit(index, { folder: event.target.value })} onBlur={() => savePlaces(places)} />
+                <input aria-label={`Folder of place ${index + 1}`} list="planning-folders" placeholder="tickets" value={place.folder} onChange={(event) => edit(index, { folder: event.target.value })} onBlur={() => savePlaces(places)} />
                 <button className="quiet" aria-label={`Remove place ${index + 1}`} onClick={() => remove(index)}>
                   <X size={14} />
                 </button>

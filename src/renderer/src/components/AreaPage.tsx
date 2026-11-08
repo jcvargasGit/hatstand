@@ -10,6 +10,7 @@ import { AREA_LINK_SUGGESTIONS } from '../lib/link-suggestions';
 import { taskStateText } from '../lib/today';
 import { ClientFiles } from './ClientFiles';
 import { LinksEditor } from './LinksEditor';
+import { MarkdownField } from './MarkdownField';
 import { RepoPicker } from './RepoPicker';
 import { TaskNumber } from './TaskNumber';
 import { areaFolder, defaultArea, isDefaultArea } from '../../../shared/areas';
@@ -180,17 +181,17 @@ export function AreaPage({ snapshot, company, area, onChanged, onBack, onNewTask
                 }}
               />
             </label>
-            <label className="stacked-field">
-              What this area is
-              <textarea
-                rows={3}
+            <div className="stacked-field">
+              <span>What this area is</span>
+              <MarkdownField
+                label="What this area is"
                 value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                onBlur={() => {
-                  if (description !== area.description) void saveArea({ description });
+                onChange={setDescription}
+                onCommit={(text) => {
+                  if (text !== area.description) void saveArea({ description: text });
                 }}
               />
-            </label>
+            </div>
           </section>
           {wholeRepos.length > 0 && (
             <section className="overview-card" aria-label="Repositories of this area">

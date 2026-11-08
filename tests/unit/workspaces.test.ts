@@ -137,11 +137,11 @@ describe('a subdomain that owns folders', () => {
 
 describe('a planning repository', () => {
   it('suggests where things go from its folders', () => {
-    folders('backlog/pending', 'backlog/done', 'docs/notes/adr', 'PR-reviews/api', 'other');
+    folders('tickets', 'tickets/closed', 'docs/notes/adr', 'code-reviews/api', 'other');
     expect(suggestPlanningPlaces(listFolders(dir))).toEqual([
-      { name: 'Tickets', folder: 'backlog/pending' },
+      { name: 'Tickets', folder: 'tickets' },
       { name: 'Decisions', folder: 'docs/notes/adr' },
-      { name: 'Reviews', folder: 'PR-reviews' },
+      { name: 'Reviews', folder: 'code-reviews' },
     ]);
     expect(suggestPlanningPlaces(['src', 'lib'])).toEqual([]);
   });
@@ -165,11 +165,11 @@ describe('a planning repository', () => {
   });
 
   it('is told to the agent, without permission to commit', () => {
-    const company = { ...mono(), planning: { path: '/specs', places: [{ name: 'Tickets', folder: 'backlog/pending' }] } };
+    const company = { ...mono(), planning: { path: '/specs', places: [{ name: 'Tickets', folder: 'tickets' }] } };
     const prompt = buildSystemPrompt({ company, task: task(), repositories: [], companyInstructions: '', knowledgeDirs: [], planning: { ...company.planning, hasGit: true }, notesFile: '/tasks/t.md', notes: '' });
     expect(prompt).toContain('/tasks/t.<short-name>.md');
     expect(prompt).toContain('live in /specs');
-    expect(prompt).toContain('- Tickets: backlog/pending');
+    expect(prompt).toContain('- Tickets: tickets');
     expect(prompt).toContain('Do not commit, push or open a pull request in this repository unless the person asks.');
     expect(buildSystemPrompt({ company: mono(), task: task(), repositories: [], companyInstructions: '', knowledgeDirs: [], notesFile: '/n', notes: '' })).not.toContain('Planning repository');
   });

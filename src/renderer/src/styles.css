@@ -4753,3 +4753,91 @@ html input[type='radio'] {
   color: var(--client);
   text-decoration: underline;
 }
+
+.markdown-field {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.93rem;
+}
+
+.markdown-field.is-editing {
+  border-color: var(--client);
+}
+
+.markdown-field-view {
+  padding: 0.42rem 0.65rem;
+  line-height: 1.45;
+  cursor: text;
+}
+
+.markdown-field-view:focus-visible {
+  outline: 2px solid var(--client);
+  outline-offset: -1px;
+  border-radius: 8px;
+}
+
+.markdown-field-view .file-preview {
+  max-height: none;
+  border: none;
+  padding: 0;
+}
+
+.markdown-field-view .file-preview > :first-child {
+  margin-top: 0;
+}
+
+.markdown-field-view .file-preview > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown-field-placeholder {
+  color: var(--muted);
+}
+
+.markdown-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.25rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.markdown-toolbar button {
+  padding: 0.25rem 0.4rem;
+  border-color: transparent;
+  background: transparent;
+}
+
+.markdown-toolbar .markdown-mode {
+  margin-left: auto;
+  font-size: 0.8rem;
+}
+
+.markdown-toolbar .markdown-mode[aria-pressed='true'] {
+  border-color: var(--client);
+  background: color-mix(in srgb, var(--client) 15%, transparent);
+}
+
+.markdown-field-editor {
+  display: flex;
+  padding: 0.42rem 0.65rem;
+}
+
+.markdown-field-editor .markdown-editor .cm-editor {
+  font-size: inherit;
+}
+
+.markdown-editor .cm-md-source .cm-content {
+  font-family: 'JetBrains Mono Variable', monospace;
+  font-size: 0.9em;
+}
+
+.idea-details-field {
+  display: grid;
+  gap: 4px;
+}

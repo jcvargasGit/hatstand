@@ -21,7 +21,7 @@ const specs = join(root, 'specs');
 for (const folder of ['apps/uploads', 'apps/portal', 'libs/media']) mkdirSync(join(mono, folder), { recursive: true });
 writeFileSync(join(mono, 'pnpm-workspace.yaml'), "packages:\n  - 'apps/*'\n  - 'libs/*'\n");
 execFileSync('git', ['init', '-q'], { cwd: mono });
-for (const folder of ['backlog/pending', 'backlog/done', 'docs/adr', 'PR-reviews/api']) mkdirSync(join(specs, folder), { recursive: true });
+for (const folder of ['tickets', 'tickets/closed', 'docs/adr', 'code-reviews/api']) mkdirSync(join(specs, folder), { recursive: true });
 execFileSync('git', ['init', '-q'], { cwd: specs });
 
 mkdirSync(bin);
@@ -79,9 +79,9 @@ try {
   await steps.getByRole('button', { name: /Planning/ }).click();
   await page.getByLabel('Planning folder, full path').fill(specs);
   await page.getByRole('button', { name: 'Add path' }).click();
-  await page.locator('input[value="backlog/pending"]').waitFor();
+  await page.locator('input[value="tickets"]').waitFor();
   await page.locator('input[value="docs/adr"]').waitFor();
-  await page.locator('input[value="PR-reviews"]').waitFor();
+  await page.locator('input[value="code-reviews"]').waitFor();
   await shot('planning');
 
   await steps.getByRole('button', { name: /Agent/ }).click();
@@ -113,7 +113,7 @@ try {
   const prompt = readFileSync(join(home, 'run', `${session.id}.prompt.md`), 'utf8');
   assert.ok(prompt.includes(join(mono, 'apps/uploads')), 'the prompt lists the subdomain folders');
   assert.ok(prompt.includes(`Plans, tickets, specs and decisions for this client live in ${specs}`));
-  assert.ok(prompt.includes('- Tickets: backlog/pending'));
+  assert.ok(prompt.includes('- Tickets: tickets'));
   assert.ok(prompt.includes('Do not commit, push or open a pull request in this repository unless the person asks.'));
   assert.ok(readFileSync(argsLog, 'utf8').split('\n').includes(specs), 'the planning repository is in reach');
 

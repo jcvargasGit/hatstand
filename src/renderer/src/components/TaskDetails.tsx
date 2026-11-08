@@ -7,6 +7,7 @@ import { useAction } from '../hooks/useAction';
 import { useEditorName } from '../hooks/useEditorName';
 import { api } from '../lib/api';
 import { AreaCreator } from './AreaCreator';
+import { MarkdownField } from './MarkdownField';
 import { TaskNotes } from './TaskNotes';
 import { PrioritySelect } from './PrioritySelect';
 import { RepoPicker } from './RepoPicker';
@@ -93,18 +94,18 @@ export function TaskDetails({ snapshot, task, company, playbooks, notes, isLive,
 
       <section className="details-section" aria-label="Notes and description">
         <h3>Description and notes</h3>
-        <label className="notes">
-          About this task
-          <textarea
-            rows={3}
+        <div className="notes">
+          <span>About this task</span>
+          <MarkdownField
+            label="About this task"
             value={description}
             placeholder="What this task is about. The agent reads it when a session starts."
-            onChange={(event) => setDescription(event.target.value)}
-            onBlur={() => {
-              if (description !== task.description) void patch({ description });
+            onChange={setDescription}
+            onCommit={(text) => {
+              if (text !== task.description) void patch({ description: text });
             }}
           />
-        </label>
+        </div>
         <section className="notes-view" aria-label="Where it stands">
           <div className="overview-head">
             <strong>Where it stands</strong>

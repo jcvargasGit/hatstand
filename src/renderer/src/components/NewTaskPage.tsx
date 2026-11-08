@@ -8,6 +8,7 @@ import { usePlaybooks } from '../hooks/usePlaybooks';
 import { api } from '../lib/api';
 import { sharedSubdomain } from '../lib/today';
 import { AreaCreator } from './AreaCreator';
+import { MarkdownField } from './MarkdownField';
 import { RepoPicker } from './RepoPicker';
 import { suggestedRepositoryIds, workRepositories } from '../../../shared/work-repos';
 
@@ -91,10 +92,10 @@ export function NewTaskPage({ snapshot, initialCompanyId, initialAreaId, onCreat
           Task title
           <input autoFocus placeholder="What needs doing?" value={title} onChange={(event) => setTitle(event.target.value)} />
         </label>
-        <label className="stacked-field">
-          Description
-          <textarea rows={3} placeholder="Optional. Context the agent should know." value={description} onChange={(event) => setDescription(event.target.value)} />
-        </label>
+        <div className="stacked-field">
+          <span>Description</span>
+          <MarkdownField label="Description" placeholder="Optional. Context the agent should know." value={description} onChange={setDescription} />
+        </div>
         <label className="stacked-field">
           Guide
           <select value={playbookId} onChange={(event) => setGuideChoice(event.target.value)}>
