@@ -1,6 +1,7 @@
 import type { PastFolderRecord } from './schemas';
 import type { ReleaseState } from './schemas';
 import type { BacklogPlan, BacklogPlanInput } from './backlog-plan';
+import type { DescriptionSuggestion, SuggestionRequest } from './description-suggestion';
 import type { Account, AccountsFile, Company, GitSource, Idea, NewTask, Playbook, Session, StayAwakeMode, SubagentRun, Task, TaskPatch, TaskReview, TodayLayout, Subdomain, GitIdentityInput } from './schemas';
 
 export type Snapshot = {
@@ -281,6 +282,8 @@ export type HatstandApi = {
   readBacklogPlan(taskId: string): Promise<BacklogPlanReport>;
   saveBacklogPlan(taskId: string, plan: BacklogPlanInput): Promise<BacklogPlanReport>;
   setBacklogPlanApproval(taskId: string, approved: boolean): Promise<BacklogPlanReport>;
+  suggestDescription(request: SuggestionRequest): Promise<DescriptionSuggestion>;
+  cancelDescriptionSuggestion(key: string): Promise<void>;
 };
 
 export type HatstandEvents = {

@@ -17,7 +17,7 @@ import { hideSecrets, sessionGitEnv } from './git-credentials';
 import type { DataPaths } from './paths';
 import type { SecretStore } from './secrets';
 import { findExecutable } from './shell';
-import { isStarterInstructions } from './starter-files';
+import { readClientInstructions } from './starter-files';
 import { accountsForClient } from '../shared/accounts';
 import { COPY_REQUESTS_ENV, EDIT_REPO_TOOL, READ_ONLY_REPOS_ENV } from './edit-repo-tool';
 import { parseStepDone, STEP_DONE_TOOL, STEP_FILE_ENV } from './step-done-tool';
@@ -46,7 +46,7 @@ const SHIFT_ENTER = /\x1b\r/g;
 const answersTheAgent = (data: string) => ANSWERS_THE_AGENT.test(data.replace(SHIFT_ENTER, ''));
 const adapters: Record<Account['type'], AgentAdapter> = { 'claude-code': claudeCode, 'github-copilot': githubCopilot };
 
-export function resolveAccount(accounts: Account[], defaultId: string | undefined, company: Company, task: Task): Account {
+export function resolveAccount(accounts: Account[], defaultId: string | undefined, company: Company, task: Pick<Task, 'accountId'>): Account {
   const wanted = task.accountId ?? company.defaultAccountId ?? defaultId;
   const usable = accountsForClient(accounts, company.id);
   const account = usable.find((item) => item.id === wanted) ?? usable[0];
@@ -216,7 +216,7 @@ export class SessionManager {
         repositories,
         subdomainFolders: taskFolderPaths(company, task),
         areaFolder,
-        companyInstructions: this.readInstructions(company),
+        companyInstructions: readClientInstructions(company),
         knowledgeDirs,
         planning,
         notesFile,
@@ -319,12 +319,6 @@ export class SessionManager {
       this.lastOutput.set(session.id, { text: live.buffer, end: live.emitted });
       this.setState(session.id, 'stopped');
     });
-  }
-
-  private readInstructions(company: Company): string {
-    const file = company.context.instructionsFile;
-    const text = file && existsSync(file) ? readFileSync(file, 'utf8') : '';
-    return isStarterInstructions(text) ? '' : text;
   }
 
   private pollStatus(sessionId: string): void {

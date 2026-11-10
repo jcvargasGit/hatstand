@@ -8,6 +8,7 @@ import { usePlaybooks } from '../hooks/usePlaybooks';
 import { api } from '../lib/api';
 import { sharedSubdomain } from '../lib/today';
 import { AreaCreator } from './AreaCreator';
+import { ImproveDescription } from './ImproveDescription';
 import { MarkdownField } from './MarkdownField';
 import { RepoPicker } from './RepoPicker';
 import { suggestedRepositoryIds, workRepositories } from '../../../shared/work-repos';
@@ -29,6 +30,7 @@ export function NewTaskPage({ snapshot, initialCompanyId, initialAreaId, onCreat
   const [companyId, setCompanyId] = useState(initialCompanyId ?? snapshot.companies[0]?.id ?? '');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [draftKey] = useState(() => `new-task-${crypto.randomUUID()}`);
   const [projectIds, setProjectIds] = useState<string[]>(() => suggestRepositories(companyId, initialAreaId));
   const [guideChoice, setGuideChoice] = useState<string | null>(null);
   const [isolated, setIsolated] = useState(true);
@@ -93,7 +95,15 @@ export function NewTaskPage({ snapshot, initialCompanyId, initialAreaId, onCreat
           <input autoFocus placeholder="What needs doing?" value={title} onChange={(event) => setTitle(event.target.value)} />
         </label>
         <div className="stacked-field">
-          <span>Description</span>
+          <div className="description-field-head">
+            <span>Description</span>
+            <ImproveDescription
+              request={{ key: draftKey, companyId, title: title.trim(), description, subdomainId: areaId || undefined, projectIds }}
+              currentDescription={description}
+              disabledReason={company ? undefined : 'Choose a client first.'}
+              onAccept={setDescription}
+            />
+          </div>
           <MarkdownField label="Description" placeholder="Optional. Context the agent should know." value={description} onChange={setDescription} />
         </div>
         <label className="stacked-field">

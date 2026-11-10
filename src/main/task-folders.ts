@@ -7,9 +7,11 @@ import type { DataPaths } from './paths';
 import { workRepositories } from '../shared/work-repos';
 import { areaFolder } from '../shared/areas';
 
-const subdomainFolders = (company: Company, task: Task) => company.subdomains.find((item) => item.id === task.subdomainId)?.folders ?? [];
+type TaskScope = Pick<Task, 'projectIds' | 'subdomainId'>;
 
-export function taskRepositories(company: Company, task: Task): Project[] {
+const subdomainFolders = (company: Company, task: TaskScope) => company.subdomains.find((item) => item.id === task.subdomainId)?.folders ?? [];
+
+export function taskRepositories(company: Company, task: TaskScope): Project[] {
   const folders = subdomainFolders(company, task);
   return workRepositories(company).filter((project) => task.projectIds.includes(project.id) || folders.some((folder) => folder.projectId === project.id));
 }
@@ -58,7 +60,7 @@ export function reposOutside(cwd: string, repositories: Pick<Project, 'path'>[])
   return repositories.map((repo) => repo.path).filter((path) => path !== cwd && !path.startsWith(`${cwd}${sep}`));
 }
 
-export const taskArea = (company: Company, task: Task): Subdomain | undefined => company.subdomains.find((area) => area.id === task.subdomainId);
+export const taskArea = (company: Company, task: Pick<Task, 'subdomainId'>): Subdomain | undefined => company.subdomains.find((area) => area.id === task.subdomainId);
 
 export const worksOnlyInAreaFolder = (company: Company, task: Task): boolean => taskArea(company, task) !== undefined && workRepositories(company).length === 0;
 
