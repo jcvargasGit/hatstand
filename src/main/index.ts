@@ -10,6 +10,7 @@ import { migrateClientFolders } from './area-migration';
 import { gitSourceSchema, ideaSchema, secretNameSchema, stayAwakeModeSchema, todayLayoutSchema, type Account, type Company, gitIdentityInputSchema } from '../shared/schemas';
 import { AgentSignIn, checkAgent } from './agent-status';
 import { createBacklogPlanTask, readPlanReport, savePlan, setPlanApproval } from './backlog-plan';
+import { DescriptionSuggester } from './description-suggestion';
 import { parseEnvFile } from './env';
 import { listRemoteRepos } from './git-hosts';
 import { allowedFile, createDocument, listClientFiles, readClientFile } from './client-files';
@@ -194,6 +195,7 @@ async function bootstrap(): Promise<void> {
     onData: (sessionId, data, end) => emit('session-data', { sessionId, data, end }),
     onExit: () => emit('state-changed', null),
   });
+  const suggester = new DescriptionSuggester(paths, store, tools.path);
   const downloading = new Set<string>();
   const requireAccount = (accountId: string): Account => {
     const account = store.readAccounts().accounts.find((item) => item.id === accountId);
@@ -572,6 +574,8 @@ async function bootstrap(): Promise<void> {
       emit('state-changed', null);
       return gitIdentityStatus(company, tools.path);
     },
+    suggestDescription: async (request) => suggester.suggest(request),
+    cancelDescriptionSuggestion: async (key) => suggester.cancel(key),
     planBacklog: async (companyId, taskIds) => {
       const task = createBacklogPlanTask(store, companyId, taskIds);
       emit('state-changed', null);
@@ -600,6 +604,7 @@ async function bootstrap(): Promise<void> {
   app.on('before-quit', (event) => {
     reviews.stop();
     signIn.stopAll();
+    suggester.stopAll();
     if (confirmedQuit || sessions.liveCount() === 0 || headless || process.env.HATSTAND_SKIP_QUIT_PROMPT) {
       sessions.stopAll();
       return;

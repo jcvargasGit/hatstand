@@ -33,6 +33,11 @@ writeFileSync(
 const fs = require('node:fs');
 if (process.argv.includes('--version')) { console.log('1.0.0'); process.exit(0); }
 if (process.argv.includes('auth')) { console.log(JSON.stringify({ loggedIn: true })); process.exit(0); }
+if (process.argv[2] === '-p') {
+  fs.writeFileSync(${JSON.stringify(join(root, 'suggestion.json'))}, JSON.stringify({ cwd: process.cwd(), args: process.argv.slice(2) }));
+  process.stdout.write(JSON.stringify({ type: 'result', is_error: false, result: JSON.stringify({ description: 'Mejor descripción **sugerida**' }) }));
+  process.exit(0);
+}
 const promptAt = process.argv.indexOf('--append-system-prompt-file');
 fs.appendFileSync(${JSON.stringify(launchLog)}, JSON.stringify({ cwd: process.cwd(), author: process.env.GIT_AUTHOR_EMAIL ?? null, prompt: promptAt > 0 ? fs.readFileSync(process.argv[promptAt + 1], 'utf8') : '' }) + '\\n');
 process.stdout.write('fake agent ready\\r\\n');
@@ -130,6 +135,23 @@ try {
   await page.keyboard.press('Escape');
   await details.waitFor({ state: 'detached' });
   await group.getByText('Lo que se sabe **hasta ahora**').first().waitFor();
+
+  // The assistant suggests a better description, read-only, and Accept replaces only the description.
+  await group.getByRole('button', { name: 'Segunda tarea', exact: true }).click();
+  await details.getByRole('button', { name: 'Improve description' }).click();
+  const suggestion = page.getByRole('dialog', { name: 'Suggested description' });
+  await suggestion.getByText('Mejor descripción').waitFor();
+  await shot('inbox-suggestion');
+  await suggestion.getByRole('button', { name: 'Accept' }).click();
+  await suggestion.waitFor({ state: 'detached' });
+  await until(async () => (await invoke('getSnapshot')).tasks.find((item) => item.title === 'Segunda tarea')?.description === 'Mejor descripción **sugerida**', 'saving the accepted description');
+  const improved = (await invoke('getSnapshot')).tasks.find((item) => item.title === 'Segunda tarea');
+  assert.equal(improved.status, 'idea', 'An improved item stays in the inbox.');
+  const suggestionRun = JSON.parse(readFileSync(join(root, 'suggestion.json'), 'utf8'));
+  assert.equal(suggestionRun.args[suggestionRun.args.indexOf('--allowedTools') + 1], 'Read,Grep,Glob', 'The assistant can only read.');
+  assert.ok(suggestionRun.args[1].includes('Lo que se sabe **hasta ahora**'), 'The assistant gets the current description.');
+  await page.keyboard.press('Escape');
+  await details.waitFor({ state: 'detached' });
 
   // Long text stays inside the page, at a large, a normal and a narrow size.
   await page.setViewportSize({ width: 2560, height: 1300 });

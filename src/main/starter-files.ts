@@ -1,3 +1,6 @@
+import { existsSync, readFileSync } from 'node:fs';
+import type { Company } from '../shared/schemas';
+
 export const STARTER_INSTRUCTIONS = `# Working with this client
 
 ## About the client
@@ -18,4 +21,10 @@ This folder stays outside your repositories.
 
 export function isStarterInstructions(text: string): boolean {
   return text.trim() === STARTER_INSTRUCTIONS.trim();
+}
+
+export function readClientInstructions(company: Company): string {
+  const file = company.context.instructionsFile;
+  const text = file && existsSync(file) ? readFileSync(file, 'utf8') : '';
+  return isStarterInstructions(text) ? '' : text;
 }

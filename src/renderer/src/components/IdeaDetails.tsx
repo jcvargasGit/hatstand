@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import type { Task } from '../../../shared/schemas';
 import { useAction } from '../hooks/useAction';
 import { api } from '../lib/api';
+import { ImproveDescription } from './ImproveDescription';
 import { MarkdownField } from './MarkdownField';
 import { PrioritySelect } from './PrioritySelect';
 import { TaskChecklist } from './TaskChecklist';
@@ -51,7 +52,20 @@ export function IdeaDetails({ task, onClose, onChanged, onMadeTask }: IdeaDetail
         <input value={title} onChange={(event) => setTitle(event.target.value)} onBlur={() => void save()} />
       </label>
       <div className="idea-details-field">
-        <span>Details</span>
+        <div className="description-field-head">
+          <span>Details</span>
+          <ImproveDescription
+            request={{ key: task.id, companyId: task.companyId, title, description, subdomainId: task.subdomainId, projectIds: task.projectIds, accountId: task.accountId }}
+            currentDescription={description}
+            onAccept={(text) => {
+              setDescription(text);
+              void saving.run(async () => {
+                await api.updateTask(task.id, { description: text });
+                await onChanged();
+              });
+            }}
+          />
+        </div>
         <MarkdownField label="Details" rows={8} value={description} placeholder="What you know so far." onChange={setDescription} onCommit={(text) => void save(text)} />
       </div>
       <label>
