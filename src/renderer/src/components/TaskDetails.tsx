@@ -7,6 +7,7 @@ import { useAction } from '../hooks/useAction';
 import { useEditorName } from '../hooks/useEditorName';
 import { api } from '../lib/api';
 import { AreaCreator } from './AreaCreator';
+import { ImproveDescription } from './ImproveDescription';
 import { MarkdownField } from './MarkdownField';
 import { TaskNotes } from './TaskNotes';
 import { PrioritySelect } from './PrioritySelect';
@@ -95,7 +96,17 @@ export function TaskDetails({ snapshot, task, company, playbooks, notes, isLive,
       <section className="details-section" aria-label="Notes and description">
         <h3>Description and notes</h3>
         <div className="notes">
-          <span>About this task</span>
+          <div className="description-field-head">
+            <span>About this task</span>
+            <ImproveDescription
+              request={{ key: task.id, companyId: task.companyId, title: task.title, description, subdomainId: task.subdomainId, projectIds: task.projectIds, accountId: task.accountId }}
+              currentDescription={description}
+              onAccept={(text) => {
+                setDescription(text);
+                void patch({ description: text });
+              }}
+            />
+          </div>
           <MarkdownField
             label="About this task"
             value={description}

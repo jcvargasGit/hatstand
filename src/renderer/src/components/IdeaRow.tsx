@@ -4,6 +4,7 @@ import type { Task } from '../../../shared/schemas';
 import { useAction } from '../hooks/useAction';
 import { api } from '../lib/api';
 import { checklistProgress, firstLine, ideaTitleId } from '../lib/inbox';
+import { ImproveDescription } from './ImproveDescription';
 import { PrioritySelect } from './PrioritySelect';
 
 type IdeaRowProps = {
@@ -139,6 +140,17 @@ export function IdeaRow({ task, selected, onSelect, picked, onPick, onChanged, o
                 <ArrowRight size={14} />
                 <span className="idea-action-label">Make it a task</span>
               </button>
+              <ImproveDescription
+                compact
+                request={{ key: `${task.id}-row`, companyId: task.companyId, title: task.title, description: task.description, subdomainId: task.subdomainId, projectIds: task.projectIds, accountId: task.accountId }}
+                currentDescription={task.description}
+                onAccept={(description) =>
+                  void run(async () => {
+                    await api.updateTask(task.id, { description });
+                    await onChanged();
+                  })
+                }
+              />
               <button className="quiet" aria-label={`Delete ${task.title}`} title="Delete" onClick={() => setConfirming(true)}>
                 <Trash2 size={14} />
               </button>
