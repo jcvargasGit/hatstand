@@ -3,6 +3,7 @@ import { cleanup, render, screen, waitFor, within } from '@testing-library/react
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IdeaDetails } from '../../src/renderer/src/components/IdeaDetails';
+import { IdeaRow } from '../../src/renderer/src/components/IdeaRow';
 import { NewTaskPage } from '../../src/renderer/src/components/NewTaskPage';
 import type { Bridge, Snapshot } from '../../src/shared/api';
 import type { SuggestionRequest } from '../../src/shared/description-suggestion';
@@ -105,6 +106,24 @@ describe('improving the description of an inbox item', () => {
     expect(calls.suggest).toHaveBeenLastCalledWith(expect.objectContaining({ description: 'Staging only and prod' }));
     await within(await dialog()).findByText('A fuller description');
     expect(screen.queryByRole('note')).toBeNull();
+  });
+});
+
+describe('improving the description from an inbox row', () => {
+  it('opens the suggestion without opening the row, and saves only the description', async () => {
+    const onSelect = vi.fn();
+    render(
+      <table>
+        <tbody>
+          <IdeaRow task={task} selected={false} onSelect={onSelect} picked={false} onPick={() => {}} onChanged={async () => undefined} onMadeTask={() => {}} onDragStart={() => {}} onDropHere={() => {}} />
+        </tbody>
+      </table>,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Improve the description of Fix the login' }));
+    await userEvent.click(await within(await dialog()).findByRole('button', { name: 'Accept' }));
+    await waitFor(() => expect(calls.updateTask).toHaveBeenCalledWith('one', { description: 'A fuller description' }));
+    expect(calls.suggest).toHaveBeenCalledWith(expect.objectContaining({ key: 'one-row', description: 'Staging only' }));
+    expect(onSelect).not.toHaveBeenCalled();
   });
 });
 

@@ -225,6 +225,18 @@ describe('TaskPanel', () => {
     return onChanged;
   };
 
+  it('improves the description of a created task, and saves only the description', async () => {
+    const base = invoke.getMockImplementation();
+    invoke.mockImplementation(async (method: string, ...args: unknown[]) => (method === 'suggestDescription' ? { description: 'A fuller description' } : base?.(method, ...args)));
+    renderPanel(task({ description: 'Old text', projectIds: ['api'] }));
+    await userEvent.click(screen.getByRole('tab', { name: /Details/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Improve description' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Suggested description' });
+    expect(invoke).toHaveBeenCalledWith('suggestDescription', expect.objectContaining({ key: 't', title: 'Fix login', description: 'Old text', projectIds: ['api'] }));
+    await userEvent.click(await within(dialog).findByRole('button', { name: 'Accept' }));
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith('updateTask', 't', { description: 'A fuller description' }));
+  });
+
   it('asks before deleting, and cancel keeps the task', async () => {
     renderPanel(task());
     await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
