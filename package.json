@@ -25,6 +25,7 @@
     "start": "node scripts/dev.mjs preview",
     "install:app": "node scripts/install-app.mjs",
     "dev:sync": "node scripts/dev-sync.mjs",
+    "dev:sandbox": "node scripts/dev-sandbox.mjs",
     "release": "node scripts/release.mjs",
     "test:packaged": "node tests/e2e/packaged.mjs",
     "test": "vitest run",

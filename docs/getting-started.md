@@ -101,6 +101,21 @@ Not tested yet: a real Linux desktop, x86-64, other distributions, GNOME Keyring
 
 Without internet, or on a machine that cannot download Electron or build `node-pty`, `pnpm install` warns and finishes. `pnpm test`, `pnpm type-check` and `pnpm build` still work there. The app itself needs Electron to open. Download the Electron zip of the version in `node_modules/electron/package.json` for that machine, check it against `node_modules/electron/checksums.json`, unzip it outside the repository, and set `ELECTRON_OVERRIDE_DIST_PATH` to that folder for `pnpm dev` and `pnpm test:e2e`. On Linux as root, `pnpm dev` adds `--no-sandbox`, which Electron requires there.
 
+### Try it without an agent
+
+On a machine with no agent signed in, such as a test sandbox, run:
+
+```bash
+pnpm dev:sandbox
+```
+
+- **It opens Hatstand with made-up data:** a client called Acme, with a repository and one task. The data lives in a temporary folder, not in `~/.hatstand`.
+- **It uses a fake `claude` instead of the real one.** The fake echoes what you type, and records each launch in `log/launches.jsonl`: the arguments, the folder, and the names of the environment variables.
+- **It finds Electron by itself** in `/workspace` or next to the repository, if you unzipped it there. When Electron's sandbox helper is not set up, as happens with an unzipped Electron, it turns the sandbox off.
+- **Keys:** on Linux, it stores keys with a key that is not secret. That is safe here only because the data is made up.
+
+Run it again to keep the same data, add `--fresh` to start over, or add `--check` to see what it would use without opening the app.
+
 ## End-to-end tests
 
 `pnpm test:e2e` builds the app and drives it with the window hidden, throwaway data and a fake agent. To run only some suites, build first and name them:
