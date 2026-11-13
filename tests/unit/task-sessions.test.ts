@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -113,7 +113,6 @@ describe('PromptPrefill', () => {
 
 describe('the suggested prompt', () => {
   const task = { title: 'Fix it', projectIds: [] } as unknown as Task;
-  const repo = (name: string) => ({ id: name, name, path: `/${name}` });
 
   it('names the chosen repositories', () => {
     expect(buildInitialPrompt(task, ['api', 'web'])).toContain('Focus on api, web.');

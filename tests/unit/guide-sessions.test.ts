@@ -172,7 +172,7 @@ describe('text in the terminal', () => {
   });
 
   it('does not let a second click stack two prompts', async () => {
-    const { taskId, sessionId } = await startTask();
+    const { taskId } = await startTask();
     sessions.moveGuideStep(taskId, 1);
     expect(() => sessions.moveGuideStep(taskId, 2)).toThrow(/still in the terminal/);
   });
