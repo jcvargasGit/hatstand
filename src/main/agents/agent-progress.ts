@@ -98,7 +98,7 @@ export function readAgentProgress(transcript: string, startedAt: number, now: nu
       if (BACKGROUND_TOOLS.includes(block.name) && block.input?.run_in_background && block.id && current) launched.set(block.id, at);
       const stopped = STOP_TOOLS.includes(block.name) ? (block.input?.task_id ?? block.input?.shell_id) : undefined;
       if (stopped) {
-        for (const id of [...launched.keys()]) {
+        for (const id of launched.keys()) {
           if (results.get(id)?.includes(stopped)) launched.delete(id);
         }
       }

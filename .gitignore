@@ -15,10 +15,8 @@ accounts.yaml
 secrets/
 knowledge/
 
-# Agent files stay out of this repository. src/main/agents is product code.
-.git/
+# Agent files stay out of this repository, except CLAUDE.md, which holds the shared rules. src/main/agents is product code.
 AGENTS.md
-CLAUDE.md
 GEMINI.md
 .agents/
 .claude/

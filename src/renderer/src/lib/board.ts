@@ -54,7 +54,7 @@ export function placeOnBoard(item: TodayItem): { lane: LaneId; reason: string } 
 }
 
 export function moveOnBoard(item: TodayItem, target: LaneId): BoardMove {
-  const { session, task, company } = item;
+  const { session, company } = item;
   const pulls = item.pulls ?? [];
   const current = placeOnBoard(item).lane;
   const running = session?.state === 'working' || session?.state === 'background' || session?.state === 'needs-input';
