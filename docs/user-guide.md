@@ -194,15 +194,15 @@ You can drag a card, or use its **Move to** list. Working starts or resumes the 
 
 The **Closed tasks** tab of a client lists its finished tasks by work period, newest first. Set the length there, in days, weeks or calendar months, with the date the first period starts. Each client has its own, and the default is a calendar month. Tasks closed before this existed show an approximate date.
 
-### Inbox
+### Backlog
 
-The **Inbox** of each client (⌘I) keeps work you have not defined yet, out of your tasks. Paste a list or a table and each row becomes an item, or keep it as one. Sidebar and Today remind you how many are waiting for review. **Make it a task** moves one to your tasks.
+The **Backlog** of each client (⌘I) keeps work you have not defined yet, out of your tasks. Paste a list or a table and each row becomes an item, or keep it as one. Sidebar and Today remind you how many are waiting for review. **Make it a task** moves one to your tasks. **Send back to backlog**, in an open task, does the opposite: the task leaves your tasks and waits at the end of the backlog, with its notes and session history.
 
-Each line you write or paste is a task. A line that starts with two spaces and a dash becomes a checklist item of the task above, so a list with sublists stays together. The inbox says how many tasks it will add before you add them. Items wait in a table: change their order by dragging or with the arrows, give them a priority, and sort by priority when you want to. Click a row to see and edit its details in a sidebar, which covers the table when the window is narrow. The checklist and priority stay when you make it a task, and the agent reads the checklist.
+Each line you write or paste is a task. A line that starts with two spaces and a dash becomes a checklist item of the task above, so a list with sublists stays together. The backlog says how many tasks it will add before you add them. Items wait in a table: change their order by dragging or with the arrows, give them a priority, and sort by priority when you want to. Click a row to see and edit its details in a sidebar, which covers the table when the window is narrow. The checklist and priority stay when you make it a task, and the agent reads the checklist.
 
 ### Run with assistant
 
-Tick the inbox tasks you want planned, and choose **Run with assistant** in that client's group. Each client has its own button, so a plan never mixes clients. Hatstand asks first. It shows the defaults for this client and warns when its agents ask for permission, because a run would stop at every prompt. It does not change that setting. Then it creates a planning task and starts its session, with the prompt written for you to send.
+Tick the backlog tasks you want planned, and choose **Run with assistant** in that client's group. Each client has its own button, so a plan never mixes clients. Hatstand asks first. It shows the defaults for this client and warns when its agents ask for permission, because a run would stop at every prompt. It does not change that setting. Then it creates a planning task and starts its session, with the prompt written for you to send.
 
 The assistant reads the tasks, and the code and documents they touch, and proposes:
 
@@ -212,7 +212,7 @@ The assistant reads the tasks, and the code and documents they touch, and propos
 
 It writes the plan as JSON in `~/.hatstand/companies/<client>/tasks/plans/<task>.json`, outside any repository, and names each task by its number, such as 12 for #12. A Zod schema checks it, and the assistant runs `hatstand-check-plan` to check it the same way before it finishes. The planning task shows the plan, and you can edit it there. Each change is checked as you make it.
 
-**Approve plan** records that you reviewed this exact version. It does not start or change any task, and the inbox stays as it was. If the plan changes after you approve it, the approval no longer counts, and you approve it again.
+**Approve plan** records that you reviewed this exact version. It does not start or change any task, and the backlog stays as it was. If the plan changes after you approve it, the approval no longer counts, and you approve it again.
 
 The client's settings keep the defaults for a run: 2 tasks at a time, and stop at the commit. For now the assistant only proposes the plan.
 

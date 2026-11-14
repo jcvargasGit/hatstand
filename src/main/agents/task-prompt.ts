@@ -97,7 +97,7 @@ function backlogSection({ planFile, items, schema }: BacklogPromptInput): string
   ]);
   return [
     '## Backlog to plan',
-    `The person selected these ${items.length === 1 ? 'inbox task' : `${items.length} inbox tasks`}, in their current inbox order, and asks for an implementation plan. It is a proposal: the person edits and approves it, and approving it does not start any work.`,
+    `The person selected these ${items.length === 1 ? 'backlog task' : `${items.length} backlog tasks`}, in their current backlog order, and asks for an implementation plan. It is a proposal: the person edits and approves it, and approving it does not start any work.`,
     '',
     ...details,
     '## How to write the plan',
@@ -251,7 +251,7 @@ export function buildStepPrompt(task: Task, focus: string[]): string | null {
 export function buildBacklogPrompt(task: Task): string {
   const count = task.backlogPlan?.items.length ?? 0;
   return singleLine(
-    `Read the ${count === 1 ? 'inbox task' : `${count} inbox tasks`} listed in your instructions under "Backlog to plan", and the code and documents they touch, using read-only commands. Then propose the implementation plan: write it to the plan file and check it with ${CHECK_PLAN_COMMAND}. Do not change any code.`,
+    `Read the ${count === 1 ? 'backlog task' : `${count} backlog tasks`} listed in your instructions under "Backlog to plan", and the code and documents they touch, using read-only commands. Then propose the implementation plan: write it to the plan file and check it with ${CHECK_PLAN_COMMAND}. Do not change any code.`,
   );
 }
 

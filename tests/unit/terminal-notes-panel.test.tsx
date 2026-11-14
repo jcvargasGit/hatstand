@@ -165,7 +165,7 @@ describe('showing and hiding the panel in the task', () => {
   };
   const task: Task = { id: 't', companyId: 'acme', title: 'Fix login', description: '', note: '', status: 'doing', projectIds: [], checklist: [], priority: 'none', isolated: false, worktrees: [], createdAt: '2026-01-01', updatedAt: '2026-01-01' };
   const snapshot = { companies: [company], accounts: { defaultAccountId: 'c', accounts: [{ id: 'c', name: 'Claude', type: 'claude-code', label: 'personal' }] }, tasks: [task], sessions: [session()], reviews: {} } as unknown as Snapshot;
-  const renderTask = () => render(<TaskPanel snapshot={snapshot} task={task} onChanged={vi.fn(async () => {})} onOpenClient={vi.fn()} />);
+  const renderTask = () => render(<TaskPanel snapshot={snapshot} task={task} onChanged={vi.fn(async () => {})} onOpenClient={vi.fn()} onSentBack={vi.fn()} />);
 
   it('hides it, gives the keyboard back to the terminal and remembers the choice', async () => {
     localStorage.setItem('hatstand.notes-panel', 'open');

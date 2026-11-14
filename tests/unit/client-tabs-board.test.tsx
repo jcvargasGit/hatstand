@@ -21,11 +21,11 @@ const item = (change: Record<string, unknown> = {}, extra: Partial<TodayItem> = 
 });
 
 describe('the sections of a client', () => {
-  it('are tabs, with the inbox count and the current one marked', async () => {
+  it('are tabs, with the backlog count and the current one marked', async () => {
     const onSelect = vi.fn();
     render(<ClientTabs company={company} active="tasks" inboxCount={3} onSelect={onSelect} />);
     expect(screen.getByRole('tab', { name: 'Tasks' }).getAttribute('aria-selected')).toBe('true');
-    await userEvent.click(screen.getByRole('tab', { name: 'Inbox 3' }));
+    await userEvent.click(screen.getByRole('tab', { name: 'Backlog 3' }));
     expect(onSelect).toHaveBeenCalledWith('inbox');
   });
 });

@@ -28,14 +28,14 @@ export function createBacklogPlanTask(store: Store, companyId: string, taskIds: 
   const inbox = store.listTasks(companyId);
   const items = ids.map((id) => {
     const item = inbox.find((candidate) => candidate.id === id);
-    if (!item) throw new Error('A selected task is no longer in this client\'s inbox. Check your selection and try again.');
-    if (item.status !== 'idea' || item.archivedAt) throw new Error(`"${item.title}" is no longer in the inbox. Check your selection and try again.`);
+    if (!item) throw new Error('A selected task is no longer in this client\'s backlog. Check your selection and try again.');
+    if (item.status !== 'idea' || item.archivedAt) throw new Error(`"${item.title}" is no longer in the backlog. Check your selection and try again.`);
     if (item.number === undefined) throw new Error(`"${item.title}" has no task number yet. Reopen Hatstand and try again.`);
     return { ...item, number: item.number };
   });
   const title = `Plan the backlog: ${items.length === 1 ? '1 task' : `${items.length} tasks`}`;
   const description = [
-    'The assistant proposes an implementation plan for these inbox tasks: the order, the dependencies, what cannot be developed at the same time, and what needs your decision first. It does not change code. Approving the plan records your review, and starts nothing.',
+    'The assistant proposes an implementation plan for these backlog tasks: the order, the dependencies, what cannot be developed at the same time, and what needs your decision first. It does not change code. Approving the plan records your review, and starts nothing.',
     '',
     ...items.map((item) => `- #${item.number} ${item.title}`),
   ].join('\n');

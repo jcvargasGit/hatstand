@@ -90,19 +90,19 @@ try {
   await page.setViewportSize({ width: 1280, height: 860 });
   await page.getByRole('button', { name: 'Search everything' }).first().waitFor();
 
-  // Inbox: a sublist becomes the checklist of its parent, and it says what it will add.
+  // Backlog: a sublist becomes the checklist of its parent, and it says what it will add.
   await page.getByRole('button', { name: 'Acme', exact: true }).waitFor();
   await page.keyboard.press(shortcut('i'));
-  await page.getByRole('heading', { name: 'Inbox', exact: true }).waitFor();
+  await page.getByRole('heading', { name: 'Backlog', exact: true }).waitFor();
   await page.locator(".inbox-capture select").selectOption(platform.id);
   await page.getByText('A new line alone adds details, not a task.').waitFor();
   const long = 'Una frase inventada y muy larga para probar que una lista con sublistas se ve bien y que el texto largo no se salga nunca de la pantalla aunque la ventana sea angosta';
   await page.getByLabel('Paste or write what you have in mind').fill(`- Primera tarea\n  - Leer el resumen\n  - Hacer la prueba\n- Segunda tarea\n- ${long}`);
-  await page.getByRole('status').getByText('This adds 3 tasks to the inbox, with 2 checklist items.').waitFor();
+  await page.getByRole('status').getByText('This adds 3 tasks to the backlog, with 2 checklist items.').waitFor();
   await page.getByRole('list', { name: 'Tasks to add' }).getByText('Leer el resumen').waitFor();
   await shot('inbox-preview');
   await page.getByRole('button', { name: 'Add 3 tasks' }).click();
-  const group = page.getByRole('region', { name: 'Harbor Studio inbox' });
+  const group = page.getByRole('region', { name: 'Harbor Studio backlog' });
   await group.getByText('3 tasks to review').waitFor();
   await group.locator('td.idea-col-checklist').getByText('0 of 2 done').waitFor();
   const titles = () => group.locator('.idea-toggle span').allInnerTexts();
@@ -119,7 +119,7 @@ try {
   await shot('inbox-list');
 
   // A row opens its details beside the table, and Escape saves and closes them.
-  const details = page.getByRole('complementary', { name: 'Inbox item details' });
+  const details = page.getByRole('complementary', { name: 'Backlog item details' });
   await group.getByRole('button', { name: 'Segunda tarea', exact: true }).click();
   await details.getByRole('button', { name: 'Details', exact: true }).click();
   await details.getByRole('textbox', { name: 'Details' }).fill('Lo que se sabe **hasta ahora**');
@@ -146,7 +146,7 @@ try {
   await suggestion.waitFor({ state: 'detached' });
   await until(async () => (await invoke('getSnapshot')).tasks.find((item) => item.title === 'Segunda tarea')?.description === 'Mejor descripción **sugerida**', 'saving the accepted description');
   const improved = (await invoke('getSnapshot')).tasks.find((item) => item.title === 'Segunda tarea');
-  assert.equal(improved.status, 'idea', 'An improved item stays in the inbox.');
+  assert.equal(improved.status, 'idea', 'An improved item stays in the backlog.');
   const suggestionRun = JSON.parse(readFileSync(join(root, 'suggestion.json'), 'utf8'));
   assert.equal(suggestionRun.args[suggestionRun.args.indexOf('--allowedTools') + 1], 'Read,Grep,Glob', 'The assistant can only read.');
   assert.ok(suggestionRun.args[1].includes('Lo que se sabe **hasta ahora**'), 'The assistant gets the current description.');
@@ -156,15 +156,15 @@ try {
   // Long text stays inside the page, at a large, a normal and a narrow size.
   await page.setViewportSize({ width: 2560, height: 1300 });
   await page.waitForTimeout(150);
-  await noSidewaysOverflow('.inbox-page', 'The large inbox');
+  await noSidewaysOverflow('.inbox-page', 'The large backlog');
   const large = await page.evaluate(() => ({ table: document.querySelector('.inbox-table').getBoundingClientRect().width, page: document.querySelector('.inbox-page').getBoundingClientRect().width }));
   assert.ok(large.table > large.page * 0.9, 'The table uses the width of a large window.');
   await page.setViewportSize({ width: 1280, height: 860 });
   await page.waitForTimeout(150);
-  await noSidewaysOverflow('.inbox-page', 'The inbox');
+  await noSidewaysOverflow('.inbox-page', 'The backlog');
   await page.setViewportSize({ width: 640, height: 760 });
   await page.waitForTimeout(150);
-  await noSidewaysOverflow('.inbox-page', 'The narrow inbox');
+  await noSidewaysOverflow('.inbox-page', 'The narrow backlog');
   await shot('inbox-narrow');
   await group.getByRole('button', { name: 'Segunda tarea', exact: true }).click();
   const narrowDetails = await details.boundingBox();
@@ -176,8 +176,8 @@ try {
   await page.setViewportSize({ width: 1280, height: 860 });
 
   // The tree says what a client holds.
-  await page.getByRole('button', { name: 'Inbox of Harbor Studio' }).click();
-  await page.getByRole('tab', { name: /^Inbox/, selected: true }).waitFor();
+  await page.getByRole('button', { name: 'Backlog of Harbor Studio' }).click();
+  await page.getByRole('tab', { name: /^Backlog/, selected: true }).waitFor();
   await page.getByRole('button', { name: 'Tasks of Harbor Studio' }).click();
   await page.getByRole('tab', { name: 'Tasks', selected: true }).waitFor();
 

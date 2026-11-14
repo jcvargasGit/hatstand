@@ -78,7 +78,7 @@ export function InboxPage({ snapshot, companyId, onOpenTask, onChanged }: InboxP
   return (
     <main className={selected ? 'page inbox-page has-details' : 'page inbox-page'}>
       <div className="inbox-list">
-      {companyId ? <h2>Inbox</h2> : <h1>Inbox</h1>}
+      {companyId ? <h2>Backlog</h2> : <h1>Backlog</h1>}
       <p className="hint">Keep work you have not defined yet. It stays out of your tasks until you make it one.</p>
 
       <InboxCapture companies={snapshot.companies} companyId={companyId} onChanged={onChanged} />
@@ -95,7 +95,7 @@ export function InboxPage({ snapshot, companyId, onOpenTask, onChanged }: InboxP
           const allChosen = chosen.length === items.length;
           return (
             items.length > 0 && (
-              <section key={company.id} className="inbox-group" aria-label={`${company.name} inbox`}>
+              <section key={company.id} className="inbox-group" aria-label={`${company.name} backlog`}>
                 <h2 className="title-with-avatar">
                   <ClientAvatar company={company} size="small" />
                   {company.name}
