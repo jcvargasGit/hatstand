@@ -8,9 +8,11 @@ Notable changes to Hatstand are recorded here. The format follows [Keep a Change
 
 - First public version, run from source on macOS and, as an experiment, on Linux.
 - Contribution, security and conduct policies, with CI on macOS and Linux.
+- **Send back to backlog**, in an open task, moves a task that is not defined yet out of your tasks.
 
 ### Changed
 
+- The Inbox is now called Backlog. The shortcut is the same.
 - On Linux, Hatstand refuses to save keys when there is no secret store, instead of protecting them with a fixed password.
 
 ### Fixed

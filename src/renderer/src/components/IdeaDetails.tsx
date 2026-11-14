@@ -40,9 +40,9 @@ export function IdeaDetails({ task, onClose, onChanged, onMadeTask }: IdeaDetail
   });
 
   return (
-    <aside className="idea-details" aria-label="Inbox item details">
+    <aside className="idea-details" aria-label="Backlog item details">
       <div className="idea-details-head">
-        <h3>Inbox item</h3>
+        <h3>Backlog item</h3>
         <button autoFocus className="quiet" aria-label="Close details" title="Close" onClick={onClose}>
           <X size={14} />
         </button>

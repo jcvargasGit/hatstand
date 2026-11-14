@@ -109,10 +109,10 @@ try {
   await invoke('setSecret', company.id, 'CLIENT_KEY', SECRET);
   await page.reload();
 
-  // Inbox: paste work that is not defined yet, and find it again later.
+  // Backlog: paste work that is not defined yet, and find it again later.
   await page.getByRole('button', { name: 'Northwind', exact: true }).click();
   await page.keyboard.press(shortcut('i'));
-  await page.getByRole('tab', { name: 'Inbox', selected: true }).waitFor();
+  await page.getByRole('tab', { name: 'Backlog', selected: true }).waitFor();
   await page.getByLabel('Paste or write what you have in mind').fill(
     `│ Revisar el menú       │ Medio          │ Después  │
 ├─────────────────────────────┼────────────────┼──────────┤
@@ -123,16 +123,22 @@ try {
   await page.getByRole('list', { name: 'Tasks to add' }).getByText('Cambiar colores (Tema)').waitFor();
   await shot('inbox-preview');
   await page.getByRole('button', { name: 'Add 3 tasks' }).click();
-  await page.getByRole('region', { name: 'Northwind inbox' }).getByText('3 tasks to review').waitFor();
+  await page.getByRole('region', { name: 'Northwind backlog' }).getByText('3 tasks to review').waitFor();
   await shot('inbox-saved');
   assert.equal(await page.getByRole('region', { name: 'Northwind tasks' }).getByText('Revisar el menú').count(), 0, 'Ideas stay out of the task list.');
   await page.getByRole('button', { name: 'Northwind', exact: true }).click();
   await page.getByRole('tab', { name: 'Tasks', selected: true }).waitFor();
   await shot('client-tasks');
-  await page.getByRole('tab', { name: 'Inbox 3' }).click();
+  await page.getByRole('tab', { name: 'Backlog 3' }).click();
   await page.getByRole('button', { name: 'Delete Mapa del sitio' }).click();
   await page.getByRole('button', { name: 'Delete', exact: true }).click();
   await page.getByText('2 tasks to review').waitFor();
+
+  // A task that was not ready goes back to the backlog.
+  await page.locator('.idea-row', { hasText: 'Cambiar colores (Tema)' }).getByRole('button', { name: 'Make it a task' }).click();
+  await page.getByRole('region', { name: 'Task' }).getByRole('button', { name: 'Send back to backlog' }).click();
+  await page.getByRole('tab', { name: 'Backlog 2', selected: true }).waitFor();
+  await page.getByRole('region', { name: 'Northwind backlog' }).getByText('Cambiar colores (Tema)').waitFor();
 
   // An idea becomes a task, and gets its own copy of the code.
   const row = page.locator('.idea-row', { hasText: 'Revisar el menú' });
@@ -510,7 +516,7 @@ try {
   await page.setViewportSize({ width: 1280, height: 860 });
   await page.locator('.lane-next').waitFor();
   assert.equal(readFileSync(join(home, 'preferences.yaml'), 'utf8').includes('todayLayout: board'), true);
-  await page.getByRole('button', { name: /2 items? in your inbox|1 item in your inbox/ }).waitFor();
+  await page.getByRole('button', { name: /2 items? in your backlog|1 item in your backlog/ }).waitFor();
   await page.locator('.lane-ready').getByText('Second task').waitFor({ timeout: 15000 });
 
   assert.deepEqual(failures, []);

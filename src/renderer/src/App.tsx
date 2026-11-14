@@ -93,14 +93,14 @@ export function App() {
     () => [
       { id: 'new-task', title: 'New task', hint: shortcutLabel('N'), run: () => navigate({ kind: 'new-task', companyId: viewCompanyId }) },
       { id: 'next-waiting', title: 'Next task waiting for you', hint: shortcutLabel('J'), run: openNextWaiting },
-      { id: 'inbox', title: 'Open inbox', hint: shortcutLabel('I'), run: () => navigate({ kind: 'inbox', companyId: viewCompanyId }) },
+      { id: 'inbox', title: 'Open backlog', hint: shortcutLabel('I'), run: () => navigate({ kind: 'inbox', companyId: viewCompanyId }) },
       { id: 'today', title: 'Go to Today', run: () => navigate({ kind: 'today', companyId: null }) },
       { id: 'settings', title: 'Open settings', hint: shortcutLabel(','), run: () => navigate({ kind: 'settings' }) },
       { id: 'awake-sessions', title: 'Stay awake while a session is running', run: () => void api.setStayAwake('sessions') },
       { id: 'awake-always', title: 'Stay awake while Hatstand is open', run: () => void api.setStayAwake('always') },
       { id: 'awake-off', title: 'Turn off stay awake', run: () => void api.setStayAwake('off') },
       ...(snapshot?.companies.filter((company) => !company.archivedAt) ?? []).flatMap((company) => [
-        { id: `inbox-${company.id}`, title: `Inbox for ${company.name}`, run: () => navigate({ kind: 'inbox', companyId: company.id }) },
+        { id: `inbox-${company.id}`, title: `Backlog for ${company.name}`, run: () => navigate({ kind: 'inbox', companyId: company.id }) },
         { id: `closed-${company.id}`, title: `Closed tasks of ${company.name}`, run: () => navigate({ kind: 'closed', companyId: company.id }) },
         { id: `hub-${company.id}`, title: `Areas of ${company.name}`, run: () => navigate({ kind: 'hub', companyId: company.id }) },
         { id: `documents-${company.id}`, title: `Documents for ${company.name}`, run: () => navigate({ kind: 'documents', companyId: company.id }) },
@@ -153,7 +153,7 @@ export function App() {
       )}
       {view.kind === 'today' &&
         (task ? (
-          <TaskPanel key={task.id} snapshot={snapshot} task={task} onChanged={refresh} onOpenClient={openClientSettings} />
+          <TaskPanel key={task.id} snapshot={snapshot} task={task} onChanged={refresh} onOpenClient={openClientSettings} onSentBack={(companyId) => navigate({ kind: 'inbox', companyId })} />
         ) : (
           <TodayPage
             snapshot={active}

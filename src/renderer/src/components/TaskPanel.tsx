@@ -1,4 +1,4 @@
-import { Archive, ArchiveRestore, Check, Play, Plus, RotateCcw, Settings, Square, Trash2, Maximize2, Minimize2, PanelRightClose, PanelRightOpen } from 'lucide-react';
+import { Archive, ArchiveRestore, Check, Play, Plus, RotateCcw, Settings, Square, Trash2, Undo2, Maximize2, Minimize2, PanelRightClose, PanelRightOpen } from 'lucide-react';
 import { useState } from 'react';
 import type { Snapshot } from '../../../shared/api';
 import { hasWorkspace } from '../../../shared/readiness';
@@ -32,9 +32,10 @@ type TaskPanelProps = {
   task: Task;
   onChanged: () => Promise<void>;
   onOpenClient: (companyId: string) => void;
+  onSentBack: (companyId: string) => void;
 };
 
-export function TaskPanel({ snapshot, task, onChanged, onOpenClient }: TaskPanelProps) {
+export function TaskPanel({ snapshot, task, onChanged, onOpenClient, onSentBack }: TaskPanelProps) {
   const company = snapshot.companies.find((item) => item.id === task.companyId);
   const session = latestSession(snapshot.sessions, task.id);
   const isLive = session !== undefined && session.state !== 'stopped';
@@ -73,6 +74,7 @@ export function TaskPanel({ snapshot, task, onChanged, onOpenClient }: TaskPanel
   const readyToClose = isReadyToClose(reviewedItem);
   const finished = task.status === 'done' || task.archivedAt !== undefined;
   const doneText = doneWarning(reviewedItem);
+  const canSendBack = (task.status === 'todo' || task.status === 'doing') && !task.archivedAt;
 
   const patch = (change: TaskPatch) =>
     run(async () => {
@@ -91,6 +93,13 @@ export function TaskPanel({ snapshot, task, onChanged, onOpenClient }: TaskPanel
       setConfirmingDone(false);
       if (isLive) await api.stopSession(session.id);
       await api.updateTask(task.id, { status: 'done' });
+    });
+
+  const sendBack = () =>
+    run(async () => {
+      await api.updateTask(task.id, { status: 'idea' });
+      await onChanged();
+      onSentBack(task.companyId);
     });
 
   const startThen = (action: () => Promise<unknown>) =>
@@ -161,6 +170,12 @@ export function TaskPanel({ snapshot, task, onChanged, onOpenClient }: TaskPanel
             >
               <Check size={15} />
               {readyToClose ? 'Close task' : isLive ? 'Stop and mark done' : 'Mark done'}
+            </button>
+          )}
+          {canSendBack && (
+            <button className="quiet" title={isLive ? 'Stop the session to send this task back' : 'Move this task out of your tasks, into the backlog'} disabled={busy || isLive} onClick={() => void sendBack()}>
+              <Undo2 size={14} />
+              Send back to backlog
             </button>
           )}
           {task.archivedAt ? (

@@ -68,7 +68,7 @@ describe('pasting a list with sublists', () => {
   });
 });
 
-describe('writing the inbox in Markdown', () => {
+describe('writing the backlog in Markdown', () => {
   it('makes a title a task and the list inside it its checklist', () => {
     expect(splitPaste('# Fix the login\n- Reproduce it\n- Write a test\n\n## Review the report\n1. Check the totals')).toEqual([
       { title: 'Fix the login', description: '', checklist: ['Reproduce it', 'Write a test'] },

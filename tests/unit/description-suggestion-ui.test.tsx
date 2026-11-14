@@ -42,7 +42,7 @@ const task = taskSchema.parse({ id: 'one', companyId: 'c', title: 'Fix the login
 const renderDetails = () => render(<IdeaDetails task={task} onClose={() => {}} onChanged={async () => undefined} onMadeTask={() => {}} />);
 const dialog = () => screen.findByRole('dialog', { name: 'Suggested description' });
 
-describe('improving the description of an inbox item', () => {
+describe('improving the description of a backlog item', () => {
   it('asks for a suggestion with the item and its repositories', async () => {
     renderDetails();
     await userEvent.click(screen.getByRole('button', { name: 'Improve description' }));
@@ -109,7 +109,7 @@ describe('improving the description of an inbox item', () => {
   });
 });
 
-describe('improving the description from an inbox row', () => {
+describe('improving the description from a backlog row', () => {
   it('opens the suggestion without opening the row, and saves only the description', async () => {
     const onSelect = vi.fn();
     render(

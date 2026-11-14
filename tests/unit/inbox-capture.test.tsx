@@ -24,28 +24,28 @@ const renderCapture = () => {
   return { onChanged, box: screen.getByLabelText<HTMLTextAreaElement>('Paste or write what you have in mind') };
 };
 
-describe('writing in the inbox', () => {
+describe('writing in the backlog', () => {
   it('shows what will be added as you write', () => {
     const { box } = renderCapture();
     expect(screen.queryByRole('list', { name: 'Tasks to add' })).toBeNull();
     fireEvent.change(box, { target: { value: '# Fix the login\n- Reproduce it\n- Write a test\n# Review' } });
     const checklist = screen.getByRole('list', { name: 'Checklist of Fix the login' });
     expect(within(checklist).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['Reproduce it', 'Write a test']);
-    expect(screen.getByRole('status').textContent).toBe('This adds 2 tasks to the inbox, with 2 checklist items.');
+    expect(screen.getByRole('status').textContent).toBe('This adds 2 tasks to the backlog, with 2 checklist items.');
     expect(screen.getByRole('button', { name: 'Add 2 tasks' })).toBeTruthy();
   });
 
   it('counts one task when new lines only add details', () => {
     const { box } = renderCapture();
     fireEvent.change(box, { target: { value: 'Fix the login\nIt fails on Safari' } });
-    expect(screen.getByRole('status').textContent).toBe('This adds 1 task to the inbox.');
+    expect(screen.getByRole('status').textContent).toBe('This adds 1 task to the backlog.');
     expect(screen.getByRole('list', { name: 'Tasks to add' }).textContent).toContain('It fails on Safari');
   });
 
   it('adds the task with its checklist and clears the text', async () => {
     const { box, onChanged } = renderCapture();
     fireEvent.change(box, { target: { value: '# Fix the login\n- Reproduce it' } });
-    await userEvent.click(screen.getByRole('button', { name: 'Add to inbox' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add to backlog' }));
     expect(invoke).toHaveBeenCalledWith('addIdeas', 'c', [{ title: 'Fix the login', description: '', checklist: ['Reproduce it'] }]);
     expect(onChanged).toHaveBeenCalled();
     expect(box.value).toBe('');
@@ -106,7 +106,7 @@ describe('editing list lines', () => {
   });
 });
 
-describe('a task in the inbox', () => {
+describe('a task in the backlog', () => {
   const renderRow = (change: Partial<Parameters<typeof IdeaRow>[0]> = {}) => {
     const props = { task, selected: false, onSelect: vi.fn(), picked: false, onPick: vi.fn(), onChanged: vi.fn(async () => undefined), onMadeTask: vi.fn(), onMoveUp: vi.fn(), onMoveDown: vi.fn(), onDragStart: vi.fn(), onDropHere: vi.fn(), ...change };
     const { container } = render(

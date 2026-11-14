@@ -18,7 +18,7 @@ Hatstand is a desktop workspace for contractors and freelancers who work for sev
 - **Sessions** run Claude Code or GitHub Copilot CLI in a built-in terminal. An agent gets the keys and knowledge of that client only.
 - **Task copies** give each task its own git worktree and branch, so tasks cannot change each other's files and your checkout stays as you left it.
 - **Task guides** walk through a kind of work step by step. Hatstand writes each prompt, and you send it when you are ready.
-- **Run with assistant** reads the inbox tasks you pick and proposes an order to build them, what not to run at the same time, and what needs your decision first.
+- **Run with assistant** reads the backlog tasks you pick and proposes an order to build them, what not to run at the same time, and what needs your decision first.
 - **The board** moves tasks by itself from what is true right now: the session, the commits, the pull request, CI and reviews.
 - **Assigned work** comes in from Jira, GitHub and GitLab with each client's keys.
 - **Commit protection** blocks commits that contain the keys or knowledge of any client.
@@ -51,7 +51,7 @@ These protections prevent accidents. **They are not a security boundary against 
 | Guide | What it covers |
 | --- | --- |
 | [Getting started](docs/getting-started.md) | Install on macOS and Linux, and fix common problems |
-| [User guide](docs/user-guide.md) | Clients, tasks, guides, the board, the inbox and shortcuts |
+| [User guide](docs/user-guide.md) | Clients, tasks, guides, the board, the backlog and shortcuts |
 | [How Hatstand protects your data](docs/security.md) | What it protects, how, and its limits |
 | [Architecture](docs/architecture.md) | How the code is organized, and how to add an agent |
 

@@ -27,7 +27,7 @@ const tasks = [idea('a1', 'acme', 'Add the export', 0, { priority: 'high' }), id
 const snapshot = { companies: [acme, labs], tasks } as unknown as Snapshot;
 const onOpenTask = vi.fn();
 const onChanged = vi.fn(async () => undefined);
-const group = (name: string) => within(screen.getByRole('region', { name: `${name} inbox` }));
+const group = (name: string) => within(screen.getByRole('region', { name: `${name} backlog` }));
 const runButton = (name: string) => group(name).getByRole<HTMLButtonElement>('button', { name: 'Run with assistant' });
 const confirmRun = async (name: string) => {
   await userEvent.click(runButton(name));
@@ -37,7 +37,7 @@ const confirmRun = async (name: string) => {
 beforeEach(() => vi.clearAllMocks());
 afterEach(cleanup);
 
-describe('running inbox tasks with the assistant', () => {
+describe('running backlog tasks with the assistant', () => {
   it('gives each client its own button, beside sorting by priority, that waits for a selection', () => {
     render(<InboxPage snapshot={snapshot} companyId={null} onOpenTask={onOpenTask} onChanged={onChanged} />);
     expect(runButton('Acme').disabled).toBe(true);
@@ -47,7 +47,7 @@ describe('running inbox tasks with the assistant', () => {
     expect(screen.getAllByRole('button', { name: 'Run with assistant' })).toHaveLength(2);
   });
 
-  it('sends only the selected tasks of that client, in inbox order, then starts the session and opens the plan', async () => {
+  it('sends only the selected tasks of that client, in backlog order, then starts the session and opens the plan', async () => {
     render(<InboxPage snapshot={snapshot} companyId={null} onOpenTask={onOpenTask} onChanged={onChanged} />);
     await userEvent.click(screen.getByRole('checkbox', { name: 'Select Pick a library' }));
     await userEvent.click(screen.getByRole('checkbox', { name: 'Select Add the export' }));
@@ -81,7 +81,7 @@ describe('running inbox tasks with the assistant', () => {
   it('does not open the details of a row when its box is ticked', async () => {
     render(<InboxPage snapshot={snapshot} companyId="acme" onOpenTask={onOpenTask} onChanged={onChanged} />);
     await userEvent.click(screen.getByRole('checkbox', { name: 'Select Add the export' }));
-    expect(screen.queryByRole('complementary', { name: 'Inbox item details' })).toBeNull();
+    expect(screen.queryByRole('complementary', { name: 'Backlog item details' })).toBeNull();
   });
 
   it('opens the plan without a session when the client has nowhere to work yet', async () => {

@@ -45,7 +45,7 @@ import { syncTrackers } from './trackers/sync';
 
 const WINDOW_TITLE = app.isPackaged ? 'Hatstand' : 'Hatstand (development)';
 
-// Electron's default menu on Linux takes Ctrl+Shift+I, which is the shortcut of the inbox here.
+// Electron's default menu on Linux takes Ctrl+Shift+I, which is the shortcut of the backlog here.
 if (process.platform !== 'darwin') Menu.setApplicationMenu(null);
 
 // Playwright starts Electron with --password-store=basic, which leaves Linux without a keychain.
