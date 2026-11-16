@@ -2,6 +2,7 @@ import type { Snapshot } from '../../../shared/api';
 import { openPullsState, reviewTrouble } from '../../../shared/review';
 import type { BranchFact, Company, PullRequest, Session, Task } from '../../../shared/schemas';
 import { finishedWork } from '../../../shared/task-finish';
+import { formatTaskReference } from '../../../shared/task-reference';
 
 export const CLIENT_COLORS = ['#E8A33D', '#5BB8A6', '#8FA6F0', '#C58BD9', '#7CB65A', '#E58FB0', '#6CC3E8', '#E2725B'];
 export const NEUTRAL_TINT = '#8C9AF2';
@@ -107,7 +108,7 @@ export type ClientBranch = { company: Company; active: TodayItem[]; finished: To
 export function clientTree(snapshot: Snapshot, query = ''): ClientBranch[] {
   const term = query.trim().toLowerCase();
   const matches = (task: Task, company: Company) =>
-    !term || [task.title, task.source?.key ?? '', company.name, task.number ? `#${task.number}` : ''].some((text) => text.toLowerCase().includes(term));
+    !term || [task.title, task.source?.key ?? '', company.name, formatTaskReference(task) ?? '', task.id].some((text) => text.toLowerCase().includes(term));
   return snapshot.companies.flatMap((company) => {
     const items = snapshot.tasks
       .filter((task) => task.companyId === company.id && !isIdea(task) && matches(task, company))

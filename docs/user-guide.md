@@ -118,7 +118,11 @@ Clicking a task opens one of three views, and a task with a running session open
 
 ### Task numbers and issues
 
-Each client numbers its tasks #1, #2 and so on. A deleted task keeps its number, and the next task gets a new one. Under **Details**, a task can be linked by hand to a GitHub, GitLab or Jira issue, by pasting its link or a key such as `owner/repo#12`. The task keeps its number, and both show in its header. An issue can be linked to one task only. Hatstand does not create or change issues.
+Each client numbers its tasks #1, #2 and so on. A deleted task keeps its number, and the next task gets a new one.
+
+Hatstand shows the number with the id of its client, such as `acme#12`. This reference names one task across every client, in the backlog or in progress. Copy it, or the UUID of the task, from the header of a task or from the details of a backlog item. Paste either one in the search (⌘K) to find the task from any client.
+
+Under **Details**, a task can be linked by hand to a GitHub, GitLab or Jira issue, by pasting its link or a key such as `owner/repo#12`. The task keeps its number, and both show in its header. An issue can be linked to one task only. Hatstand does not create or change issues.
 
 ### Stages
 
