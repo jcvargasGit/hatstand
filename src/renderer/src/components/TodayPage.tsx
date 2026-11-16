@@ -72,7 +72,7 @@ export function TodayPage({ snapshot, companyId, onSelectTask, onOpenClient, onO
       {!company && ideas > 0 && (
         <button className="inbox-reminder" onClick={() => onOpenInbox(companyId)}>
           <Inbox size={15} />
-          {plural(ideas, 'item', 'items')} in your inbox to review
+          {plural(ideas, 'item', 'items')} in your backlog to review
         </button>
       )}
       {refreshing.error && <p className="error">{refreshing.error}</p>}

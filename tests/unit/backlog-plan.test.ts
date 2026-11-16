@@ -132,7 +132,7 @@ describe('a planning task for the backlog', () => {
     outOfScope: [{ task: 3, decisionNeeded: 'Which library?' }],
   });
 
-  it('creates a planning task that keeps the selection and leaves the inbox as it was', () => {
+  it('creates a planning task that keeps the selection and leaves the backlog as it was', () => {
     const task = createBacklogPlanTask(store, 'acme', ids());
     expect(task).toMatchObject({ title: 'Plan the backlog: 3 tasks', type: 'planning', status: 'todo', backlogPlan: { items: ids().map((id, index) => ({ id, number: index + 1 })) } });
     expect(task.description).toContain('- #1 Add the export');
@@ -140,12 +140,12 @@ describe('a planning task for the backlog', () => {
     expect(store.listTasks('acme').filter((item) => item.status === 'idea')).toHaveLength(3);
   });
 
-  it('refuses an empty selection, tasks of another client and tasks that left the inbox', () => {
+  it('refuses an empty selection, tasks of another client and tasks that left the backlog', () => {
     expect(() => createBacklogPlanTask(store, 'acme', [])).toThrow(/Select at least one task/);
-    expect(() => createBacklogPlanTask(store, 'other', ids())).toThrow(/no longer in this client's inbox/);
+    expect(() => createBacklogPlanTask(store, 'other', ids())).toThrow(/no longer in this client's backlog/);
     const [first] = inbox as [Task];
     store.updateTask(first.id, { status: 'todo' });
-    expect(() => createBacklogPlanTask(store, 'acme', ids())).toThrow(/"Add the export" is no longer in the inbox/);
+    expect(() => createBacklogPlanTask(store, 'acme', ids())).toThrow(/"Add the export" is no longer in the backlog/);
   });
 
   it('cannot get a selection or an approval through an ordinary task change', () => {
@@ -207,7 +207,7 @@ describe('a planning task for the backlog', () => {
     expect(JSON.parse(readFileSync(paths.planFile('acme', task.id), 'utf8'))).toMatchObject({ version: 1, summary: 'Mine.', notInParallel: [] });
   });
 
-  it('still knows a task by its number after it is deleted from the inbox', () => {
+  it('still knows a task by its number after it is deleted from the backlog', () => {
     const task = createBacklogPlanTask(store, 'acme', ids());
     writeFileSync(paths.planFile('acme', task.id), JSON.stringify(validPlan()));
     store.deleteTask((inbox[2] as Task).id);
@@ -284,7 +284,7 @@ describe('a planning task for the backlog', () => {
 
     it('suggests reading the tasks and writing the plan as the first prompt', () => {
       const task = createBacklogPlanTask(store, 'acme', ids());
-      expect(openingPrompt(task, [], false)).toMatch(/^Read the 3 inbox tasks listed in your instructions.*hatstand-check-plan\. Do not change any code\.$/);
+      expect(openingPrompt(task, [], false)).toMatch(/^Read the 3 backlog tasks listed in your instructions.*hatstand-check-plan\. Do not change any code\.$/);
       expect(openingPrompt(task, [], true)).toBeNull();
     });
 

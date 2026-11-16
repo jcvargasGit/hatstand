@@ -43,6 +43,12 @@ export function withDoneDate(before: Task, after: Task, now = new Date().toISOSt
   return before.status === 'done' ? after : { ...after, doneAt: now };
 }
 
+export function withBacklogPlace(before: Task, after: Task, clientTasks: Task[]): Task {
+  if (after.status !== 'idea' || before.status === 'idea') return after;
+  const ranks = clientTasks.flatMap((task) => (task.id !== after.id && task.rank !== undefined ? [task.rank] : []));
+  return { ...after, rank: Math.max(-1, ...ranks) + 1, boardLane: undefined };
+}
+
 export const AREA_STARTER_FILES = {
   'Instructions.md': '# Instructions\n\nHow this area works: what is expected, its rules and what to avoid. Agents read this file.\n',
   'Notes.md': '# Notes\n\nWhat you have learned, and what is pending.\n',
@@ -446,7 +452,8 @@ export class Store {
     const current = this.findTask(taskId);
     const change = taskPatchSchema.parse(patch);
     const subdomainId = 'subdomainId' in patch ? this.validAreaId(current.companyId, change.subdomainId) : current.subdomainId;
-    const updated = withDoneDate(current, { ...current, ...change, subdomainId, updatedAt: new Date().toISOString() });
+    const changed = withDoneDate(current, { ...current, ...change, subdomainId, updatedAt: new Date().toISOString() });
+    const updated = change.rank === undefined ? withBacklogPlace(current, changed, this.listTasks(current.companyId)) : changed;
     const task = current.status === 'done' && updated.status !== 'done' && current.agentStatus === 'done' ? this.withReportCleared(updated) : updated;
     this.writeTask(task);
     return task;

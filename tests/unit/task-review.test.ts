@@ -292,7 +292,7 @@ describe('feedback for the agent', () => {
   });
 });
 
-describe('pasting into the inbox', () => {
+describe('pasting into the backlog', () => {
   const table = `│ Revisar el menú                                       │ Medio                                          │ Después                                       │
 ├─────────────────────────────────────────────────────────────┼────────────────────────────────────────────────┼───────────────────────────────────────────────┤
 │ Cambiar los colores y ajustar los márgenes (Tema) │ Medio                                          │ Después; el tema se parece al anterior │

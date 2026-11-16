@@ -24,13 +24,13 @@ const first = idea('one', 'Fix the login', { description: 'Staging only\nSecond 
 const second = idea('two', 'Review the report');
 const onOpenTask = vi.fn();
 const onChanged = vi.fn(async () => undefined);
-const details = () => screen.queryByRole('complementary', { name: 'Inbox item details' });
+const details = () => screen.queryByRole('complementary', { name: 'Backlog item details' });
 const show = (tasks: Task[] = [first, second]) => <InboxPage snapshot={snapshotOf(tasks)} companyId="c" onOpenTask={onOpenTask} onChanged={onChanged} />;
 
 beforeEach(() => vi.clearAllMocks());
 afterEach(cleanup);
 
-describe('the inbox table', () => {
+describe('the backlog table', () => {
   it('shows each item as a row with its priority and actions', () => {
     render(show());
     expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(3);
@@ -110,7 +110,7 @@ describe('the inbox table', () => {
     expect(details()).not.toBeNull();
   });
 
-  it('closes the details when the item stops being in the inbox', async () => {
+  it('closes the details when the item stops being in the backlog', async () => {
     const { rerender } = render(show());
     await userEvent.click(screen.getByRole('button', { name: 'Fix the login' }));
     rerender(show([second]));

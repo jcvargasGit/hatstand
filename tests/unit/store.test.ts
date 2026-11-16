@@ -94,6 +94,32 @@ describe('what the agent reports in the notes', () => {
   });
 });
 
+describe('sending a task back to the backlog', () => {
+  const setup = () => {
+    const company = store.createCompany('Backlog', '#112233');
+    const waiting = store.createTask({ companyId: company.id, title: 'Already waiting', rank: 4 }, undefined, 'idea');
+    const created = store.createTask({ companyId: company.id, title: 'Export the report', description: 'As a PDF', checklist: ['Pick a library'] });
+    const task = store.updateTask(created.id, { status: 'doing', priority: 'high', boardLane: 'needs-you' });
+    return { waiting, task };
+  };
+
+  it('stores it as an idea at the end of the backlog, with its content and without its board lane', () => {
+    const { waiting, task } = setup();
+    store.updateTask(task.id, { status: 'idea' });
+    const stored = store.findTask(task.id);
+    expect(stored).toMatchObject({ status: 'idea', title: 'Export the report', description: 'As a PDF', checklist: task.checklist, priority: 'high' });
+    expect(stored.rank).toBe((waiting.rank ?? 0) + 1);
+    expect(stored.boardLane).toBeUndefined();
+  });
+
+  it('comes back as a task, and an item that stays in the backlog keeps its place', () => {
+    const { waiting, task } = setup();
+    store.updateTask(task.id, { status: 'idea' });
+    expect(store.updateTask(task.id, { status: 'todo' }).status).toBe('todo');
+    expect(store.updateTask(waiting.id, { priority: 'low' }).rank).toBe(4);
+  });
+});
+
 describe('slugify', () => {
   it('makes a safe folder name, including from accents and path characters', () => {
     expect(slugify('Compañía Uno')).toBe('compania-uno');

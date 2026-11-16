@@ -13,7 +13,7 @@ export function AssistantRunSettings({ company, onSave }: AssistantRunSettingsPr
   return (
     <fieldset className="field-block assistant-run-settings">
       <h3>Run with assistant</h3>
-      <p className="hint">Defaults for running this client&rsquo;s inbox with the assistant. For now the assistant only proposes a plan.</p>
+      <p className="hint">Defaults for running this client&rsquo;s backlog with the assistant. For now the assistant only proposes a plan.</p>
       <label>
         Tasks at a time
         <select value={run.parallel} onChange={(event) => void onSave({ ...company, assistantRun: { ...run, parallel: Number(event.target.value) } })}>

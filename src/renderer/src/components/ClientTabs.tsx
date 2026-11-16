@@ -13,7 +13,7 @@ type ClientTabsProps = {
 const TABS: { id: ClientTab; label: string }[] = [
   { id: 'tasks', label: 'Tasks' },
   { id: 'closed', label: 'Closed tasks' },
-  { id: 'inbox', label: 'Inbox' },
+  { id: 'inbox', label: 'Backlog' },
   { id: 'hub', label: 'Areas' },
   { id: 'documents', label: 'Documents' },
   { id: 'setup', label: 'Client settings' },

@@ -115,7 +115,7 @@ export function Sidebar({ snapshot, view, selectedTaskId, layout, onNavigate, on
         <button className="rail-button" aria-label="Search everything" title={`Search everything ${shortcutLabel('K')}`} onClick={onOpenSearch}>
           <Search size={18} />
         </button>
-        <button className="rail-button" aria-label="Inbox" title={`Inbox ${shortcutLabel('I')}`} onClick={() => onNavigate({ kind: 'inbox', companyId: null })}>
+        <button className="rail-button" aria-label="Backlog" title={`Backlog ${shortcutLabel('I')}`} onClick={() => onNavigate({ kind: 'inbox', companyId: null })}>
           <Inbox size={18} />
           {ideas > 0 && <span className="rail-count">{ideas}</span>}
         </button>
@@ -175,9 +175,9 @@ export function Sidebar({ snapshot, view, selectedTaskId, layout, onNavigate, on
         </button>
         <button className="nav-row" aria-current={view.kind === 'inbox' && view.companyId === null ? 'page' : undefined} onClick={() => onNavigate({ kind: 'inbox', companyId: null })}>
           <Inbox size={16} />
-          <span className="nav-name">Inbox</span>
+          <span className="nav-name">Backlog</span>
           {ideas > 0 && (
-            <span className="nav-count" aria-label={`${ideas} in your inbox`}>
+            <span className="nav-count" aria-label={`${ideas} in your backlog`}>
               {ideas}
             </span>
           )}
@@ -288,7 +288,7 @@ export function Sidebar({ snapshot, view, selectedTaskId, layout, onNavigate, on
                     <>
                       <TreeMenuRow
                         icon={<Inbox size={14} />}
-                        label="Inbox"
+                        label="Backlog"
                         client={company.name}
                         count={ideaCount(snapshot, company.id)}
                         current={view.kind === 'inbox' && view.companyId === company.id}

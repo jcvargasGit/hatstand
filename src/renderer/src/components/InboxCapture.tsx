@@ -91,13 +91,13 @@ export function InboxCapture({ companies, companyId, onChanged }: InboxCapturePr
       {hasMoreThanATitle && <InboxPreview ideas={ideas} />}
       {ideas.length > 0 && (
         <p className="inbox-count" role="status">
-          This adds {plural(ideas.length, 'task', 'tasks')} to the inbox{checklistCount > 0 ? `, with ${plural(checklistCount, 'checklist item', 'checklist items')}` : ''}.
+          This adds {plural(ideas.length, 'task', 'tasks')} to the backlog{checklistCount > 0 ? `, with ${plural(checklistCount, 'checklist item', 'checklist items')}` : ''}.
         </p>
       )}
       <div className="inbox-capture-actions">
         <button disabled={busy || ideas.length === 0 || !target} title={submitShortcutLabel()}>
           <Plus size={15} />
-          {ideas.length > 1 ? `Add ${ideas.length} tasks` : 'Add to inbox'}
+          {ideas.length > 1 ? `Add ${ideas.length} tasks` : 'Add to backlog'}
         </button>
         {(ideas.length > 1 || checklistCount > 0) && asOne && (
           <button type="button" className="quiet" disabled={busy} onClick={() => void add([asOne])}>

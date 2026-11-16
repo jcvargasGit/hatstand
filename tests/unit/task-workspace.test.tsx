@@ -20,6 +20,10 @@ import type { SidebarLayout } from '../../src/renderer/src/hooks/useSidebarLayou
 import type { Bridge, Snapshot } from '../../src/shared/api';
 import type { Company, Session, Task, TaskGuide } from '../../src/shared/schemas';
 
+vi.mock('../../src/renderer/src/components/TerminalView', () => ({
+  TerminalView: () => <div data-testid="terminal" />,
+}));
+
 const invoke = vi.fn();
 Element.prototype.scrollIntoView = vi.fn();
 
@@ -219,11 +223,34 @@ describe('NewTaskPage', () => {
 });
 
 describe('TaskPanel', () => {
-  const renderPanel = (value: Task) => {
+  const onSentBack = vi.fn();
+  const renderPanel = (value: Task, sessions: Session[] = []) => {
     const onChanged = vi.fn(async () => {});
-    render(<TaskPanel snapshot={snapshot([value])} task={value} onChanged={onChanged} onOpenClient={vi.fn()} />);
+    onSentBack.mockReset();
+    render(<TaskPanel snapshot={{ ...snapshot([value]), sessions }} task={value} onChanged={onChanged} onOpenClient={vi.fn()} onSentBack={onSentBack} />);
     return onChanged;
   };
+
+  it('sends an open task back to the backlog, then leaves the task', async () => {
+    const onChanged = renderPanel(task({ status: 'doing' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Send back to backlog' }));
+    expect(invoke).toHaveBeenCalledWith('updateTask', 't', { status: 'idea' });
+    await waitFor(() => expect(onSentBack).toHaveBeenCalledWith('acme'));
+    expect(onChanged).toHaveBeenCalled();
+  });
+
+  it('does not offer the backlog for a done or an archived task', () => {
+    renderPanel(task({ status: 'done' }));
+    expect(screen.queryByRole('button', { name: 'Send back to backlog' })).toBeNull();
+    cleanup();
+    renderPanel(task({ archivedAt: '2026-01-02' }));
+    expect(screen.queryByRole('button', { name: 'Send back to backlog' })).toBeNull();
+  });
+
+  it('keeps a task with a running session out of the backlog', () => {
+    renderPanel(task({ status: 'doing' }), [{ id: 's', taskId: 't', companyId: 'acme', accountId: 'c', cwd: '/', state: 'working', startedAt: '', updatedAt: '' }]);
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Send back to backlog' }).disabled).toBe(true);
+  });
 
   it('improves the description of a created task, and saves only the description', async () => {
     const base = invoke.getMockImplementation();
