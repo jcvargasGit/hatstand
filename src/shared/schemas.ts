@@ -65,6 +65,10 @@ export const preferencesSchema = z.object({
   clientOrder: z.array(z.string()).default([]),
   todayLayout: todayLayoutSchema.default('list'),
   guideNewTasks: z.boolean().default(true),
+  /** How many tasks used each guide, so the guides used most come first. */
+  guideUsage: z.record(z.string(), z.number().int().min(0)).default({}),
+  /** Sends the opening prompt of a task's first session without waiting for Enter. */
+  autoSendPrompt: z.boolean().default(true),
 });
 
 export const planningPlaceSchema = z.object({
@@ -275,6 +279,8 @@ export const taskGuideSchema = z.object({
   steps: z.array(playbookStepSchema).min(1),
   current: z.number().int().min(0),
   promptPending: z.boolean(),
+  /** The steps the agent reported as finished, by number from 1, in any order. */
+  done: z.array(z.number().int().positive()).default([]),
 });
 
 export const backlogPlanApprovalSchema = z.object({
@@ -333,6 +339,19 @@ export const newTaskSchema = z.object({
   checklist: z.array(z.string()).optional(),
   rank: z.number().optional(),
   isolated: z.boolean().optional(),
+  priority: taskPrioritySchema.optional(),
+});
+
+/** What turns an inbox item into a task: the same choices as a new task. */
+export const taskSetupSchema = z.object({
+  title: z.string().trim().min(1, 'Write a task title.'),
+  description: z.string().default(''),
+  subdomainId: z.string().optional(),
+  projectIds: z.array(z.string()).default([]),
+  playbookId: z.string().optional(),
+  accountId: z.string().optional(),
+  priority: taskPrioritySchema.optional(),
+  isolated: z.boolean().optional(),
 });
 
 export const taskPatchSchema = z
@@ -365,6 +384,7 @@ export const sessionSchema = z.object({
   cwd: z.string().min(1),
   state: sessionStateSchema,
   draft: z.boolean().optional(),
+  /** Read from older files only. Finished steps now live in the guide of the task. */
   stepDone: z.number().int().positive().optional(),
   startedAt: z.string(),
   updatedAt: z.string(),
@@ -422,6 +442,7 @@ export type WorkPeriod = z.infer<typeof workPeriodSchema>;
 export type TaskSource = z.infer<typeof taskSourceSchema>;
 export type NewTask = z.infer<typeof newTaskSchema>;
 export type TaskPatch = z.infer<typeof taskPatchSchema>;
+export type TaskSetup = z.input<typeof taskSetupSchema>;
 export type Session = z.infer<typeof sessionSchema>;
 export type SessionState = z.infer<typeof sessionStateSchema>;
 

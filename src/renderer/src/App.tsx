@@ -18,6 +18,7 @@ import { useSidebarLayout } from './hooks/useSidebarLayout';
 import { useSnapshot } from './hooks/useSnapshot';
 import { api } from './lib/api';
 import { shortcutLabel } from './lib/shortcuts';
+import { draftFromIdea, startDraft } from './lib/new-task-draft';
 import { inkOn, NEUTRAL_TINT, ideaCount, nextWaiting } from './lib/today';
 import { ClientTabs, type ClientTab } from './components/ClientTabs';
 
@@ -30,13 +31,13 @@ export type View =
   | { kind: 'hub'; companyId: string }
   | { kind: 'area'; companyId: string; areaId: string }
   | { kind: 'settings' }
-  | { kind: 'new-task'; companyId: string | null; areaId?: string }
+  | { kind: 'new-task'; companyId: string | null; areaId?: string; ideaId?: string }
   | { kind: 'new-client' };
 
-const SECTION_VIEWS = new Set<View['kind']>(['today', 'setup', 'documents', 'closed', 'inbox', 'hub', 'area']);
+const SECTION_VIEWS = new Set<View['kind']>(['today', 'setup', 'documents', 'closed', 'inbox', 'hub', 'area', 'new-task']);
 
 function clientTabOf(view: View, hasTask: boolean): ClientTab | null {
-  if (!('companyId' in view) || !view.companyId) return null;
+  if (!('companyId' in view) || !view.companyId || view.kind === 'new-task') return null;
   if (view.kind === 'today') return hasTask ? null : 'tasks';
   if (view.kind === 'inbox') return 'inbox';
   if (view.kind === 'closed') return 'closed';
@@ -124,10 +125,23 @@ export function App() {
     if (activeCount === 0 && view.kind === 'today') setView({ kind: 'new-client' });
   }, [activeCount, view.kind]);
 
+  useEffect(
+    () =>
+      window.hatstand.on('task-created', ({ taskId: createdId, companyId }) => {
+        void refresh().then(() => openTask(createdId, companyId));
+      }),
+    [refresh],
+  );
+
   if (!snapshot) return <main className="loading">Opening your clients</main>;
 
   const active = { ...snapshot, companies: snapshot.companies.filter((company) => !company.archivedAt) };
   const clientTab = clientTabOf(view, Boolean(task));
+  const newTaskIdea = view.kind === 'new-task' ? snapshot.tasks.find((item) => item.id === view.ideaId && item.status === 'idea') : undefined;
+  const leaveNewTask = () => {
+    if (view.kind !== 'new-task') return;
+    navigate(view.ideaId ? { kind: 'inbox', companyId: view.companyId } : { kind: 'today', companyId: view.companyId });
+  };
 
   return (
     <div className="shell" style={{ '--client': tint, '--ink-on-client': inkOn(tint) } as CSSProperties}>
@@ -211,7 +225,31 @@ export function App() {
         />
       )}
       {view.kind === 'inbox' && (
-        <InboxPage key={view.companyId ?? 'all'} snapshot={active} companyId={view.companyId} onOpenTask={openTask} onChanged={refresh} />
+        <InboxPage
+          key={view.companyId ?? 'all'}
+          snapshot={active}
+          companyId={view.companyId}
+          onOpenTask={openTask}
+          onMakeTask={(ideaId, companyId) => navigate({ kind: 'new-task', companyId, ideaId })}
+          onChanged={refresh}
+        />
+      )}
+      {view.kind === 'new-task' && (
+        <NewTaskPage
+          key={`${view.companyId ?? 'any'}-${view.areaId ?? ''}-${view.ideaId ?? ''}`}
+          snapshot={active}
+          initialDraft={newTaskIdea ? draftFromIdea(newTaskIdea, active) : startDraft(active, view.companyId ?? active.companies[0]?.id ?? '', view.areaId)}
+          onMoveToWindow={async (draft) => {
+            await api.openNewTaskWindow(draft);
+            leaveNewTask();
+          }}
+          onClose={leaveNewTask}
+          onChanged={refresh}
+          onCreated={async (id, companyId) => {
+            await refresh();
+            openTask(id, companyId);
+          }}
+        />
       )}
       </div>
       )}
@@ -221,19 +259,6 @@ export function App() {
           onChanged={refresh}
           onOpenClient={openClientSettings}
           onAddClient={() => navigate({ kind: 'new-client' })}
-        />
-      )}
-      {view.kind === 'new-task' && (
-        <NewTaskPage
-          key={`${view.companyId ?? 'any'}-${view.areaId ?? ''}`}
-          snapshot={active}
-          initialCompanyId={view.companyId}
-          initialAreaId={view.areaId}
-          onChanged={refresh}
-          onCreated={async (id, companyId) => {
-            await refresh();
-            openTask(id, companyId);
-          }}
         />
       )}
       {view.kind === 'new-client' && (

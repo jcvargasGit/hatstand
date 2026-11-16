@@ -108,7 +108,7 @@ describe('editing list lines', () => {
 
 describe('a task in the backlog', () => {
   const renderRow = (change: Partial<Parameters<typeof IdeaRow>[0]> = {}) => {
-    const props = { task, selected: false, onSelect: vi.fn(), picked: false, onPick: vi.fn(), onChanged: vi.fn(async () => undefined), onMadeTask: vi.fn(), onMoveUp: vi.fn(), onMoveDown: vi.fn(), onDragStart: vi.fn(), onDropHere: vi.fn(), ...change };
+    const props = { task, selected: false, onSelect: vi.fn(), picked: false, onPick: vi.fn(), onChanged: vi.fn(async () => undefined), onMakeTask: vi.fn(), onMoveUp: vi.fn(), onMoveDown: vi.fn(), onDragStart: vi.fn(), onDropHere: vi.fn(), ...change };
     const { container } = render(
       <table>
         <tbody>

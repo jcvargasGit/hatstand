@@ -1,4 +1,5 @@
 import { ArrowRight, Check, SendHorizontal, UserRound } from 'lucide-react';
+import { allStepsDone, canLeaveCurrentStep, isGuideStepDone, nextOpenStep, stepsDoneAhead } from '../../../shared/guide-progress';
 import type { Session, Task, TaskGuide } from '../../../shared/schemas';
 import { useAction } from '../hooks/useAction';
 import { api } from '../lib/api';
@@ -12,21 +13,20 @@ type GuideStepsProps = {
 
 const APPROVAL_NOTE = 'This step acts outside your computer. Read the prompt and the draft before you send it.';
 
-function isStepFinished(guide: TaskGuide, session: Session | undefined): boolean {
-  const step = guide.steps[guide.current];
-  const waitsForAgent = Boolean(step?.prompt) && !step?.you;
-  return !waitsForAgent || session?.stepDone === guide.current + 1;
-}
+const stepList = (steps: number[]) => (steps.length === 1 ? `step ${steps[0]}` : `steps ${steps.slice(0, -1).join(', ')} and ${steps.at(-1)}`);
 
 function stepNote(guide: TaskGuide, session: Session | undefined, agentBusy: boolean, hasDraft: boolean): string {
   const step = guide.steps[guide.current];
-  const isLast = guide.current >= guide.steps.length - 1;
+  const next = nextOpenStep(guide);
+  const ahead = stepsDoneAhead(guide);
+  const alsoDone = ahead.length > 0 ? ` The agent also finished ${stepList(ahead)}.` : '';
   if (agentBusy) return hasDraft ? 'You can send your text when the agent is waiting for you at its prompt.' : 'You can change step when the agent is waiting for you at its prompt.';
   if (hasDraft) return step?.approval ? APPROVAL_NOTE : 'Your text is in the terminal. Send it to the agent, or clear it to change step.';
-  if (step?.you) return `Your part: ${step.you}`;
-  if (!session || session.state === 'stopped') return step?.approval ? APPROVAL_NOTE : 'Starting the session writes the prompt for this step.';
-  if (isLast) return 'This is the last step of the guide.';
-  return isStepFinished(guide, session) ? 'The agent finished this step.' : 'Next step turns on when the agent says this step is finished. To move anyway, choose a step above.';
+  if (allStepsDone(guide)) return 'The agent finished every step of the guide.';
+  if (step?.you) return `Your part: ${step.you}${alsoDone}`;
+  if (!session || session.state === 'stopped') return (step?.approval ? APPROVAL_NOTE : 'Starting the session gives the agent the prompt for this step.') + alsoDone;
+  if (next === null) return canLeaveCurrentStep(guide) ? 'The agent finished this step. It was the last one left.' : `This is the last step left.${alsoDone}`;
+  return canLeaveCurrentStep(guide) ? `The agent finished this step.${alsoDone}` : `Next step turns on when the agent says this step is finished. To move anyway, choose a step above.${alsoDone}`;
 }
 
 export function GuideSteps({ task, guide, session, onChanged }: GuideStepsProps) {
@@ -35,7 +35,7 @@ export function GuideSteps({ task, guide, session, onChanged }: GuideStepsProps)
   const hasDraft = session?.draft === true && session.state !== 'stopped';
   const finished = task.status === 'done' || task.archivedAt !== undefined;
   const blocked = busy || agentBusy || finished || hasDraft;
-  const isLast = guide.current >= guide.steps.length - 1;
+  const next = nextOpenStep(guide);
 
   const moveTo = (index: number) =>
     run(async () => {
@@ -54,21 +54,25 @@ export function GuideSteps({ task, guide, session, onChanged }: GuideStepsProps)
       <div className="guide-bar">
         <strong className="guide-name">{guide.name}</strong>
         <ol className="guide-steps">
-          {guide.steps.map((step, index) => (
-            <li key={`${index}-${step.name}`}>
-              <button
-                className="guide-step"
-                aria-current={index === guide.current ? 'step' : undefined}
-                disabled={blocked || index === guide.current}
-                onClick={() => void moveTo(index)}
-              >
-                <span className="guide-number">{index < guide.current ? <Check size={12} /> : index + 1}</span>
-                {step.name}
-                {step.you && <UserRound size={13} aria-label="You do this step" />}
-                {step.approval && <span className="guide-approval">Needs your OK</span>}
-              </button>
-            </li>
-          ))}
+          {guide.steps.map((step, index) => {
+            const done = isGuideStepDone(guide, index);
+            return (
+              <li key={`${index}-${step.name}`} className={done ? 'is-done' : undefined}>
+                <button
+                  className="guide-step"
+                  aria-current={index === guide.current ? 'step' : undefined}
+                  aria-label={`${index + 1} ${step.name}${done ? ', finished' : ''}`}
+                  disabled={blocked || index === guide.current}
+                  onClick={() => void moveTo(index)}
+                >
+                  <span className="guide-number">{done ? <Check size={12} /> : index + 1}</span>
+                  {step.name}
+                  {step.you && <UserRound size={13} aria-label="You do this step" />}
+                  {step.approval && <span className="guide-approval">Needs your OK</span>}
+                </button>
+              </li>
+            );
+          })}
         </ol>
         {hasDraft ? (
           <button className="guide-next" disabled={busy || agentBusy || finished} onClick={() => void sendDraft(session.id)}>
@@ -76,8 +80,8 @@ export function GuideSteps({ task, guide, session, onChanged }: GuideStepsProps)
             <SendHorizontal size={14} />
           </button>
         ) : (
-          !isLast && (
-            <button className="guide-next" disabled={blocked || !isStepFinished(guide, session)} onClick={() => void moveTo(guide.current + 1)}>
+          next !== null && (
+            <button className="guide-next" disabled={blocked || !canLeaveCurrentStep(guide)} title={`Step ${next + 1}: ${guide.steps[next]?.name ?? ''}`} onClick={() => void moveTo(next)}>
               Next step
               <ArrowRight size={14} />
             </button>

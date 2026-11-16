@@ -171,7 +171,8 @@ function guideSection(guide: TaskGuide): string[] {
     '## Guide for this task',
     `This task follows the guide "${guide.name}":`,
     ...steps,
-    'The person sends you one step at a time. Do only the step you receive, then stop and report.',
+    'The person usually sends you one step at a time, as "Step N of M". Do only the step you receive, then stop and report, unless the person asks you for more in the conversation.',
+    `Hatstand shows the person which steps are finished only when you report them with ${STEP_DONE_COMMAND}, so report every step you finish, also those you did while talking.`,
     'Do not start a step marked "needs approval" until the person sends it. That step acts outside this computer.',
     '',
   ];
@@ -216,8 +217,9 @@ export function buildSystemPrompt(input: TaskPromptInput): string {
     notes ? `Current notes:\n${notes}` : 'There are no notes yet.',
     '',
     '## Finishing a guide step',
-    `When a prompt from the person starts with "Step N of M", run this command with that N as your last action, once you have finished what the step asks and no question or decision of yours blocks moving on: ${STEP_DONE_COMMAND} N`,
-    'Do not run it if you are midway, if you are waiting for an answer, or if the step needs an approval you do not have yet. It only turns on the Next step button. The person still decides when to move on.',
+    `When you finish a step of the guide, run this command with its number as your last action, once no question or decision of yours blocks moving on: ${STEP_DONE_COMMAND} N`,
+    `This counts whether the person sent the step as "Step N of M" or you did it while talking, such as creating the tickets when asked in the conversation. If you finished several steps, name them all, such as ${STEP_DONE_COMMAND} 2 3.`,
+    'Do not run it if you are midway, if you are waiting for an answer, or if the step needs an approval you do not have yet. It marks the step as finished for the person, who still decides when to move on.',
     '',
     '## Documents for the person',
     `When this task produces a document the person should read, such as a report or a draft, save it next to the notes as ${notesFile.replace(/\.md$/, '')}.<short-name>.md, unless it belongs in the planning folder. Hatstand shows these files in the task under Agent output.`,
@@ -245,7 +247,10 @@ export function buildInitialPrompt(task: Task, focus: string[]): string {
   );
 }
 
-export function buildStepPrompt(task: Task, focus: string[]): string | null {
+const ANY_KNOWLEDGE_FOLDER = "this client's knowledge folder";
+
+/** `knowledgeFolder` fills {knowledge}: where a guide saves a document about the task's topic. */
+export function buildStepPrompt(task: Task, focus: string[], knowledgeFolder = ANY_KNOWLEDGE_FOLDER): string | null {
   const guide = task.guide;
   const step = guide?.steps[guide.current];
   if (!guide || !step?.prompt) return null;
@@ -253,8 +258,9 @@ export function buildStepPrompt(task: Task, focus: string[]): string | null {
     task: task.title,
     ticket: task.source?.key ?? task.title,
     link: task.source?.url ?? 'see the task description',
+    knowledge: knowledgeFolder,
   };
-  const text = step.prompt.replace(/\{(task|ticket|link)\}/g, (_match, key: string) => values[key] ?? '');
+  const text = step.prompt.replace(/\{(task|ticket|link|knowledge)\}/g, (_match, key: string) => values[key] ?? '');
   return singleLine(`Step ${guide.current + 1} of ${guide.steps.length}, ${step.name}: ${text}${focusText(focus)}`);
 }
 
@@ -265,8 +271,8 @@ export function buildBacklogPrompt(task: Task): string {
   );
 }
 
-export function openingPrompt(task: Task, focus: string[], resume: boolean): string | null {
+export function openingPrompt(task: Task, focus: string[], resume: boolean, knowledgeFolder?: string): string | null {
   if (task.backlogPlan && !task.guide) return resume ? null : buildBacklogPrompt(task);
-  if (task.guide) return !resume || task.guide.promptPending ? buildStepPrompt(task, focus) : null;
+  if (task.guide) return !resume || task.guide.promptPending ? buildStepPrompt(task, focus, knowledgeFolder) : null;
   return resume ? null : buildInitialPrompt(task, focus);
 }

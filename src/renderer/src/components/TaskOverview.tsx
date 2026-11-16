@@ -1,4 +1,4 @@
-import { Check, ExternalLink, FolderOpen, Pencil, SquareTerminal } from 'lucide-react';
+import { Check, ExternalLink, Pencil, SquareTerminal } from 'lucide-react';
 import type { Account, Session, Task, TaskReview } from '../../../shared/schemas';
 import { finishedWork } from '../../../shared/task-finish';
 import { useAction } from '../hooks/useAction';
@@ -6,14 +6,13 @@ import { useEditorName } from '../hooks/useEditorName';
 import { useTaskChanges } from '../hooks/useTaskChanges';
 import { api } from '../lib/api';
 import { checklistProgress } from '../lib/inbox';
-import { taskJourney } from '../lib/task-journey';
+import { guideLine, taskJourney } from '../lib/task-journey';
 import { baseLabel } from '../lib/text';
 import { isReadyToClose, taskStateText, type TodayItem } from '../lib/today';
 import { BacklogPlanReview } from './BacklogPlanReview';
-import { GuideSteps } from './GuideSteps';
-import { MarkdownView } from './MarkdownView';
+import { OpenInEditorButton } from './OpenInEditorButton';
 import { TaskNotes } from './TaskNotes';
-import { changeSummary } from './TaskChanges';
+import { changeSummary, TaskChanges } from './TaskChanges';
 import { TaskChecklist } from './TaskChecklist';
 import { TaskOutputs } from './TaskOutputs';
 import { TaskPullRequests } from './TaskPullRequests';
@@ -26,13 +25,14 @@ type TaskOverviewProps = {
   account?: Account;
   session?: Session;
   canStart: boolean;
+  /** Whether the first session sends its opening prompt by itself. */
+  autoSend: boolean;
   clientTasks?: Task[];
   onChanged: () => Promise<void>;
-  onOpenDetails: () => void;
   onOpenTerminal: () => void;
 };
 
-export function TaskOverview({ item, review, notes, account, session, canStart, clientTasks = [], onChanged, onOpenDetails, onOpenTerminal }: TaskOverviewProps) {
+export function TaskOverview({ item, review, notes, account, session, canStart, autoSend, clientTasks = [], onChanged, onOpenTerminal }: TaskOverviewProps) {
   const { task, company } = item;
   const { repos } = useTaskChanges(task.id, session?.state ?? 'none');
   const journey = taskJourney(item, repos.reduce((total, repo) => total + repo.commits, 0));
@@ -45,6 +45,10 @@ export function TaskOverview({ item, review, notes, account, session, canStart, 
   const repoName = (projectId: string) => company.projects.find((project) => project.id === projectId)?.name ?? 'Repository';
   const hasPulls = (review?.pulls.length ?? 0) > 0 || Boolean(review?.error);
   const area = company.subdomains.find((item) => item.id === task.subdomainId);
+  const guide = task.guide ? `${task.guide.name}: ${guideLine(task) ?? ''}` : null;
+  const startHint = autoSend && !session
+    ? 'Starting the first session opens the agent with this client’s context, and it starts working on the task at once.'
+    : 'Starting a session opens the agent with this client’s context and a suggested prompt already written. Press Enter to send it, or change it first.';
   const hasCode = !task.backlogPlan && (workRepos.length > 0 || Boolean(company.rootDir));
 
   return (
@@ -52,7 +56,7 @@ export function TaskOverview({ item, review, notes, account, session, canStart, 
       <section className="overview-card overview-journey" aria-label="Where this task is">
         <ol className="journey-stages">
           {journey.stages.map((stage, index) => {
-            const done = index < journey.stage || (journey.finished && index === journey.stage);
+            const done = journey.doneStages.includes(index);
             return (
               <li key={stage} className={done ? 'is-done' : index === journey.stage ? 'is-current' : undefined} aria-current={index === journey.stage ? 'step' : undefined}>
                 <span className="journey-dot">{done && <Check size={11} />}</span>
@@ -92,6 +96,19 @@ export function TaskOverview({ item, review, notes, account, session, canStart, 
               <dd className="priority-text">{task.priority}</dd>
             </div>
           )}
+          {guide && (
+            <div>
+              <dt>Guide</dt>
+              <dd>
+                {guide}
+                {session && (
+                  <button className="link-button" onClick={onOpenTerminal}>
+                    Steps in the terminal
+                  </button>
+                )}
+              </dd>
+            </div>
+          )}
           <div>
             <dt>Where it is</dt>
             <dd>{journey.now}</dd>
@@ -104,19 +121,6 @@ export function TaskOverview({ item, review, notes, account, session, canStart, 
       </section>
 
       {task.backlogPlan && <BacklogPlanReview task={task} company={company} tasks={clientTasks} />}
-
-      {task.guide && (
-        <div className="overview-wide">
-          <GuideSteps key={task.id} task={task} guide={task.guide} session={session} onChanged={onChanged} />
-        </div>
-      )}
-
-      {task.description && (
-        <section className="overview-card" aria-label="About this task">
-          <h3>About this task</h3>
-          <MarkdownView text={task.description} />
-        </section>
-      )}
 
       <section className="overview-card" aria-label="Notes">
         <div className="overview-head">
@@ -168,7 +172,7 @@ export function TaskOverview({ item, review, notes, account, session, canStart, 
             </div>
           </dl>
         ) : (
-          <p className="hint">{canStart ? 'Starting a session opens the agent with this client’s context and a suggested prompt already written. Press Enter to send it, or change it first.' : 'This client needs an area, a repository or a folder first.'}</p>
+          <p className="hint">{canStart ? startHint : 'This client needs an area, a repository or a folder first.'}</p>
         )}
       </section>
 
@@ -194,10 +198,7 @@ export function TaskOverview({ item, review, notes, account, session, canStart, 
                     {worktree.branch}, from {baseLabel(worktree.base)}
                   </span>
                   <span className="hint">{report ? changeSummary(report) : 'No changes yet'}</span>
-                  <button className="quiet" title={worktree.path} disabled={editor.busy} onClick={() => void editor.run(() => api.openTaskWorktree(task.id, worktree.projectId))}>
-                    <FolderOpen size={14} />
-                    Open folder
-                  </button>
+                  <OpenInEditorButton companyId={company.id} path={worktree.path} what={`the copy of ${repoName(worktree.projectId)}`} />
                 </li>
               );
             })}
@@ -205,13 +206,14 @@ export function TaskOverview({ item, review, notes, account, session, canStart, 
         )}
         {!hasCopies && <p className="hint">{task.isolated ? 'Nothing changed yet. When the agent needs to change a repository, it makes a copy on a new branch.' : 'This task works in the client’s shared folder.'}</p>}
         {task.isolated && reading.length > 0 && <p className="hint">Only reading: {reading.map((project) => project.name).join(', ')}</p>}
-        {repos.length > 0 && (
-          <button className="quiet overview-link" onClick={onOpenDetails}>
-            View changes
-          </button>
-        )}
         {editor.error && <p className="error">{editor.error}</p>}
       </section>
+      )}
+
+      {hasCode && (
+        <section className="overview-card overview-wide" aria-label="Changes">
+          <TaskChanges task={task} refreshKey={session?.state ?? 'none'} />
+        </section>
       )}
 
       {hasPulls && (

@@ -15,6 +15,10 @@ export type TaskJourney = {
   stage: number;
   stages: string[];
   finished: boolean;
+  /** Stages shown as finished: those behind the current one, and guide steps the agent reported ahead of it. */
+  doneStages: number[];
+  /** The stages are the steps of the guide, so the guide needs no line of its own. */
+  stagesAreSteps: boolean;
   reviewing: boolean;
   now: string;
   next: string;
@@ -131,17 +135,35 @@ function whereAndNext(item: TodayItem): { finished: boolean; now: string; next: 
   }
 }
 
+/** Whether the stages are the steps of the guide, as for a guide that is not code work. */
+const stagesAreGuideSteps = (item: TodayItem) => !followsImplementation(item) && item.task.guide !== undefined;
+
 export function taskJourney(item: TodayItem, commits = 0): TaskJourney {
   const stages = stagesOf(item);
   const stage = stageIndex(item, stages, commits);
   const firstReview = stages.indexOf(FIRST_REVIEW_STAGE);
+  const plan = whereAndNext(item);
+  const reported = stagesAreGuideSteps(item) ? (item.task.guide?.done ?? []).map((step) => step - 1) : [];
+  const doneStages = stages.map((_name, index) => index).filter((index) => index < stage || (plan.finished && index === stage) || reported.includes(index));
   return {
     kind: taskKind(item),
     stage,
     stages,
+    doneStages,
+    stagesAreSteps: stagesAreGuideSteps(item),
     reviewing: firstReview >= 0 && stage >= firstReview,
-    ...whereAndNext(item),
+    ...plan,
   };
+}
+
+/** Where the task is in its guide, in one line, such as "Step 3 of 8, Build it, 2 finished". */
+export function guideLine(task: TodayItem['task']): string | null {
+  const guide = task.guide;
+  const step = guide?.steps[guide.current];
+  if (!guide || !step) return null;
+  const done = guide.done ?? [];
+  const finished = done.length > 0 ? `, ${done.length} finished` : '';
+  return `Step ${guide.current + 1} of ${guide.steps.length}, ${step.name}${finished}`;
 }
 
 export function doneWarning(item: TodayItem): string | null {

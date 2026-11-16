@@ -18,6 +18,7 @@ const GUIDE_TYPES: Record<string, TaskType> = {
   bug: 'investigation',
   'aws-debug': 'investigation',
   observability: 'investigation',
+  investigation: 'investigation',
   rfc: 'design',
   backlog: 'planning',
   testing: 'testing',
@@ -35,3 +36,6 @@ export function taskTypeOf(task: Pick<Task, 'type' | 'guide'>, company: Company)
 export const taskTypeName = (type: TaskType | undefined) => type && TYPE_NAMES[type];
 
 export const starterGuideId = (company: Company): string | undefined => (workRepositories(company).length > 0 ? 'implement' : undefined);
+
+/** Every type a person can give a task, with its name. */
+export const TASK_TYPE_CHOICES = (Object.keys(TYPE_NAMES) as TaskType[]).map((type) => ({ type, name: TYPE_NAMES[type] }));

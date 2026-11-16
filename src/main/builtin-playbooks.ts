@@ -168,6 +168,28 @@ export const BUILTIN_PLAYBOOKS: Record<string, Playbook> = {
       },
     ],
   },
+  investigation: {
+    name: 'Investigate a topic',
+    description: 'For a spike, a proof of concept or an idea: read the documents and the request, investigate without changing code, and end with one Markdown document with the result. It creates no tasks.',
+    steps: [
+      {
+        name: 'Read the material',
+        prompt: `For "{task}", read its description, the documents and links it names ({link}), and this client's knowledge on the topic. Work in planning mode: only read, and change no code. Tell me what the question is, what the material already answers, and what is still open. ${NOTHING_PUBLISHED}`,
+      },
+      {
+        name: 'Investigate',
+        prompt: `Investigate the open points: read the code and documents that matter, and compare the options. Keep your findings in the task notes, each with its source. Change no code. Stop when you can answer the question, or tell me what blocks you. ${NOTHING_PUBLISHED}`,
+      },
+      {
+        name: 'Outline the result',
+        prompt: `Propose the outline of the result document in the task notes: the kind of document that fits, such as a spike report, the plan of a proof of concept or the base of an epic, and its sections. Stop for my review. ${NOTHING_PUBLISHED}`,
+      },
+      {
+        name: 'Write the result',
+        prompt: `Write the result as one Markdown file, named after the topic and ending in .md, in {knowledge}, the knowledge folder of this task's area, never inside a repository: the question, what you found with its sources, the options with their trade-offs, your recommendation, and what is still open. Do not create tasks: I may use this document later to create them. Give me the path of the file. ${NOTHING_PUBLISHED}`,
+      },
+    ],
+  },
   report: {
     name: 'Write a report',
     description: 'Gather the facts, draft the report or answer, and deliver what you approve.',

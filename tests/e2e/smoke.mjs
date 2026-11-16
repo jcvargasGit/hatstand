@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { _electron as electron } from 'playwright-core';
 import { hiddenWindowEnv } from './hidden-window.mjs';
+import { chooseRepositories } from './task-form.mjs';
 import { shortcut, testKeychainEnv } from './platform.mjs';
 
 const appRoot = resolve(import.meta.dirname, '../..');
@@ -145,15 +146,33 @@ try {
   const report = await invoke(page, 'installGuard', acme.id);
   assert.deepEqual(report.installed, [repo]);
 
+  // The New task form moves to a window of its own with what was written, and that window stays hidden in a test.
   await page.getByRole('button', { name: /^Acme Studio/ }).first().click();
   await page.getByRole('button', { name: 'New task for Acme Studio' }).click();
+  await page.getByLabel('Task title').fill('Written in a window');
+  await page.getByRole('combobox', { name: 'Priority' }).selectOption('high');
+  const [taskWindow] = await Promise.all([app.waitForEvent('window'), page.getByRole('button', { name: 'Open in new window' }).click()]);
+  await taskWindow.getByLabel('Task title').waitFor();
+  assert.equal(await taskWindow.getByLabel('Task title').inputValue(), 'Written in a window', 'the title moves to the new window');
+  assert.equal(await taskWindow.getByRole('combobox', { name: 'Priority' }).inputValue(), 'high', 'the settings move to the new window');
+  assert.equal(await page.getByLabel('Task title').count(), 0, 'the form leaves the side panel');
+  const openWindows = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map((window) => window.isVisible()));
+  assert.equal(openWindows.length, 2, 'the form has a window of its own');
+  if (hiddenWindowEnv.HATSTAND_HEADLESS) assert.ok(openWindows.every((visible) => !visible), 'the New task window must stay hidden too');
+  await taskWindow.getByRole('button', { name: 'Create task' }).click();
+  await page.getByRole('heading', { name: 'Written in a window' }).waitFor();
+  const windowTask = (await invoke(page, 'getSnapshot')).tasks.find((item) => item.title === 'Written in a window');
+  assert.equal(windowTask.priority, 'high', 'the task is created with what the window held');
+  for (let tries = 0; tries < 50 && app.windows().length > 1; tries += 1) await page.waitForTimeout(100);
+  assert.equal(app.windows().length, 1, 'the window closes once the task is created');
+
+  await page.getByRole('button', { name: 'New task for Acme Studio' }).click();
   await page.getByLabel('Task title').fill('Retry failed uploads');
-  await page.getByRole('checkbox', { name: 'acme-api' }).check();
+  await chooseRepositories(page, ['acme-api']);
   await shot(page, '2-new-task');
   await page.getByRole('button', { name: 'Create task' }).click();
   await page.getByRole('heading', { name: 'Retry failed uploads' }).waitFor();
   await page.getByRole('region', { name: 'Task', exact: true }).getByRole('button', { name: /^Copy reference [a-z0-9-]+#\d+$/ }).waitFor();
-  await page.getByRole('tab', { name: 'Details' }).click();
   await page.getByRole('button', { name: 'Edit in VS Code' }).click();
   const notedTask = (await invoke(page, 'getSnapshot')).tasks.find((item) => item.title === 'Retry failed uploads');
   const notesFile = join(home, 'companies', notedTask.companyId, 'tasks', `${notedTask.id}.md`);
@@ -162,7 +181,6 @@ try {
   writeFileSync(notesFile, 'Next: reproduce the timeout.\n');
   await page.getByText('Next: reproduce the timeout.').waitFor();
   await shot(page, '2-task');
-  await page.getByRole('tab', { name: 'Overview' }).click();
   const reportFile = notesFile.replace(/\.md$/, '.report.md');
   writeFileSync(reportFile, '# Findings\n\nThe timeout comes from the retry queue.\n');
   await page.getByRole('button', { name: 'Read report.md' }).click();
@@ -171,9 +189,12 @@ try {
   await page.getByRole('button', { name: 'Open report.md in VS Code' }).click();
   await page.waitForTimeout(500);
   assert.ok(readFileSync(editorLog, 'utf8').includes(reportFile), 'a report of the agent opens in the editor');
-  await page.getByRole('tab', { name: 'Details' }).click();
+  await page.getByRole('tab', { name: 'Task settings' }).click();
+  await page.getByRole('region', { name: 'Task settings' }).getByRole('group', { name: 'Chosen repositories' }).getByText('acme-api').waitFor();
+  await shot(page, '2-task-settings');
+  await page.getByRole('tab', { name: 'Overview' }).click();
 
-  await invoke(page, 'createTask', { companyId: notedTask.companyId, title: 'Task created later' });
+  await invoke(page, 'createTask', { companyId: notedTask.companyId, title: 'Task created later', playbookId: 'implement' });
   await page.getByRole('button', { name: 'Start session' }).click();
   await page.getByTestId('terminal').getByText('fake claude is ready').waitFor({ timeout: 15000 });
   await page.getByRole('region', { name: 'Task', exact: true }).getByText('Needs your answer').waitFor({ timeout: 10000 });
@@ -181,7 +202,7 @@ try {
   const treePosition = (title) => treeTitles.findIndex((text) => text.includes(title));
   assert.ok(treePosition('Task created later') !== -1 && treePosition('Task created later') < treePosition('Retry failed uploads'), `a running task keeps its place: ${treeTitles}`);
   await page.getByTestId('terminal').getByText('heard: Step 1 of 8, Understand the task').waitFor({ timeout: 10000 });
-  assert.ok(!(await page.getByTestId('terminal').innerText()).includes('heard: \r'), 'the prompt waits for Enter');
+  assert.ok(!(await page.getByTestId('terminal').innerText()).includes('heard: \r'), 'Enter is not pressed for the person while the agent asks a question');
   await shot(page, '3-session-waiting');
 
   const launch = JSON.parse(readFileSync(record, 'utf8'));

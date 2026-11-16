@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IdeaDetails } from '../../src/renderer/src/components/IdeaDetails';
 import { IdeaRow } from '../../src/renderer/src/components/IdeaRow';
 import { NewTaskPage } from '../../src/renderer/src/components/NewTaskPage';
+import { startDraft } from '../../src/renderer/src/lib/new-task-draft';
 import type { Bridge, Snapshot } from '../../src/shared/api';
 import type { SuggestionRequest } from '../../src/shared/description-suggestion';
 import { companySchema, taskSchema } from '../../src/shared/schemas';
@@ -39,7 +40,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 const task = taskSchema.parse({ id: 'one', companyId: 'c', title: 'Fix the login', description: 'Staging only', status: 'idea', projectIds: ['api'], createdAt: 'x', updatedAt: 'x' });
-const renderDetails = () => render(<IdeaDetails task={task} onClose={() => {}} onChanged={async () => undefined} onMadeTask={() => {}} />);
+const renderDetails = () => render(<IdeaDetails task={task} onClose={() => {}} onChanged={async () => undefined} onMakeTask={() => {}} />);
 const dialog = () => screen.findByRole('dialog', { name: 'Suggested description' });
 
 describe('improving the description of a backlog item', () => {
@@ -115,7 +116,7 @@ describe('improving the description from a backlog row', () => {
     render(
       <table>
         <tbody>
-          <IdeaRow task={task} selected={false} onSelect={onSelect} picked={false} onPick={() => {}} onChanged={async () => undefined} onMadeTask={() => {}} onDragStart={() => {}} onDropHere={() => {}} />
+          <IdeaRow task={task} selected={false} onSelect={onSelect} picked={false} onPick={() => {}} onChanged={async () => undefined} onMakeTask={() => {}} onDragStart={() => {}} onDropHere={() => {}} />
         </tbody>
       </table>,
     );
@@ -132,12 +133,12 @@ describe('improving the description of a new task', () => {
   const snapshot = { companies: [company], tasks: [], sessions: [], accounts: { accounts: [] }, reviews: {}, guideNewTasks: false } as unknown as Snapshot;
 
   it('needs a title or a description first', () => {
-    render(<NewTaskPage snapshot={snapshot} initialCompanyId="c" onCreated={async () => undefined} onChanged={async () => undefined} />);
+    render(<NewTaskPage snapshot={snapshot} initialDraft={startDraft(snapshot, 'c')} onCreated={async () => undefined} onChanged={async () => undefined} />);
     expect(screen.getByRole('button', { name: 'Improve description' })).toHaveProperty('disabled', true);
   });
 
   it('fills the description field without creating the task', async () => {
-    render(<NewTaskPage snapshot={snapshot} initialCompanyId="c" onCreated={async () => undefined} onChanged={async () => undefined} />);
+    render(<NewTaskPage snapshot={snapshot} initialDraft={startDraft(snapshot, 'c')} onCreated={async () => undefined} onChanged={async () => undefined} />);
     await userEvent.type(screen.getByLabelText('Task title'), 'Add export');
     await userEvent.click(screen.getByRole('button', { name: 'Improve description' }));
     await userEvent.click(await within(await dialog()).findByRole('button', { name: 'Accept' }));

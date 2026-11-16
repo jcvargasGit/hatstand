@@ -4,17 +4,14 @@ import { homedir } from 'node:os';
 import { dirname, join, sep } from 'node:path';
 import type { Company, Subdomain, Project, Task, TaskWorktree } from '../shared/schemas';
 import type { DataPaths } from './paths';
-import { workRepositories } from '../shared/work-repos';
+import { taskRepositories, workRepositories } from '../shared/work-repos';
 import { areaFolder } from '../shared/areas';
 
 type TaskScope = Pick<Task, 'projectIds' | 'subdomainId'>;
 
 const subdomainFolders = (company: Company, task: TaskScope) => company.subdomains.find((item) => item.id === task.subdomainId)?.folders ?? [];
 
-export function taskRepositories(company: Company, task: TaskScope): Project[] {
-  const folders = subdomainFolders(company, task);
-  return workRepositories(company).filter((project) => task.projectIds.includes(project.id) || folders.some((folder) => folder.projectId === project.id));
-}
+export { taskRepositories };
 
 export function taskFolderPaths(company: Company, task: Task): string[] {
   return subdomainFolders(company, task).flatMap((folder) => {
@@ -61,6 +58,12 @@ export function reposOutside(cwd: string, repositories: Pick<Project, 'path'>[])
 }
 
 export const taskArea = (company: Company, task: Pick<Task, 'subdomainId'>): Subdomain | undefined => company.subdomains.find((area) => area.id === task.subdomainId);
+
+/** Where a document about a task's topic is kept: the folder of its area, or the client's knowledge when it has no area. Both are client knowledge. */
+export function taskKnowledgeFolder(paths: DataPaths, company: Company, task: Pick<Task, 'subdomainId'>): string {
+  const area = taskArea(company, task);
+  return area ? paths.areaDir(company.id, areaFolder(area)) : activeKnowledgeDir(paths, company);
+}
 
 export const worksOnlyInAreaFolder = (company: Company, task: Task): boolean => taskArea(company, task) !== undefined && workRepositories(company).length === 0;
 

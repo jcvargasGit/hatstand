@@ -1,5 +1,5 @@
 import { Archive, ArchiveRestore, Check, Play, Plus, RotateCcw, Settings, Square, Trash2, Undo2, Maximize2, Minimize2, PanelRightClose, PanelRightOpen } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Snapshot } from '../../../shared/api';
 import { shownAreaName } from '../../../shared/areas';
 import { hasWorkspace } from '../../../shared/readiness';
@@ -17,20 +17,22 @@ import { latestSession, taskStateText, isReadyToClose } from '../lib/today';
 import { ClientAvatar } from './ClientAvatar';
 import { GuideSteps } from './GuideSteps';
 import { SubagentActivity } from './SubagentActivity';
-import { TaskDetails } from './TaskDetails';
+import { TaskSettings } from './TaskSettings';
 import { TaskReferenceCopy } from './TaskReferenceCopy';
 import { TaskOverview } from './TaskOverview';
 import { TaskStateIcon } from './TaskStateIcon';
 import { TaskTitle } from './TaskTitle';
-import { TerminalNotesPanel } from './TerminalNotesPanel';
+import { TerminalInfoPanel } from './TerminalInfoPanel';
 import { TerminalView } from './TerminalView';
 import { workRepositories } from '../../../shared/work-repos';
 
-type TaskView = 'overview' | 'details' | 'terminal';
+type TaskView = 'overview' | 'settings' | 'terminal';
 
 type TaskPanelProps = {
   snapshot: Snapshot;
   task: Task;
+  /** Shown in a window of its own, so it offers no other window. */
+  inWindow?: boolean;
   onChanged: () => Promise<void>;
   onOpenClient: (companyId: string) => void;
   onSentBack: (companyId: string) => void;
@@ -44,6 +46,14 @@ export function TaskPanel({ snapshot, task, onChanged, onOpenClient, onSentBack 
   const notes = useTaskNotes(task.id);
   const { playbooks } = usePlaybooks(task.companyId);
   const [view, setView] = useState<TaskView>(isLive ? 'terminal' : 'overview');
+  const liveSessionId = isLive ? session.id : null;
+  const shownSession = useRef(liveSessionId);
+
+  // A session that starts while the task is open, such as right after it was created, shows the agent at work.
+  useEffect(() => {
+    if (liveSessionId && liveSessionId !== shownSession.current) setView('terminal');
+    shownSession.current = liveSessionId;
+  }, [liveSessionId]);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [confirmingDone, setConfirmingDone] = useState(false);
   const [terminalFull, setTerminalFull] = useState(false);
@@ -53,7 +63,7 @@ export function TaskPanel({ snapshot, task, onChanged, onOpenClient, onSentBack 
 
   useShortcuts({
     '1': () => setView('overview'),
-    '2': () => setView('details'),
+    '2': () => setView('settings'),
     '3': () => {
       if (session) setView('terminal');
     },
@@ -111,7 +121,7 @@ export function TaskPanel({ snapshot, task, onChanged, onOpenClient, onSentBack 
 
   const tabs: { id: TaskView; label: string; shortcut: string; disabled?: boolean }[] = [
     { id: 'overview', label: 'Overview', shortcut: '1' },
-    { id: 'details', label: 'Details', shortcut: '2' },
+    { id: 'settings', label: 'Task settings', shortcut: '2' },
     { id: 'terminal', label: 'Terminal', shortcut: '3', disabled: !session },
   ];
 
@@ -273,20 +283,18 @@ export function TaskPanel({ snapshot, task, onChanged, onOpenClient, onSentBack 
           canStart={canStart}
           clientTasks={task.backlogPlan ? snapshot.tasks.filter((item) => item.companyId === task.companyId) : undefined}
           onChanged={onChanged}
-          onOpenDetails={() => setView('details')}
+          autoSend={snapshot.autoSendPrompt}
           onOpenTerminal={() => setView('terminal')}
         />
       )}
 
-      {view === 'details' && (
-        <TaskDetails
+      {view === 'settings' && (
+        <TaskSettings
           snapshot={snapshot}
           task={task}
           company={company}
           playbooks={playbooks}
-          notes={notes}
           isLive={isLive}
-          refreshKey={session?.state ?? 'none'}
           effectiveAccountId={effectiveAccountId}
           patch={patch}
           onGuideChange={(playbookId) => act(() => api.setTaskGuide(task.id, playbookId))}
@@ -313,7 +321,7 @@ export function TaskPanel({ snapshot, task, onChanged, onOpenClient, onSentBack 
                 }}
               >
                 {notesPanel.open ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />}
-                {notesPanel.open ? 'Hide note' : 'Show note'}
+                {notesPanel.open ? 'Hide agent work' : 'Show agent work'}
               </button>
               <button
                 className="quiet"
@@ -327,7 +335,7 @@ export function TaskPanel({ snapshot, task, onChanged, onOpenClient, onSentBack 
             </div>
             <div className="terminal-row">
               <TerminalView key={session.id} sessionId={session.id} focusRequest={terminalFocusRequest} />
-              {notesPanel.open && <TerminalNotesPanel taskId={task.id} session={session} notes={notes} onLeave={focusTerminal} />}
+              {notesPanel.open && <TerminalInfoPanel task={task} company={company} session={session} notes={notes} onLeave={focusTerminal} />}
             </div>
             <SubagentActivity session={session} />
           </div>

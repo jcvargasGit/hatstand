@@ -48,6 +48,8 @@ const snapshot = (tasks: Task[], sessions: Session[]): Snapshot => ({
   reviews: {},
   todayLayout: 'list',
   guideNewTasks: true,
+  guideUsage: {},
+  autoSendPrompt: true,
   localKnowledge: [],
   localPlugin: [],
   starterInstructions: [],

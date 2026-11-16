@@ -154,3 +154,20 @@ export function inkOn(color: string): string {
   const onLight = (background + 0.05) / (luminance('#14171f') + 0.05);
   return onLight >= onDark ? '#14171f' : '#ffffff';
 }
+
+export const NOT_CLASSIFIED = 'Not classified';
+
+export type GuideGroup = { key: string; name: string; items: TodayItem[] };
+
+/** Tasks grouped by the guide they follow, guides in alphabetical order, and tasks without a guide last, under "Not classified". Each group keeps the order it is given. */
+export function groupByGuide(items: TodayItem[]): GuideGroup[] {
+  const groups = new Map<string, GuideGroup>();
+  for (const item of items) {
+    const name = item.task.guide?.name ?? NOT_CLASSIFIED;
+    const key = item.task.guide ? `guide:${item.task.guide.playbookId}` : 'none';
+    const group = groups.get(key) ?? { key, name, items: [] };
+    group.items.push(item);
+    groups.set(key, group);
+  }
+  return [...groups.values()].sort((a, b) => Number(a.key === 'none') - Number(b.key === 'none') || a.name.localeCompare(b.name));
+}

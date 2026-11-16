@@ -355,6 +355,20 @@ describe('guide prompts', () => {
     expect(prompt).toContain('hatstand-step-done N');
     expect(prompt).toContain('Do not run it if you are midway');
   });
+
+  it('asks the agent to report every step it finishes, also those done while talking', () => {
+    const prompt = buildSystemPrompt({
+      company: { name: 'Acme', links: [], projects: [] } as unknown as Company,
+      task: task({ description: '' }),
+      repositories: [],
+      companyInstructions: '',
+      knowledgeDirs: [],
+      notesFile: '/n',
+      notes: '',
+    });
+    expect(prompt).toContain('report every step you finish, also those you did while talking');
+    expect(prompt).toContain('hatstand-step-done 2 3');
+  });
 });
 
 describe('guide files', () => {
@@ -498,12 +512,11 @@ describe('subagent activity', () => {
     expect(notice('permission_prompt')).toContain('printf needs-input');
   });
 
-  it('lets Claude Code run the step command without asking, and forgets the signal on a new prompt', () => {
+  it('lets Claude Code run the step command without asking, and keeps its reports on a new prompt', () => {
     const { hooks, permissions } = JSON.parse(claudeCode.buildStatusSettings());
     expect(permissions.allow).toEqual(['Bash(hatstand-step-done:*)', 'Bash(hatstand-check-plan:*)']);
     const commands = hooks.UserPromptSubmit.flatMap((entry: { hooks: { command: string }[] }) => entry.hooks.map((hook) => hook.command));
-    expect(commands).toContain(`printf '' > "$HATSTAND_STEP_FILE"`);
-    expect(commands).toContain('printf working > "$HATSTAND_STATUS_FILE"');
+    expect(commands).toEqual(['printf working > "$HATSTAND_STATUS_FILE"']);
   });
 });
 

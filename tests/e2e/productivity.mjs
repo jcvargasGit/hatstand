@@ -118,7 +118,6 @@ try {
 
   await page.locator('.nav-name', { hasText: 'Alpha Labs' }).click();
   await page.getByRole('button', { name: /Revisar la galería/ }).first().click();
-  await page.getByRole('tab', { name: 'Details' }).click();
   await page.getByText('2 files were already changed before the agent started').waitFor();
   await page.getByRole('button', { name: 'Show them' }).click();
   await page.getByRole('button', { name: /app\.txt/ }).click();
@@ -129,7 +128,7 @@ try {
   await page.getByRole('button', { name: /new\.txt/ }).click();
   await page.getByLabel('Changes in new.txt').getByText('+brand new').waitFor();
   ok('untracked file is shown', true);
-  await page.locator('.notes-view .file-preview strong', { hasText: 'migracion' }).waitFor();
+  await page.getByRole('region', { name: 'Notes' }).locator('.file-preview strong', { hasText: 'migracion' }).waitFor();
   ok('task notes render as Markdown', true);
   await shot('prod-task-details');
   const hasScrollX = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);

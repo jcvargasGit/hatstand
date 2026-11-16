@@ -8,6 +8,7 @@ import { api } from '../lib/api';
 import { plural } from '../lib/text';
 import { AccountsSection } from './AccountsSection';
 import { ClientAvatar } from './ClientAvatar';
+import { AutoSendSection } from './AutoSendSection';
 import { NewTasksSection } from './NewTasksSection';
 import { RemoveClientForm } from './RemoveClientForm';
 import { StayAwakeSection } from './StayAwakeSection';
@@ -61,6 +62,7 @@ export function SettingsPage({ snapshot, onChanged, onOpenClient, onAddClient }:
       <div className="settings-columns">
       <StayAwakeSection />
       <NewTasksSection enabled={snapshot.guideNewTasks} onChanged={onChanged} />
+      <AutoSendSection enabled={snapshot.autoSendPrompt} onChanged={onChanged} />
       <section className="settings-group" aria-labelledby="settings-clients">
         <h2 id="settings-clients">Clients</h2>
         <ul className="settings-clients">

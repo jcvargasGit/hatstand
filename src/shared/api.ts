@@ -2,7 +2,8 @@ import type { PastFolderRecord } from './schemas';
 import type { ReleaseState } from './schemas';
 import type { BacklogPlan, BacklogPlanInput } from './backlog-plan';
 import type { DescriptionSuggestion, SuggestionRequest } from './description-suggestion';
-import type { Account, AccountsFile, Company, GitSource, Idea, NewTask, Playbook, Session, StayAwakeMode, SubagentRun, Task, TaskPatch, TaskReview, TodayLayout, Subdomain, GitIdentityInput } from './schemas';
+import type { NewTaskDraft } from './new-task-draft';
+import type { Account, AccountsFile, Company, GitSource, Idea, NewTask, Playbook, Session, StayAwakeMode, SubagentRun, Task, TaskPatch, TaskReview, TaskSetup, TodayLayout, Subdomain, GitIdentityInput } from './schemas';
 
 export type Snapshot = {
   companies: Company[];
@@ -12,6 +13,9 @@ export type Snapshot = {
   reviews: Record<string, TaskReview>;
   todayLayout: TodayLayout;
   guideNewTasks: boolean;
+  /** How many tasks used each guide, by guide id. */
+  guideUsage: Record<string, number>;
+  autoSendPrompt: boolean;
   localKnowledge: string[];
   localPlugin: string[];
   starterInstructions: string[];
@@ -137,6 +141,8 @@ export type ClientFile = {
 
 export type TaskOutput = {
   name: string;
+  /** Absolute, to open the document in the editor. */
+  path: string;
   updatedAt: string;
 };
 
@@ -203,6 +209,14 @@ export type HatstandApi = {
   removeAccount(accountId: string): Promise<void>;
   setDefaultAccount(accountId: string): Promise<void>;
   createTask(input: NewTask): Promise<Task>;
+  /** Turns a backlog item into a task, with the same choices as a new one. The task keeps its id. */
+  makeTask(taskId: string, setup: TaskSetup): Promise<Task>;
+  /** Moves a task being written to a window of its own. Returns the id the window reads the draft with. */
+  openNewTaskWindow(draft: NewTaskDraft): Promise<string>;
+  readNewTaskDraft(draftId: string): Promise<NewTaskDraft | null>;
+  saveNewTaskDraft(draftId: string, draft: NewTaskDraft): Promise<void>;
+  /** The window created its task: the main window selects it, and this window closes. */
+  finishNewTaskWindow(draftId: string, taskId: string): Promise<void>;
   updateTask(taskId: string, patch: TaskPatch): Promise<Task>;
   linkTaskIssue(taskId: string, reference: string): Promise<Task>;
   unlinkTaskIssue(taskId: string): Promise<Task>;
@@ -256,11 +270,13 @@ export type HatstandApi = {
   setClientOrder(companyIds: string[]): Promise<void>;
   setTodayLayout(layout: TodayLayout): Promise<void>;
   setGuideNewTasks(enabled: boolean): Promise<void>;
+  setAutoSendPrompt(enabled: boolean): Promise<void>;
   searchEverything(query: string): Promise<SearchReport>;
   createDocument(companyId: string, where: string, name: string): Promise<string>;
   planningStatus(companyId: string): Promise<RepoChanges | null>;
   taskChanges(taskId: string): Promise<RepoChanges[]>;
   taskFileDiff(taskId: string, projectId: string, file: string): Promise<string>;
+  /** Opens a folder of the client, a file inside one, or a document of one of its tasks. */
   openInEditor(companyId: string, path: string): Promise<void>;
   detectEditor(): Promise<string | null>;
   openClientInEditor(companyId: string): Promise<string>;
@@ -289,6 +305,8 @@ export type HatstandApi = {
 export type HatstandEvents = {
   'session-data': { sessionId: string; data: string; end: number };
   'state-changed': null;
+  /** A task was created in a window of its own, for the main window to select. */
+  'task-created': { taskId: string; companyId: string };
   'clone-progress': CloneProgress & { companyId: string };
 };
 

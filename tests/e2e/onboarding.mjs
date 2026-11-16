@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import { join, normalize, resolve } from 'node:path';
 import { _electron as electron } from 'playwright-core';
 import { hiddenWindowEnv } from './hidden-window.mjs';
+import { chooseRepositories } from './task-form.mjs';
 import { testKeychainEnv } from './platform.mjs';
 
 const appRoot = resolve(import.meta.dirname, '../..');
@@ -291,8 +292,7 @@ try {
 
   await page.getByRole('main').getByRole('button', { name: 'New task', exact: true }).click();
   await page.getByLabel('Task title').fill('Check the gallery export');
-  await page.getByRole('checkbox', { name: 'gallery-api' }).check();
-  await page.getByRole('checkbox', { name: 'web/portal' }).check();
+  await chooseRepositories(page, ['gallery-api', 'web/portal']);
   await shot(page, '8a-new-task');
   await page.getByRole('button', { name: 'Create and start session' }).click();
   await page.getByRole('heading', { name: 'Check the gallery export' }).waitFor();
@@ -431,6 +431,15 @@ try {
   assert.ok(await nextStep.isDisabled(), 'the end of a turn does not finish a step');
   execFileSync('hatstand-step-done', ['1'], { env: guideLaunch.env });
   await guideBar.getByText('The agent finished this step').waitFor();
+  await guideBar.getByRole('button', { name: '1 Read the PR, finished' }).waitFor();
+  assert.ok(await nextStep.isEnabled(), 'Next step waits for the person');
+  const guideOf = async () => (await page.evaluate(() => window.hatstand.invoke('getSnapshot'))).tasks.find((item) => item.title === 'Review the gallery PR').guide;
+  assert.equal((await guideOf()).current, 0, 'the agent finishing a step does not move the guide');
+  // A later step the agent did along the way shows as finished too, and stays with the task.
+  execFileSync('hatstand-step-done', ['3'], { env: guideLaunch.env });
+  await guideBar.getByRole('button', { name: /^3 .*, finished$/ }).waitFor();
+  assert.deepEqual((await guideOf()).done, [1, 3], 'the finished steps are saved in the task');
+  assert.equal(await guideBar.getByRole('button', { name: /^2 .*, finished$/ }).count(), 0);
   await nextStep.click();
   const afterSend = (await typed('Step 2 of 4, Draft comments')).split('Step 2 of 4')[1];
   assert.ok(!afterSend.includes('\r'), 'the next step is written, not sent');
