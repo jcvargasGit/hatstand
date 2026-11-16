@@ -1,5 +1,4 @@
 import { ChevronDown, ChevronRight, FileText, House, Inbox, Layers, ListChecks, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings, Sun } from 'lucide-react';
-import { shownAreaName } from '../../../shared/areas';
 import { useState, type ReactNode } from 'react';
 import type { Snapshot } from '../../../shared/api';
 import type { Company } from '../../../shared/schemas';
@@ -9,13 +8,11 @@ import { useStayAwake } from '../hooks/useStayAwake';
 import { api } from '../lib/api';
 import { moveClient } from '../lib/client-order';
 import { shortcutLabel } from '../lib/shortcuts';
-import { taskTypeOf } from '../../../shared/task-types';
-import { clientTree, ideaCount, waitingByClient, waitingCount, type TodayItem, stepProgress } from '../lib/today';
+import { clientTree, ideaCount, waitingByClient, waitingCount, type TodayItem } from '../lib/today';
 import { ClientAvatar } from './ClientAvatar';
 import { ReleaseControl } from './ReleaseControl';
-import { TaskNumber } from './TaskNumber';
-import { TaskStateIcon } from './TaskStateIcon';
-import { TaskTypeTag } from './TaskTypeTag';
+import { ClientTreeBranch } from './ClientTreeBranch';
+import { TaskTree } from './TaskTree';
 
 const TASKS_SHOWN = 8;
 
@@ -28,36 +25,6 @@ type SidebarProps = {
   onSelectTask: (item: TodayItem) => void;
   onOpenSearch: () => void;
 };
-
-type TaskLinkProps = {
-  item: TodayItem;
-  selected: boolean;
-  showClient?: boolean;
-  onSelect: () => void;
-};
-
-function TaskLink({ item, selected, showClient = false, onSelect }: TaskLinkProps) {
-  const detail = [showClient ? item.company.name : shownAreaName(item.company, item.task.subdomainId), stepProgress(item.task)].filter(Boolean).join(', ');
-  const type = taskTypeOf(item.task, item.company);
-  return (
-    <button className="tree-task" title={item.task.title} aria-current={selected ? 'true' : undefined} onClick={onSelect}>
-      <TaskStateIcon item={item} size={15} />
-      <span className="tree-task-text">
-        <span className="tree-task-title">
-          <TaskNumber task={item.task} />
-          {item.task.title}
-        </span>
-        {(type || detail) && (
-          <small>
-            {type && <TaskTypeTag type={type} guideName={item.task.guide?.name} />}
-            {type && detail ? `, ${detail}` : detail}
-          </small>
-        )}
-        {item.session?.state === 'needs-input' && <small className="tree-task-ask">Needs your answer</small>}
-      </span>
-    </button>
-  );
-}
 
 type TreeMenuRowProps = {
   icon: ReactNode;
@@ -82,6 +49,8 @@ export function Sidebar({ snapshot, view, selectedTaskId, layout, onNavigate, on
   const [query, setQuery] = useState('');
   const [showAll, setShowAll] = useState<string[]>([]);
   const [showFinished, setShowFinished] = useState<string[]>([]);
+  const [closedGuides, setClosedGuides] = useState<string[]>([]);
+  const [closedWaiting, setClosedWaiting] = useState<string[]>([]);
   const activeId = view.kind === 'today' && !selectedTaskId ? view.companyId : null;
   const todayActive = view.kind === 'today' && view.companyId === null && !selectedTaskId;
   const searching = query.trim() !== '';
@@ -90,6 +59,7 @@ export function Sidebar({ snapshot, view, selectedTaskId, layout, onNavigate, on
   const ideas = ideaCount(snapshot, null);
 
   const toggleIn = (list: string[], id: string) => (list.includes(id) ? list.filter((item) => item !== id) : [...list, id]);
+  const toggleGuide = (key: string) => setClosedGuides((closed) => toggleIn(closed, key));
   const openClient = (company: Company) => onNavigate({ kind: 'today', companyId: company.id });
   const awake = useStayAwake().status?.active;
   const [dragging, setDragging] = useState<string | null>(null);
@@ -196,20 +166,20 @@ export function Sidebar({ snapshot, view, selectedTaskId, layout, onNavigate, on
             </h2>
             {!layout.needsYouHidden &&
               waitingGroups.map(({ company, items }) => (
-                <div key={company.id} role="group" aria-label={company.name}>
-                  <h3 className="needs-you-client">
-                    <ClientAvatar company={company} size="small" />
-                    <span className="nav-name">{company.name}</span>
-                  </h3>
-                  {items.map((item) => (
-                    <TaskLink
-                      key={item.task.id}
-                      item={item}
-                      selected={item.task.id === selectedTaskId}
-                      onSelect={() => onSelectTask(item)}
-                    />
-                  ))}
-                </div>
+                <ClientTreeBranch
+                  key={company.id}
+                  company={company}
+                  label={`${company.name} waiting for you`}
+                  open={!closedWaiting.includes(company.id)}
+                  count={items.length}
+                  countLabel={`${items.length} waiting for you`}
+                  onToggle={() => setClosedWaiting((closed) => toggleIn(closed, company.id))}
+                  onOpen={() => openClient(company)}
+                >
+                  <div className="tree-task-list">
+                    <TaskTree label={`${company.name} needs you`} items={items} selectedTaskId={selectedTaskId} closed={closedGuides} onToggle={toggleGuide} onSelect={onSelectTask} />
+                  </div>
+                </ClientTreeBranch>
               ))}
           </section>
         )}
@@ -221,146 +191,111 @@ export function Sidebar({ snapshot, view, selectedTaskId, layout, onNavigate, on
           const visible = showAll.includes(company.id) || searching ? active : active.slice(0, TASKS_SHOWN);
           const finishedOpen = searching || showFinished.includes(company.id);
           return (
-            <section key={company.id} className="tree-client" aria-label={`${company.name} tasks`}>
-              <div
-                className={`tree-client-row${dragging === company.id ? ' is-dragging' : ''}`}
-                aria-current={activeId === company.id && !isOpen ? 'page' : undefined}
-                draggable={!searching}
-                onDragStart={(event) => {
+            <ClientTreeBranch
+              key={company.id}
+              company={company}
+              label={`${company.name} tasks`}
+              open={isOpen}
+              current={activeId === company.id && !isOpen}
+              count={count}
+              countLabel={`${count} waiting for you`}
+              nameTitle="Drag to reorder, or press Alt with the up and down arrows"
+              rowProps={{
+                className: dragging === company.id ? 'is-dragging' : undefined,
+                draggable: !searching,
+                onDragStart: (event) => {
                   event.dataTransfer.effectAllowed = 'move';
                   setDragging(company.id);
-                }}
-                onDragEnd={() => setDragging(null)}
-                onDragOver={(event) => {
+                },
+                onDragEnd: () => setDragging(null),
+                onDragOver: (event) => {
                   if (dragging) event.preventDefault();
-                }}
-                onDrop={(event) => {
+                },
+                onDrop: (event) => {
                   event.preventDefault();
                   dropOn(company.id);
-                }}
-              >
-                <button
-                  className="tree-toggle"
-                  aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${company.name}`}
-                  aria-expanded={isOpen}
-                  onClick={() => layout.toggleClient(company.id)}
-                >
-                  {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                </button>
-                <button
-                  className="tree-client-name"
-                  title="Drag to reorder, or press Alt with the up and down arrows"
-                  onClick={() => openClient(company)}
-                  onKeyDown={(event) => {
-                    if (!event.altKey || searching || !['ArrowUp', 'ArrowDown'].includes(event.key)) return;
-                    event.preventDefault();
-                    nudge(company.id, event.key === 'ArrowUp' ? -1 : 1);
-                  }}
-                >
-                  <ClientAvatar company={company} size="small" />
-                  <span className="nav-name">{company.name}</span>
-                  {count > 0 && (
-                    <span className="nav-count" aria-label={`${count} waiting for you`}>
-                      {count}
-                    </span>
-                  )}
-                </button>
-                <button
-                  className="tree-action"
-                  aria-label={`Documents for ${company.name}`}
-                  title="Documents"
-                  onClick={() => onNavigate({ kind: 'documents', companyId: company.id })}
-                >
-                  <FileText size={14} />
-                </button>
-                <button
-                  className="tree-action"
-                  aria-label={`Settings for ${company.name}`}
-                  title="Client settings"
-                  onClick={() => onNavigate({ kind: 'setup', companyId: company.id })}
-                >
-                  <Settings size={14} />
-                </button>
-              </div>
-              {isOpen && (
-                <div className="tree-tasks">
-                  {!searching && (
-                    <>
-                      <TreeMenuRow
-                        icon={<Inbox size={14} />}
-                        label="Backlog"
-                        client={company.name}
-                        count={ideaCount(snapshot, company.id)}
-                        current={view.kind === 'inbox' && view.companyId === company.id}
-                        onSelect={() => onNavigate({ kind: 'inbox', companyId: company.id })}
-                      />
-                      <TreeMenuRow
-                        icon={<Layers size={14} />}
-                        label="Areas"
-                        client={company.name}
-                        count={company.subdomains.length}
-                        current={(view.kind === 'hub' || view.kind === 'area') && view.companyId === company.id}
-                        onSelect={() => onNavigate({ kind: 'hub', companyId: company.id })}
-                      />
-                      <div className="tree-menu-line">
-                        <TreeMenuRow
-                          icon={<ListChecks size={14} />}
-                          label="Tasks"
-                          client={company.name}
-                          count={active.length}
-                          current={activeId === company.id}
-                          onSelect={() => openClient(company)}
-                        />
-                        <button
-                          className="tree-add-task"
-                          aria-label={`New task for ${company.name}`}
-                          title="New task"
-                          onClick={() => onNavigate({ kind: 'new-task', companyId: company.id })}
-                        >
-                          <Plus size={14} />
-                        </button>
-                      </div>
-                    </>
-                  )}
-                  <div className={searching ? undefined : 'tree-task-list'}>
-                  {visible.map((item) => (
-                    <TaskLink
-                      key={item.task.id}
-                      item={item}
-                      selected={item.task.id === selectedTaskId}
-                      onSelect={() => onSelectTask(item)}
+                },
+              }}
+              actions={
+                <>
+                  <button className="tree-action" aria-label={`Documents for ${company.name}`} title="Documents" onClick={() => onNavigate({ kind: 'documents', companyId: company.id })}>
+                    <FileText size={14} />
+                  </button>
+                  <button className="tree-action" aria-label={`Settings for ${company.name}`} title="Client settings" onClick={() => onNavigate({ kind: 'setup', companyId: company.id })}>
+                    <Settings size={14} />
+                  </button>
+                </>
+              }
+              onToggle={() => layout.toggleClient(company.id)}
+              onOpen={() => openClient(company)}
+              onNameKeyDown={(event) => {
+                if (!event.altKey || searching || !['ArrowUp', 'ArrowDown'].includes(event.key)) return;
+                event.preventDefault();
+                nudge(company.id, event.key === 'ArrowUp' ? -1 : 1);
+              }}
+            >
+              {!searching && (
+                <>
+                  <TreeMenuRow
+                    icon={<Inbox size={14} />}
+                    label="Backlog"
+                    client={company.name}
+                    count={ideaCount(snapshot, company.id)}
+                    current={view.kind === 'inbox' && view.companyId === company.id}
+                    onSelect={() => onNavigate({ kind: 'inbox', companyId: company.id })}
+                  />
+                  <TreeMenuRow
+                    icon={<Layers size={14} />}
+                    label="Areas"
+                    client={company.name}
+                    count={company.subdomains.length}
+                    current={(view.kind === 'hub' || view.kind === 'area') && view.companyId === company.id}
+                    onSelect={() => onNavigate({ kind: 'hub', companyId: company.id })}
+                  />
+                  <div className="tree-menu-line">
+                    <TreeMenuRow
+                      icon={<ListChecks size={14} />}
+                      label="Tasks"
+                      client={company.name}
+                      count={active.length}
+                      current={activeId === company.id}
+                      onSelect={() => openClient(company)}
                     />
-                  ))}
-                  {active.length > visible.length && (
-                    <button className="tree-more" onClick={() => setShowAll(toggleIn(showAll, company.id))}>
-                      Show {active.length - visible.length} more
+                    <button
+                      className="tree-add-task"
+                      aria-label={`New task for ${company.name}`}
+                      title="New task"
+                      onClick={() => onNavigate({ kind: 'new-task', companyId: company.id })}
+                    >
+                      <Plus size={14} />
                     </button>
-                  )}
-                  {finished.length > 0 && (
-                    <>
-                      <button
-                        className="tree-more"
-                        aria-expanded={finishedOpen}
-                        onClick={() => setShowFinished(toggleIn(showFinished, company.id))}
-                      >
-                        {finishedOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                        Done and archived ({finished.length})
-                      </button>
-                      {finishedOpen &&
-                        finished.map((item) => (
-                          <TaskLink
-                            key={item.task.id}
-                            item={item}
-                            selected={item.task.id === selectedTaskId}
-                            onSelect={() => onSelectTask(item)}
-                          />
-                        ))}
-                    </>
-                  )}
                   </div>
-                </div>
+                </>
               )}
-            </section>
+              <div className={searching ? undefined : 'tree-task-list'}>
+              <TaskTree label={`${company.name} open tasks`} items={visible} selectedTaskId={selectedTaskId} closed={closedGuides} forceOpen={searching} onToggle={toggleGuide} onSelect={onSelectTask} />
+              {active.length > visible.length && (
+                <button className="tree-more" onClick={() => setShowAll(toggleIn(showAll, company.id))}>
+                  Show {active.length - visible.length} more
+                </button>
+              )}
+              {finished.length > 0 && (
+                <>
+                  <button
+                    className="tree-more"
+                    aria-expanded={finishedOpen}
+                    onClick={() => setShowFinished(toggleIn(showFinished, company.id))}
+                  >
+                    {finishedOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                    Done and archived ({finished.length})
+                  </button>
+                  {finishedOpen && (
+                    <TaskTree label={`${company.name} done and archived`} items={finished} selectedTaskId={selectedTaskId} closed={closedGuides} forceOpen={searching} onToggle={toggleGuide} onSelect={onSelectTask} />
+                  )}
+                </>
+              )}
+              </div>
+            </ClientTreeBranch>
           );
         })}
         <button className="nav-row nav-add" aria-current={view.kind === 'new-client' ? 'page' : undefined} onClick={() => onNavigate({ kind: 'new-client' })}>

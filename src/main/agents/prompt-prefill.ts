@@ -1,6 +1,7 @@
 const QUIET_MS = 700;
 const QUIET_AFTER_TRUST_MS = 1500;
 const MAX_WAIT_MS = 15_000;
+const ENTER_DELAY_MS = 300;
 const TRUST_DIALOG = /trust(thefiles|thisfolder)|oneyoutrust/i;
 const ESCAPE_SEQUENCES = /\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(\x07|\x1b\\)|\x1b[@-_]/g;
 
@@ -22,10 +23,13 @@ export class PromptPrefill {
   private finished = false;
   private waitingForTrust = false;
   private trustAnswered = false;
+  private enterTimer: NodeJS.Timeout | undefined;
 
+  /** With `sendEnter`, the prompt is sent once written. Without it, the prompt waits for the person to press Enter. */
   constructor(
     private text: string,
     private readonly write: (text: string) => void,
+    private readonly sendEnter?: () => void,
   ) {}
 
   get isWaiting(): boolean {
@@ -46,6 +50,8 @@ export class PromptPrefill {
   }
 
   onInput(data: string): void {
+    // The person typed over the prompt before it was sent, so it is theirs to send.
+    clearTimeout(this.enterTimer);
     if (this.finished || this.trustAnswered || !/[\r\n]/.test(data) || !this.showsTrustDialog()) return;
     this.waitingForTrust = false;
     this.trustAnswered = true;
@@ -73,11 +79,13 @@ export class PromptPrefill {
     }
     this.cancel();
     this.write(this.text);
+    if (this.sendEnter) this.enterTimer = setTimeout(() => this.sendEnter?.(), ENTER_DELAY_MS);
   }
 
   cancel(): void {
     this.finished = true;
     clearTimeout(this.quietTimer);
     clearTimeout(this.deadline);
+    clearTimeout(this.enterTimer);
   }
 }

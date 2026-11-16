@@ -13,6 +13,7 @@ import { SettingsPage } from '../../src/renderer/src/components/SettingsPage';
 import { GuideSteps } from '../../src/renderer/src/components/GuideSteps';
 import { GuidesStep } from '../../src/renderer/src/components/GuidesStep';
 import { NewTaskPage } from '../../src/renderer/src/components/NewTaskPage';
+import { startDraft } from '../../src/renderer/src/lib/new-task-draft';
 import { SubagentActivity } from '../../src/renderer/src/components/SubagentActivity';
 import { Sidebar } from '../../src/renderer/src/components/Sidebar';
 import { TaskPanel } from '../../src/renderer/src/components/TaskPanel';
@@ -65,6 +66,8 @@ const snapshot = (tasks: Task[]): Snapshot => ({
   reviews: {},
   todayLayout: 'list',
   guideNewTasks: true,
+  guideUsage: {},
+  autoSendPrompt: true,
   localKnowledge: [],
   localPlugin: [],
   starterInstructions: [],
@@ -89,11 +92,16 @@ afterEach(cleanup);
 describe('NewTaskPage', () => {
   it('creates a task on several repositories, added by subdomain, and starts it', async () => {
     const onCreated = vi.fn(async () => {});
-    render(<NewTaskPage snapshot={snapshot([])} initialCompanyId="acme" onCreated={onCreated} onChanged={vi.fn(async () => {})} />);
+    render(<NewTaskPage snapshot={snapshot([])} initialDraft={startDraft(snapshot([]), 'acme')} onCreated={onCreated} onChanged={vi.fn(async () => {})} />);
     expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Create and start session' }).disabled).toBe(true);
 
     await userEvent.type(screen.getByLabelText('Task title'), 'Fix login');
-    await userEvent.click(screen.getByRole('button', { name: 'Add Uploads' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Choose repositories' }));
+    const dialog = within(screen.getByRole('dialog', { name: 'Choose repositories' }));
+    await userEvent.click(dialog.getByRole('button', { name: 'Add Uploads' }));
+    await userEvent.click(dialog.getByRole('button', { name: 'Use these 2 repositories' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(within(screen.getByRole('group', { name: 'Chosen repositories' })).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['uploads-api', 'uploads-web']);
     await userEvent.click(screen.getByRole('button', { name: 'Create and start session' }));
 
     await waitFor(() => expect(onCreated).toHaveBeenCalledWith('new', 'acme'));
@@ -103,7 +111,7 @@ describe('NewTaskPage', () => {
 
   it('can create without starting, and works across the whole client by default', async () => {
     const onCreated = vi.fn(async () => {});
-    render(<NewTaskPage snapshot={snapshot([])} initialCompanyId="acme" onCreated={onCreated} onChanged={vi.fn(async () => {})} />);
+    render(<NewTaskPage snapshot={snapshot([])} initialDraft={startDraft(snapshot([]), 'acme')} onCreated={onCreated} onChanged={vi.fn(async () => {})} />);
     await userEvent.type(screen.getByLabelText('Task title'), 'Fix login');
     await userEvent.click(screen.getByRole('button', { name: 'Create task' }));
     await waitFor(() => expect(onCreated).toHaveBeenCalled());
@@ -114,26 +122,43 @@ describe('NewTaskPage', () => {
   const renderForm = (companies: Company[], initialCompanyId = companies[0]?.id ?? '') => {
     const data = { ...snapshot([]), companies };
     const onChanged = vi.fn(async () => {});
-    render(<NewTaskPage snapshot={data} initialCompanyId={initialCompanyId} onCreated={vi.fn(async () => {})} onChanged={onChanged} />);
+    render(<NewTaskPage snapshot={data} initialDraft={startDraft(data, initialCompanyId)} onCreated={vi.fn(async () => {})} onChanged={onChanged} />);
     return { onChanged };
   };
   const oneRepo: Company = { ...company, id: 'solo', name: 'Solo', subdomains: [], projects: [{ id: 'only', name: 'only', path: '/code/only' }] };
 
+  const chosenRepos = () => within(screen.getByRole('group', { name: 'Chosen repositories' })).queryAllByRole('listitem').map((item) => item.textContent);
+
   it('selects the repository of a client that has only one', async () => {
     renderForm([oneRepo]);
-    expect(screen.getByRole<HTMLInputElement>('checkbox', { name: 'only' }).checked).toBe(true);
+    expect(chosenRepos()).toEqual(['only']);
   });
 
   it('selects no repository when the client has several', async () => {
     renderForm([company]);
-    expect(screen.getAllByRole<HTMLInputElement>('checkbox').filter((box) => box.checked)).toEqual([]);
+    expect(chosenRepos()).toEqual([]);
+    expect(screen.getByText('None selected. The agent starts in the client folder.')).toBeTruthy();
   });
 
   it('does not count a planning repository as the only one', async () => {
     const withPlanning: Company = { ...oneRepo, projects: [...oneRepo.projects, { id: 'plan', name: 'plan', path: '/code/plan' }], planning: { path: '/code/plan', places: [] } };
     renderForm([withPlanning]);
+    expect(chosenRepos()).toEqual(['only']);
+    await userEvent.click(screen.getByRole('button', { name: 'Change repositories' }));
     expect(screen.getByRole<HTMLInputElement>('checkbox', { name: 'only' }).checked).toBe(true);
     expect(screen.queryByRole('checkbox', { name: 'plan' })).toBeNull();
+  });
+
+  it('changes nothing when the repositories window is cancelled', async () => {
+    renderForm([oneRepo]);
+    await userEvent.click(screen.getByRole('button', { name: 'Change repositories' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'only' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(chosenRepos()).toEqual(['only']);
+    await userEvent.click(screen.getByRole('button', { name: 'Change repositories' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'only' }));
+    await userEvent.keyboard('{Escape}');
+    expect(chosenRepos()).toEqual(['only']);
   });
 
   it('recalculates the repository and the guide when the client changes', async () => {
@@ -141,7 +166,7 @@ describe('NewTaskPage', () => {
     const guide = screen.getByRole<HTMLSelectElement>('combobox', { name: /^Guide/ });
     expect(guide.value).toBe('');
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Client' }), 'Solo');
-    expect(screen.getByRole<HTMLInputElement>('checkbox', { name: 'only' }).checked).toBe(true);
+    expect(chosenRepos()).toEqual(['only']);
     await waitFor(() => expect(guide.value).toBe('bug'));
   });
 
@@ -256,7 +281,7 @@ describe('TaskPanel', () => {
     const base = invoke.getMockImplementation();
     invoke.mockImplementation(async (method: string, ...args: unknown[]) => (method === 'suggestDescription' ? { description: 'A fuller description' } : base?.(method, ...args)));
     renderPanel(task({ description: 'Old text', projectIds: ['api'] }));
-    await userEvent.click(screen.getByRole('tab', { name: /Details/ }));
+    await userEvent.click(screen.getByRole('tab', { name: /Task settings/ }));
     await userEvent.click(screen.getByRole('button', { name: 'Improve description' }));
     const dialog = await screen.findByRole('dialog', { name: 'Suggested description' });
     expect(invoke).toHaveBeenCalledWith('suggestDescription', expect.objectContaining({ key: 't', title: 'Fix login', description: 'Old text', projectIds: ['api'] }));
@@ -313,16 +338,71 @@ describe('TaskPanel', () => {
     await waitFor(() => expect(invoke).toHaveBeenCalledWith('updateTask', 't', { title: 'Fix sign-in', customTitle: true }));
   });
 
-  it('opens on the overview, with details in their own view, and the terminal needs a session', async () => {
-    renderPanel(task());
+  it('opens on the overview, with the settings in their own view, and the terminal needs a session', async () => {
+    renderPanel(task({ description: 'Users are logged out after a minute.', projectIds: ['api'] }));
     expect(screen.getByRole('tab', { name: 'Overview' }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.queryByRole('tab', { name: 'Details' })).toBeNull();
     expect(screen.getByRole('region', { name: 'Where this task is' })).toBeTruthy();
-    expect(screen.queryByRole('region', { name: 'Where it stands' })).toBeNull();
+    expect(screen.getByRole('region', { name: 'Changes' })).toBeTruthy();
     expect(screen.getByRole<HTMLButtonElement>('tab', { name: 'Terminal' }).disabled).toBe(true);
-    await userEvent.click(screen.getByRole('tab', { name: 'Details' }));
-    expect(screen.getByRole('region', { name: 'Where it stands' })).toBeTruthy();
-    expect(screen.queryByRole('textbox', { name: 'Where it stands' })).toBeNull();
+    await userEvent.click(screen.getByRole('tab', { name: 'Task settings' }));
+    const settings = within(screen.getByRole('region', { name: 'Task settings' }));
+    expect(settings.getByRole('button', { name: 'Description' })).toBeTruthy();
+    expect(settings.getByRole('complementary', { name: 'Settings of the task' })).toBeTruthy();
     expect(screen.queryByRole('region', { name: 'Where this task is' })).toBeNull();
+  });
+
+  it('opens the settings with the shortcut of the tab', async () => {
+    renderPanel(task());
+    expect(screen.getByRole('tab', { name: 'Task settings' }).getAttribute('title')).toContain('2');
+    fireEvent.keyDown(window, { key: '@', code: 'Digit2', ctrlKey: true, shiftKey: true });
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'Task settings' }).getAttribute('aria-selected')).toBe('true'));
+  });
+
+  it('shows each piece of information in one tab only', async () => {
+    const guide: TaskGuide = { playbookId: 'implement', name: 'Implement a task', current: 0, promptPending: false, done: [1], steps: [{ name: 'Read', prompt: 'a' }, { name: 'Fix', prompt: 'b' }] };
+    renderPanel(task({ guide, description: 'Users are logged out after a minute.', projectIds: ['api'], checklist: [{ id: 'c1', text: 'Reproduce it', done: true }, { id: 'c2', text: 'Add a test', done: false }] }));
+    const facts = within(screen.getByRole('region', { name: 'Where this task is' }));
+    expect(facts.getByText(/Implement a task: Step 1 of 2, Read, 1 finished/)).toBeTruthy();
+    expect(screen.getByText('Where it stands')).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Checklist' })).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Changes' })).toBeTruthy();
+    expect(screen.queryByText('Users are logged out after a minute.')).toBeNull();
+    expect(screen.queryByRole('combobox', { name: /^Guide/ })).toBeNull();
+    expect(screen.queryByRole('group', { name: 'Chosen repositories' })).toBeNull();
+
+    await userEvent.click(screen.getByRole('tab', { name: 'Task settings' }));
+    const settings = within(screen.getByRole('region', { name: 'Task settings' }));
+    expect(settings.getByText('Users are logged out after a minute.')).toBeTruthy();
+    expect(settings.getByRole('combobox', { name: 'Type' })).toBeTruthy();
+    expect(await settings.findByRole('combobox', { name: /^Guide/ })).toBeTruthy();
+    expect(settings.getByRole('combobox', { name: /^Area/ })).toBeTruthy();
+    expect(settings.getByRole('combobox', { name: /^Code/ })).toBeTruthy();
+    expect(settings.getByRole('group', { name: 'Chosen repositories' })).toBeTruthy();
+    expect(screen.queryByText('Where it stands')).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Checklist' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Changes' })).toBeNull();
+    const step = screen.getByRole<HTMLSelectElement>('combobox', { name: 'Current step' });
+    expect(within(step).getAllByRole('option').map((option) => option.textContent)).toEqual(['1. Read (finished)', '2. Fix']);
+    await userEvent.selectOptions(step, '1');
+    expect(invoke).toHaveBeenCalledWith('moveGuideStep', 't', 1);
+  });
+
+  it('saves each change of its settings at once', async () => {
+    renderPanel(task({ projectIds: ['api'] }));
+    await userEvent.click(screen.getByRole('tab', { name: 'Task settings' }));
+    await userEvent.selectOptions(await screen.findByRole('combobox', { name: /^Guide/ }), 'bug');
+    expect(invoke).toHaveBeenCalledWith('setTaskGuide', 't', 'bug');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Type' }), 'investigation');
+    expect(invoke).toHaveBeenCalledWith('updateTask', 't', { type: 'investigation' });
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Priority' }), 'high');
+    expect(invoke).toHaveBeenCalledWith('updateTask', 't', { priority: 'high' });
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: /^Code/ }), 'own');
+    expect(invoke).toHaveBeenCalledWith('updateTask', 't', { isolated: true });
+    await userEvent.click(screen.getByRole('button', { name: 'Change repositories' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'uploads-web' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Use these 2 repositories' }));
+    expect(invoke).toHaveBeenCalledWith('updateTask', 't', { projectIds: ['api', 'web'] });
   });
 });
 
@@ -355,14 +435,14 @@ describe('Sidebar', () => {
   };
 
   describe('the type of a task', () => {
-    const guide = (playbookId: string, name: string): TaskGuide => ({ playbookId, name, current: 1, promptPending: false, steps: [{ name: 'a', prompt: 'x' }, { name: 'b', prompt: 'y' }] });
+    const guide = (playbookId: string, name: string): TaskGuide => ({ playbookId, name, current: 1, promptPending: false, done: [], steps: [{ name: 'a', prompt: 'x' }, { name: 'b', prompt: 'y' }] });
 
     it('names the type from the guide, with the step, and keeps the guide name as a tooltip', () => {
       renderSidebar([task({ id: 'a', title: 'Check the PR', guide: guide('pr-review', 'Review a pull request') })]);
       const tag = screen.getByText('PR review');
       expect(tag.getAttribute('title')).toBe('Review a pull request');
       expect(tag.closest('small')?.textContent).toBe('PR review, step 2 of 2');
-      expect(screen.queryByText(/Review a pull request/)).toBeNull();
+      expect(screen.getByRole('button', { name: /^Review a pull request/ }).getAttribute('aria-expanded')).toBe('true');
     });
 
     it('prefers the type saved on the task', () => {
@@ -450,12 +530,40 @@ describe('Sidebar', () => {
         />,
       );
 
-    it('groups tasks under their client, in the order of the clients', () => {
+    it('groups tasks under their client, in the order of the clients, as the list of clients does', async () => {
       renderWaiting(layout());
       const list = within(screen.getByRole('region', { name: 'Needs you' }));
-      expect(list.getAllByRole('group').map((group) => group.getAttribute('aria-label'))).toEqual(['Other', 'Acme']);
-      expect(within(list.getByRole('group', { name: 'Acme' })).getByRole('button', { name: /First/ })).toBeTruthy();
-      expect(within(list.getByRole('group', { name: 'Other' })).getByRole('button', { name: /Second/ })).toBeTruthy();
+      const clients = list.getAllByRole('region');
+      expect(clients.map((region) => region.getAttribute('aria-label'))).toEqual(['Other waiting for you', 'Acme waiting for you']);
+      const acme = within(list.getByRole('region', { name: 'Acme waiting for you' }));
+      expect(acme.getByRole('button', { name: /First/ })).toBeTruthy();
+      expect(within(list.getByRole('region', { name: 'Other waiting for you' })).getByRole('button', { name: /Second/ })).toBeTruthy();
+      const sameRow = (region: HTMLElement) => [...region.querySelectorAll('.tree-client-row > button')].map((button) => button.className);
+      expect(sameRow(list.getByRole('region', { name: 'Acme waiting for you' }))).toEqual(sameRow(screen.getByRole('region', { name: 'Acme tasks' })).slice(0, 2));
+      expect(acme.getByLabelText('1 waiting for you')).toBeTruthy();
+      await userEvent.click(acme.getByRole('button', { name: 'Collapse Acme' }));
+      expect(within(list.getByRole('region', { name: 'Acme waiting for you' })).queryByRole('button', { name: /First/ })).toBeNull();
+    });
+
+    it('shows the same tree as the list of clients: client, then guide, then tasks', () => {
+      const rfc: TaskGuide = { playbookId: 'rfc', name: 'Write an RFC', current: 0, promptPending: false, done: [], steps: [{ name: 'a', prompt: 'x' }] };
+      render(
+        <Sidebar
+          snapshot={{ ...snapshot([task({ id: 'a', title: 'First', guide: rfc }), task({ id: 'b', title: 'Second' }), task({ id: 'c', title: 'Third', guide: rfc })]), sessions: [waitingSession('a', 'acme'), waitingSession('b', 'acme')] }}
+          view={{ kind: 'today', companyId: null }}
+          selectedTaskId={null}
+          layout={layout()}
+          onNavigate={vi.fn()}
+          onSelectTask={vi.fn()}
+          onOpenSearch={vi.fn()}
+        />,
+      );
+      const guidesOf = (region: HTMLElement) => [...region.querySelectorAll<HTMLElement>('.task-tree-guide')].map((group) => [group.querySelector('.task-tree-guide-name span')?.textContent, within(group).getAllByRole('button').length - 1]);
+      const waiting = within(screen.getByRole('region', { name: 'Needs you' })).getByRole('region', { name: 'Acme waiting for you' });
+      expect(guidesOf(waiting)).toEqual([['Write an RFC', 1], ['Not classified', 1]]);
+      expect(guidesOf(screen.getByRole('region', { name: 'Acme tasks' }))).toEqual([['Write an RFC', 2], ['Not classified', 1]]);
+      expect(within(waiting).getByRole('button', { name: /First/ })).toBeTruthy();
+      expect(within(waiting).queryByRole('button', { name: /Third/ })).toBeNull();
     });
 
     it('hides the tasks but keeps the total, and its title toggles the list', async () => {
@@ -597,6 +705,7 @@ describe('GuideSteps', () => {
     name: 'Bug investigation',
     current: 1,
     promptPending: false,
+    done: [],
     steps: [{ name: 'Read' }, { name: 'Sign in', you: 'Run the login yourself.' }, { name: 'Publish', approval: true, prompt: 'Publish.' }],
   };
   const session = (state: Session['state']): Session => ({ id: 's', taskId: 't', companyId: 'acme', accountId: 'c', cwd: '/', state, startedAt: '', updatedAt: '' });
@@ -646,24 +755,40 @@ describe('GuideSteps', () => {
       expect(button('2 Fix').disabled).toBe(false);
     });
 
-    it('ignores a signal left by another step', () => {
-      render3({ state: 'idle', stepDone: 2 });
+    it('keeps Next step off when only a later step is finished, and says so', () => {
+      render3({ state: 'idle' }, { ...publish, done: [2] });
       expect(button('Next step').disabled).toBe(true);
+      expect(screen.getByText(/The agent also finished step 2/)).toBeTruthy();
+      expect(button('2 Fix, finished')).toBeTruthy();
     });
 
     it('turns Next step on when the agent says this step is finished', async () => {
-      render3({ state: 'idle', stepDone: 1 });
+      render3({ state: 'idle' }, { ...publish, done: [1] });
+      expect(button('1 Read, finished')).toBeTruthy();
       await userEvent.click(button('Next step'));
       expect(invoke).toHaveBeenCalledWith('moveGuideStep', 't', 1);
     });
 
+    it('skips the steps the agent already finished while talking', async () => {
+      render3({ state: 'idle' }, { ...publish, done: [1, 2] });
+      expect(button('Next step').title).toBe('Step 3: Post');
+      await userEvent.click(button('Next step'));
+      expect(invoke).toHaveBeenCalledWith('moveGuideStep', 't', 2);
+    });
+
+    it('says when every step is finished, and offers no Next step', () => {
+      render3({ state: 'idle' }, { ...publish, current: 1, done: [1, 2, 3] });
+      expect(screen.queryByRole('button', { name: 'Next step' })).toBeNull();
+      expect(screen.getByText('The agent finished every step of the guide.')).toBeTruthy();
+    });
+
     it.each(['working', 'needs-input'] as const)('keeps Next step off while the agent is %s, even after its signal', (state) => {
-      render3({ state, stepDone: 1 });
+      render3({ state }, { ...publish, done: [1] });
       expect(button('Next step').disabled).toBe(true);
     });
 
     it('sends the text instead of moving, and locks the steps until it is gone', async () => {
-      render3({ state: 'idle', draft: true, stepDone: 1 });
+      render3({ state: 'idle', draft: true }, { ...publish, done: [1] });
       expect(screen.queryByRole('button', { name: 'Next step' })).toBeNull();
       expect(button('2 Fix').disabled).toBe(true);
       await userEvent.click(button('Send to agent'));
@@ -793,7 +918,7 @@ describe('creating a task', () => {
   it('lets you work without a copy of the code', async () => {
     invoke.mockImplementation(async (method: string) => (method === 'createTask' ? { id: 't' } : { playbooks: [], problems: [] }));
     const snapshot = { companies: [company], tasks: [], sessions: [], accounts: { accounts: [], defaultAccountId: undefined }, reviews: {} } as unknown as Snapshot;
-    render(<NewTaskPage snapshot={snapshot} initialCompanyId="acme" onCreated={vi.fn(async () => {})} onChanged={vi.fn(async () => {})} />);
+    render(<NewTaskPage snapshot={snapshot} initialDraft={startDraft(snapshot, 'acme')} onCreated={vi.fn(async () => {})} onChanged={vi.fn(async () => {})} />);
     await userEvent.type(screen.getByRole('textbox', { name: /title/i }), 'Read only');
     await userEvent.selectOptions(screen.getByRole('combobox', { name: /^Code/ }), 'shared');
     expect(screen.getByText(/No copy and no branch/)).toBeTruthy();

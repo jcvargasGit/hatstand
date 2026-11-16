@@ -1,4 +1,4 @@
-import type { Company, Project } from './schemas';
+import type { Company, Project, Task } from './schemas';
 
 const clean = (path: string) => path.replace(/\\/g, '/').replace(/\/+$/, '');
 
@@ -38,4 +38,10 @@ export function suggestedRepositoryIds(company: Company, areaId = ''): string[] 
   if (inArea.length > 0) return inArea;
   const repos = workRepositories(company);
   return repos.length === 1 ? repos.map((repo) => repo.id) : [];
+}
+
+/** The repositories a task works with: the ones chosen for it, and those of its area's folders. */
+export function taskRepositories(company: Company, task: Pick<Task, 'projectIds' | 'subdomainId'>): Project[] {
+  const folders = company.subdomains.find((item) => item.id === task.subdomainId)?.folders ?? [];
+  return workRepositories(company).filter((project) => task.projectIds.includes(project.id) || folders.some((folder) => folder.projectId === project.id));
 }

@@ -6,6 +6,7 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { hiddenWindowEnv } from './hidden-window.mjs';
+import { chooseRepositories } from './task-form.mjs';
 import { shortcut, testKeychainEnv } from './platform.mjs';
 
 const appRoot = new URL('../..', import.meta.url).pathname;
@@ -136,6 +137,14 @@ try {
 
   // A task that was not ready goes back to the backlog.
   await page.locator('.idea-row', { hasText: 'Cambiar colores (Tema)' }).getByRole('button', { name: 'Make it a task' }).click();
+  const taskForm = page.getByRole('region', { name: 'Backlog item to task' });
+  assert.equal(await taskForm.getByLabel('Task title').inputValue(), 'Cambiar colores (Tema)', 'the form opens with the title of the backlog item');
+  const ideaBefore = await taskNamed('Cambiar colores (Tema)');
+  assert.equal(ideaBefore.status, 'idea', 'the item stays in the backlog until the form is saved');
+  await taskForm.getByRole('button', { name: 'Make it a task', exact: true }).click();
+  await page.getByRole('region', { name: 'Task' }).getByRole('button', { name: 'Send back to backlog' }).waitFor();
+  const madeTask = await taskNamed('Cambiar colores (Tema)');
+  assert.deepEqual([madeTask.id, madeTask.status], [ideaBefore.id, 'todo'], 'the backlog item becomes the task, with the same id');
   await page.getByRole('region', { name: 'Task' }).getByRole('button', { name: 'Send back to backlog' }).click();
   await page.getByRole('tab', { name: 'Backlog 2', selected: true }).waitFor();
   await page.getByRole('region', { name: 'Northwind backlog' }).getByText('Cambiar colores (Tema)').waitFor();
@@ -143,9 +152,15 @@ try {
   // An idea becomes a task, and gets its own copy of the code.
   const row = page.locator('.idea-row', { hasText: 'Revisar el menú' });
   await row.getByRole('button', { name: 'Make it a task' }).click();
+  await taskForm.getByRole('button', { name: 'Make it a task', exact: true }).click();
   await page.getByRole('region', { name: 'Task' }).getByRole('button', { name: 'Start session' }).click();
   await page.getByText('fake agent ready').waitFor();
   const first = await taskNamed('Revisar el menú');
+  // The first prompt of a task is sent without the person pressing Enter.
+  await until(async () => {
+    const session = (await invoke('getSnapshot')).sessions.find((item) => item.taskId === first.id);
+    return session && !session.draft && /\S\r$/.test(await invoke('readSessionBuffer', session.id));
+  }, 'the opening prompt to be sent by itself');
   assert.equal(first.status, 'doing');
   assert.equal(first.description, 'Medio, Después');
   assert.deepEqual(first.worktrees, [], 'Starting a session makes no copy.');
@@ -306,12 +321,17 @@ try {
   await lane('merged').getByRole('img', { name: 'Ready to close' }).first().waitFor();
   await shot('board-ready-to-close');
   await lane('merged').getByText('Revisar el menú').click();
-  await page.getByRole('tab', { name: 'Details' }).click();
-  const code = page.locator('.task-code');
+  await page.getByRole('tab', { name: 'Task settings' }).click();
+  const code = page.getByRole('region', { name: 'Repositories of this task' });
   await code.getByText(firstCopy.branch, { exact: false }).waitFor();
   await shot('task-code');
+  // A task with its own copy opens the copy or the original repository, each at its own path.
+  await code.getByRole('button', { name: 'Open the copy of api in VS Code' }).click();
+  await until(() => existsSync(editorLog) && readFileSync(editorLog, 'utf8').split('\n').includes(firstCopy.path), 'the copy of the task to open in the editor');
+  await code.getByRole('button', { name: 'Open the original api in VS Code' }).click();
+  await until(() => readFileSync(editorLog, 'utf8').split('\n').includes(repo), 'the original repository to open in the editor');
   await code.getByRole('button', { name: 'Remove copy' }).click();
-  await code.getByText('No copies yet').waitFor();
+  await code.getByText('Only reading, until the agent needs to change it').waitFor();
   assert.equal(existsSync(firstCopy.path), false);
   assert.ok(git('branch', '--list', firstCopy.branch).includes(firstCopy.branch), 'The branch is kept.');
 
@@ -340,21 +360,26 @@ try {
   await page.getByRole('region', { name: 'Code' }).getByRole('button', { name: 'Open in VS Code' }).click();
   await until(() => existsSync(editorLog) && readFileSync(editorLog, 'utf8').includes(secondCopy.path), 'the task copy to open in the editor');
 
-  await page.keyboard.press(shortcut('2'));
-  assert.equal(await tab('Details').getAttribute('aria-selected'), 'true');
   const changes = page.getByRole('region', { name: 'Changes' });
   await changes.getByText('1 commit on this branch').waitFor();
   assert.equal(await changes.getByText('web', { exact: true }).count(), 0, 'A repository this task did not change is not listed.');
   await changes.getByRole('button', { name: /done\.txt/ }).click();
   await page.getByLabel('Changes in done.txt').getByText('+finished work').waitFor();
-  const selected = page.getByRole('region', { name: 'Selected', exact: true });
-  const notSelected = page.getByRole('region', { name: 'Not selected' });
-  await selected.getByRole('checkbox', { name: 'api' }).waitFor();
-  await notSelected.getByRole("checkbox", { name: "web" }).click();
-  await selected.getByRole('checkbox', { name: 'web' }).waitFor();
+
+  await page.keyboard.press(shortcut('2'));
+  assert.equal(await tab('Task settings').getAttribute('aria-selected'), 'true');
+  assert.equal(await page.getByRole('region', { name: 'Changes' }).count(), 0, 'The changes are shown in the overview only.');
+  const settings = page.getByRole('region', { name: 'Task settings' });
+  const chosen = settings.getByRole('group', { name: 'Chosen repositories' });
+  await chosen.getByText('api', { exact: true }).waitFor();
+  await chooseRepositories(settings, ['web']);
+  await chosen.getByText('web', { exact: true }).waitFor();
   await shot('task-details');
-  await selected.getByRole("checkbox", { name: "web" }).click();
-  await notSelected.getByRole('checkbox', { name: 'web' }).waitFor();
+  await settings.getByRole('button', { name: 'Change repositories' }).click();
+  const repoDialog = page.getByRole('dialog', { name: 'Choose repositories' });
+  await repoDialog.getByRole('checkbox', { name: 'web', exact: true }).uncheck();
+  await repoDialog.getByRole('button', { name: 'Use this repository' }).click();
+  await chosen.getByText('web', { exact: true }).waitFor({ state: 'detached' });
 
   await page.keyboard.press(shortcut('3'));
   await page.getByTestId('terminal').waitFor();
@@ -370,7 +395,23 @@ try {
   const sharedSession = await invoke('startSession', shared.id);
   writeFileSync(join(web, 'from-agent.txt'), 'new\n');
   await page.getByRole('button', { name: 'Shared review' }).first().click();
-  await page.keyboard.press(shortcut('2'));
+
+  // Beside the terminal, the agent's files are links to the editor, and new ones appear by themselves.
+  await page.keyboard.press(shortcut('3'));
+  const showWork = page.getByRole('button', { name: 'Show agent work' });
+  if (await showWork.count()) await showWork.click();
+  const work = page.getByRole('complementary', { name: 'Agent work' });
+  await work.getByRole('region', { name: 'Repositories' }).getByRole('button', { name: 'Open web in VS Code' }).waitFor();
+  const createdFiles = work.getByRole('region', { name: 'Files created' });
+  await createdFiles.getByRole('button', { name: 'from-agent.txt' }).click();
+  await until(() => readFileSync(editorLog, 'utf8').split('\n').includes(join(web, 'from-agent.txt')), 'a file of the agent to open in the editor');
+  writeFileSync(join(web, 'second-file.txt'), 'later\n');
+  await createdFiles.getByRole('button', { name: 'second-file.txt' }).waitFor({ timeout: 15000 });
+  assert.equal(await work.getByText('unrelated.txt').count(), 0, 'A file changed before the agent started is not its work.');
+  await shot('agent-work');
+  rmSync(join(web, 'second-file.txt'));
+
+  await page.keyboard.press(shortcut('1'));
   await changes.getByRole('button', { name: /from-agent\.txt/ }).waitFor();
   assert.equal(await changes.getByRole('button', { name: /unrelated\.txt/ }).count(), 0, 'A file changed earlier stays hidden.');
   await changes.getByText('1 file was already changed before the agent started').waitFor();
@@ -409,7 +450,7 @@ try {
   const noteTerminal = page.getByTestId('terminal');
   await noteTerminal.waitFor();
   const noteEditor = page.getByRole('textbox', { name: 'Task note' });
-  if (await page.getByRole('button', { name: 'Show note' }).isVisible()) await page.getByRole('button', { name: 'Show note' }).click();
+  if (await page.getByRole('button', { name: 'Show agent work' }).isVisible()) await page.getByRole('button', { name: 'Show agent work' }).click();
   await noteEditor.waitFor();
   const widthWithNote = (await noteTerminal.boundingBox()).width;
   const terminalScreen = page.locator('.xterm-screen');
@@ -436,11 +477,11 @@ try {
   await shot('terminal-note-full');
   await page.keyboard.press(shortcut('Enter'));
 
-  await page.getByRole('button', { name: 'Hide note' }).click();
+  await page.getByRole('button', { name: 'Hide agent work' }).click();
   await noteEditor.waitFor({ state: 'hidden' });
   await until(async () => (await noteTerminal.boundingBox()).width > widthWithNote, 'the terminal to take the space of the panel');
   await until(async () => (await terminalScreen.boundingBox()).width > columnsWidthWithNote, 'the terminal to gain columns without the panel');
-  await page.getByRole('button', { name: 'Show note' }).click();
+  await page.getByRole('button', { name: 'Show agent work' }).click();
   await noteEditor.waitFor();
 
   await page.getByRole('button', { name: 'Revisar el menú' }).first().click();
@@ -448,8 +489,8 @@ try {
   await page.keyboard.press(shortcut('3'));
   await noteEditor.waitFor();
   assert.equal(await page.locator('.terminal-notes .cm-md-h1').innerText(), 'Leído hasta', 'The note is there after changing task.');
-  await page.getByRole('button', { name: 'Hide note' }).click();
-  await page.getByRole('button', { name: 'Show note' }).click();
+  await page.getByRole('button', { name: 'Hide agent work' }).click();
+  await page.getByRole('button', { name: 'Show agent work' }).click();
   await noteEditor.waitFor();
 
   // The TL;DR button sends a fixed request, without mixing it with text left at the prompt.

@@ -25,6 +25,8 @@ const snapshot = (todayLayout: Snapshot['todayLayout']): Snapshot => ({
   reviews: {},
   todayLayout,
   guideNewTasks: true,
+  guideUsage: {},
+  autoSendPrompt: true,
   localKnowledge: [],
   localPlugin: [],
   starterInstructions: [],

@@ -46,8 +46,17 @@ export function MarkdownField({ value, label, placeholder = 'Click to write', ro
   };
 
   const leaveWhenFocusGoesOut = (event: FocusEvent<HTMLDivElement>) => {
-    if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return;
-    leave(false);
+    const field = event.currentTarget;
+    if (event.relatedTarget instanceof Node) {
+      if (!field.contains(event.relatedTarget)) leave(false);
+      return;
+    }
+    // Focus that goes nowhere can be the editor being set up again, as React does in development,
+    // so the field closes only when the focus is still outside once that settles.
+    setTimeout(() => {
+      if (field.isConnected && field.contains(document.activeElement)) return;
+      leave(false);
+    }, 0);
   };
 
   const openUnlessLink = (event: MouseEvent<HTMLDivElement>) => {

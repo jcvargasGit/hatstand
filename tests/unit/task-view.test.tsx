@@ -11,7 +11,7 @@ import { clientFolders, detectEditor } from '../../src/main/editor';
 import { parseNameStatus, taskFileDiff, taskRepoChanges } from '../../src/main/git-changes';
 import { dataPaths } from '../../src/main/paths';
 import { RepoPicker } from '../../src/renderer/src/components/RepoPicker';
-import { taskJourney } from '../../src/renderer/src/lib/task-journey';
+import { guideLine, taskJourney } from '../../src/renderer/src/lib/task-journey';
 import { companySchema, taskSchema, type Company, type PullRequest, type Session, type Task } from '../../src/shared/schemas';
 
 const PATH = process.env.PATH ?? '';
@@ -59,6 +59,25 @@ describe('where a task is and where it goes', () => {
     expect(merged).toMatchObject({ now: 'Ready to close', next: 'Close it, and remove its copy of the code' });
     expect(stageName(merged)).toBe('Merged');
     expect(journey('stopped', [], { status: 'done' })).toMatchObject({ finished: true, now: 'Done' });
+  });
+
+  it('shows the steps of a guide that is not code work once, with those the agent reported ahead', () => {
+    const report = { playbookId: 'report', name: 'Report', type: 'report', steps: [{ name: 'Gather', prompt: 'a' }, { name: 'Draft', prompt: 'b' }, { name: 'Send', prompt: 'c' }], current: 0, promptPending: false, done: [1, 3] };
+    const item = journey('idle', [], { guide: report });
+    expect(item.stages).toEqual(['Gather', 'Draft', 'Send', 'Done']);
+    expect(item.doneStages).toEqual([0, 2]);
+    expect(item.stagesAreSteps).toBe(true);
+    expect(guideLine(makeTask({ guide: report }))).toBe('Step 1 of 3, Gather, 2 finished');
+    expect(guideLine(makeTask({ guide: { ...report, done: [] } }))).toBe('Step 1 of 3, Gather');
+    expect(guideLine(makeTask())).toBeNull();
+  });
+
+  it('marks the stages of code work from the facts, not from the steps reported', () => {
+    const implement = { playbookId: 'implement', name: 'Implement a task', steps: [{ name: 'Understand the task', prompt: 'a' }, { name: 'Build it', prompt: 'b' }], current: 0, promptPending: false, done: [2] };
+    const item = journey('idle', [], { guide: implement });
+    expect(item.stages[0]).toBe('Described');
+    expect(item.doneStages).toEqual([0]);
+    expect(item.stagesAreSteps).toBe(false);
   });
 
   it('offers the next step of the guide when paused', () => {

@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { EditorView } from '@codemirror/view';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { useState } from 'react';
+import { StrictMode, useState } from 'react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { MarkdownField } from '../../src/renderer/src/components/MarkdownField';
 
@@ -49,6 +49,21 @@ describe('a Markdown field', () => {
     expect(sourceToggle().getAttribute('aria-pressed')).toBe('false');
     expect(editorView().state.doc.toString()).toBe('Ship it');
     expect(editorView().dom.classList.contains('cm-md-source')).toBe(false);
+  });
+
+  it('stays open for typing when React sets the editor up twice, as in development', async () => {
+    render(
+      <StrictMode>
+        <Harness initial="" />
+      </StrictMode>,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'About this task' }));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(screen.getByRole('toolbar', { name: 'Formatting' })).toBeTruthy();
+    expect(screen.getAllByRole('textbox', { name: 'About this task' })).toHaveLength(1);
+    expect(document.activeElement).toBe(editorView().contentDOM);
+    act(() => editorView().dispatch({ changes: { from: 0, insert: 'Typed here' } }));
+    expect(screen.getByLabelText('Saved value').textContent).toBe('Typed here');
   });
 
   it('switches to the Markdown source and keeps the text the same', async () => {

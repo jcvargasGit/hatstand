@@ -1,5 +1,5 @@
 import type { SessionState } from '../../shared/schemas';
-import { CLEAR_STEP_DONE, STEP_DONE_COMMAND } from '../step-done-tool';
+import { STEP_DONE_COMMAND } from '../step-done-tool';
 import { CHECK_PLAN_COMMAND } from '../check-plan-tool';
 import { ACTIVITY_FILE_ENV, STATUS_FILE_ENV, WAITING_AT_PROMPT, type AgentAdapter } from './types';
 
@@ -45,7 +45,7 @@ export const claudeCode: AgentAdapter = {
       permissions: { allow: [`Bash(${STEP_DONE_COMMAND}:*)`, `Bash(${CHECK_PLAN_COMMAND}:*)`] },
       hooks: {
         SessionStart: [activityHook],
-        UserPromptSubmit: [{ hooks: [{ type: 'command', command: CLEAR_STEP_DONE }] }, statusHook('working')],
+        UserPromptSubmit: [statusHook('working')],
         PreToolUse: [
           { matcher: 'Bash', hooks: [{ type: 'command', command: BLOCK_HOOK_BYPASS_COMMAND }] },
           { matcher: '*', ...statusHook('working') },

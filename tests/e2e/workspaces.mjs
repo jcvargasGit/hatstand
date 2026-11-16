@@ -97,7 +97,7 @@ try {
   assert.equal(companies.find((item) => item.id === 'other-client').defaultAccountId, undefined);
 
   await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'New task', exact: true }).click();
-  await page.getByRole('main').locator('label', { hasText: /^Client/ }).locator('select').selectOption({ label: 'Northwind' });
+  await page.getByRole('region', { name: 'New task' }).getByRole('combobox', { name: 'Client' }).selectOption({ label: 'Northwind' });
   await page.getByLabel('Task title').fill('Retry failed uploads');
   await page.getByRole('combobox', { name: /^Area/ }).selectOption({ label: 'uploads' });
   await page.getByText('The agent focuses on apps/uploads, libs/media.').waitFor();

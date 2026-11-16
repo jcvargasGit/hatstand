@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { appendFileSync, chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from 'node:fs';
+import { appendFileSync, chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import * as pty from 'node-pty';
 import type { SessionOutput } from '../shared/api';
@@ -20,13 +20,13 @@ import { findExecutable } from './shell';
 import { readClientInstructions } from './starter-files';
 import { accountsForClient } from '../shared/accounts';
 import { COPY_REQUESTS_ENV, EDIT_REPO_TOOL, READ_ONLY_REPOS_ENV } from './edit-repo-tool';
-import { parseStepDone, STEP_DONE_TOOL, STEP_FILE_ENV } from './step-done-tool';
+import { parseStepsDone, STEP_DONE_TOOL, STEP_FILE_ENV, withStepsDone } from './step-done-tool';
 import { refreshFingerprints } from './guard/service';
 import { identityEnv } from './git-identity';
 import { activeKnowledgeDir, activePlanning } from './active-folders';
 import { answerPlanCheck, backlogPromptInput } from './backlog-plan';
 import { CHECK_PLAN_TOOL, PLAN_CHECKS_ENV } from './check-plan-tool';
-import { activeWorktrees, companyWithCode, reposOutside, sessionFolder, taskArea, workingDirFor, taskFocus, taskFolderPaths, taskRepositories } from './task-folders';
+import { activeWorktrees, companyWithCode, reposOutside, sessionFolder, taskArea, workingDirFor, taskFocus, taskFolderPaths, taskKnowledgeFolder, taskRepositories } from './task-folders';
 import { prepareWorktrees } from './worktrees';
 import { gitTokenName } from '../shared/git-source';
 import { areaFolder as areaFolderName } from '../shared/areas';
@@ -45,6 +45,13 @@ const SUBMIT_DELAY_MS = 300;
 const SHIFT_ENTER = /\x1b\r/g;
 const answersTheAgent = (data: string) => ANSWERS_THE_AGENT.test(data.replace(SHIFT_ENTER, ''));
 const adapters: Record<Account['type'], AgentAdapter> = { 'claude-code': claudeCode, 'github-copilot': githubCopilot };
+
+/** Whether the opening prompt of a first session can be sent without waiting: not when the step needs approval, or is one the person does. */
+export function sendsOpeningByItself(task: Pick<Task, 'guide'>): boolean {
+  if (!task.guide) return true;
+  const step = task.guide.steps[task.guide.current];
+  return step?.prompt !== undefined && step.approval !== true;
+}
 
 export function resolveAccount(accounts: Account[], defaultId: string | undefined, company: Company, task: Pick<Task, 'accountId'>): Account {
   const wanted = task.accountId ?? company.defaultAccountId ?? defaultId;
@@ -151,6 +158,8 @@ export class SessionManager {
     const accounts = this.store.readAccounts();
     const account = resolveAccount(accounts.accounts, accounts.defaultAccountId, company, task);
     const now = new Date().toISOString();
+    const isFirst = !this.store.listSessions().some((item) => item.taskId === taskId);
+    const submitOpening = isFirst && prompt === undefined && this.store.readPreferences().autoSendPrompt && sendsOpeningByItself(task);
     const session: Session = {
       id: randomUUID(),
       taskId,
@@ -161,7 +170,7 @@ export class SessionManager {
       startedAt: now,
       updatedAt: now,
     };
-    this.launch(session, task, company, account, false, prompt);
+    this.launch(session, task, company, account, false, prompt, submitOpening);
     if (task.status === 'todo' || task.status === 'idea') this.store.updateTask(task.id, { status: 'doing' });
     return session;
   }
@@ -186,7 +195,7 @@ export class SessionManager {
     return !transcript || existsSync(transcript);
   }
 
-  private launch(session: Session, task: Task, realCompany: Company, account: Account, resume: boolean, prompt?: string): void {
+  private launch(session: Session, task: Task, realCompany: Company, account: Account, resume: boolean, prompt?: string, submitOpening = false): void {
     const company = companyWithCode(realCompany, task);
     const adapter = adapters[account.type];
     const statusFile = this.paths.statusFile(session.id);
@@ -278,11 +287,17 @@ export class SessionManager {
       cwd: session.cwd,
       env,
     });
-    const opening = prompt ?? openingPrompt(task, taskFocus(company, task), resume);
-    const prefill = opening === null ? null : new PromptPrefill(opening, (text) => {
+    const opening = prompt ?? openingPrompt(task, taskFocus(company, task), resume, taskKnowledgeFolder(this.paths, company, task));
+    let writtenAtPrompt = false;
+    const writeOpening = (text: string) => {
       child.write(text);
       this.addToDraft(session.id, text);
-    });
+      writtenAtPrompt = this.isAtItsPrompt(session.id);
+    };
+    const sendOpening = () => {
+      if (writtenAtPrompt) this.submitOpening(session.id, child);
+    };
+    const prefill = opening === null ? null : new PromptPrefill(opening, writeOpening, submitOpening ? sendOpening : undefined);
     if (task.guide?.promptPending) this.store.updateTask(task.id, { guide: { ...task.guide, promptPending: false } });
     const live: LiveSession = {
       process: child,
@@ -336,20 +351,34 @@ export class SessionManager {
     if (state) this.setState(sessionId, this.stateFromAgent(sessionId, state));
   }
 
-  private pollStepDone(sessionId: string): void {
-    const file = this.paths.stepFile(sessionId);
-    const stepDone = existsSync(file) ? parseStepDone(readFileSync(file, 'utf8')) : undefined;
-    const session = this.requireSession(sessionId);
-    if (session.stepDone === stepDone) return;
-    this.store.saveSession({ ...session, stepDone });
-    this.events.onChange();
+  /** Sends the opening prompt of a first session, unless the session ended or the person cleared the prompt first. */
+  private submitOpening(sessionId: string, child: pty.IPty): void {
+    const live = this.live.get(sessionId);
+    if (!live || live.process !== child || live.draftLength === 0 || !this.isAtItsPrompt(sessionId)) return;
+    this.write(sessionId, '\r');
   }
 
-  private clearStepDone(taskId: string): void {
-    for (const session of this.store.listSessions().filter((item) => item.taskId === taskId)) {
-      rmSync(this.paths.stepFile(session.id), { force: true });
-      if (session.stepDone !== undefined) this.store.saveSession({ ...session, stepDone: undefined });
-    }
+  /** Enter would answer a question the agent asks, such as a permission, so the opening prompt is only sent while the agent waits at its prompt. */
+  private isAtItsPrompt(sessionId: string): boolean {
+    this.pollStatus(sessionId);
+    const state = this.live.get(sessionId)?.state;
+    return state === 'idle' || state === 'background';
+  }
+
+  /** Moves the steps the agent reported into the guide of the task, so they outlive the session. */
+  private pollStepDone(sessionId: string): void {
+    const file = this.paths.stepFile(sessionId);
+    if (!existsSync(file)) return;
+    const reading = `${file}.${randomUUID()}.reading`;
+    renameSync(file, reading);
+    const reported = parseStepsDone(readFileSync(reading, 'utf8'));
+    rmSync(reading, { force: true });
+    const task = this.store.findTask(this.requireSession(sessionId).taskId);
+    if (!task.guide || reported.length === 0) return;
+    const done = withStepsDone(task.guide.done, reported, task.guide.steps.length);
+    if (done.join() === task.guide.done.join()) return;
+    this.store.updateTask(task.id, { guide: { ...task.guide, done } });
+    this.events.onChange();
   }
 
   private setDraftLength(sessionId: string, length: number): void {
@@ -406,10 +435,11 @@ export class SessionManager {
 
   write(sessionId: string, data: string): void {
     const live = this.live.get(sessionId);
+    // The answer is recorded before the agent can read it, so a quick reply from the agent is not overwritten.
+    if (live && answersTheAgent(data)) this.markAnswered(sessionId);
     live?.process.write(data);
     live?.prefill?.onInput(data);
     if (live && live.state !== 'needs-input') this.setDraftLength(sessionId, draftLengthAfter(live.draftLength, data));
-    if (live && answersTheAgent(data)) this.markAnswered(sessionId);
   }
 
   sendDraft(sessionId: string): void {
@@ -454,17 +484,18 @@ export class SessionManager {
   moveGuideStep(taskId: string, index: number): void {
     const { guide } = this.store.findTask(taskId);
     if (!guide?.steps[index]) throw new Error('This step no longer exists in the guide.');
-    this.changeGuide(taskId, { ...guide, current: index });
+    const yourStepDone = index > guide.current && guide.steps[guide.current]?.you !== undefined;
+    const done = yourStepDone ? withStepsDone(guide.done, [guide.current + 1], guide.steps.length) : guide.done;
+    this.changeGuide(taskId, { ...guide, current: index, done });
   }
 
   changeGuide(taskId: string, guide: TaskGuide): void {
     const task = { ...this.store.findTask(taskId), guide };
     const company = this.store.readCompany(task.companyId);
-    const prompt = buildStepPrompt(task, taskFocus(company, task));
+    const prompt = buildStepPrompt(task, taskFocus(company, task), taskKnowledgeFolder(this.paths, company, task));
     const session = this.store.listSessions().find((item) => item.taskId === taskId && this.live.has(item.id));
     const live = session && this.live.get(session.id);
     if (!session || !live) {
-      this.clearStepDone(taskId);
       this.store.updateTask(taskId, { guide: { ...guide, promptPending: prompt !== null } });
       return;
     }
@@ -478,7 +509,6 @@ export class SessionManager {
         this.addToDraft(session.id, prompt);
       }
     }
-    this.clearStepDone(taskId);
     this.store.updateTask(taskId, { guide: { ...guide, promptPending: false } });
     this.events.onChange();
   }

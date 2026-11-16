@@ -137,6 +137,8 @@ export class Store {
       reviews: {},
       todayLayout: this.readPreferences().todayLayout,
       guideNewTasks: this.readPreferences().guideNewTasks,
+      guideUsage: this.readPreferences().guideUsage,
+      autoSendPrompt: this.readPreferences().autoSendPrompt,
       localKnowledge: companies.filter((company) => this.hasLocalKnowledge(company.id)).map((company) => company.id),
       localPlugin: companies.filter((company) => this.hasLocalPlugin(company.id)).map((company) => company.id),
       starterInstructions: companies.filter((company) => this.usesStarterInstructions(company)).map((company) => company.id),
@@ -248,6 +250,11 @@ export class Store {
     const next = preferencesSchema.parse({ ...this.readPreferences(), ...change });
     writePrivateFile(this.paths.preferencesFile, stringify(next));
     return next;
+  }
+
+  recordGuideUse(playbookId: string): void {
+    const usage = this.readPreferences().guideUsage;
+    this.savePreferences({ guideUsage: { ...usage, [playbookId]: (usage[playbookId] ?? 0) + 1 } });
   }
 
   readCompany(companyId: string): Company {
@@ -431,7 +438,7 @@ export class Store {
       description: parsed.description ?? '',
       note: '',
       checklist: (parsed.checklist ?? []).map((text) => ({ id: randomUUID(), text, done: false })),
-      priority: 'none',
+      priority: parsed.priority ?? 'none',
       projectIds: parsed.projectIds ?? [],
       status,
       source,
@@ -550,7 +557,7 @@ export class Store {
       .map((name) => ({ name, stats: lstatSync(join(folder, name)) }))
       .filter(({ stats }) => stats.isFile())
       .sort((first, second) => second.stats.mtimeMs - first.stats.mtimeMs)
-      .map(({ name, stats }) => ({ name: name.slice(prefix.length), updatedAt: stats.mtime.toISOString() }));
+      .map(({ name, stats }) => ({ name: name.slice(prefix.length), path: join(folder, name), updatedAt: stats.mtime.toISOString() }));
   }
 
   taskOutputFile(task: Task, name: string): string {

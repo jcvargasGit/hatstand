@@ -11,7 +11,7 @@ export function useTaskOutputs(taskId: string): TaskOutput[] {
     let active = true;
     const load = async () => {
       const saved = await api.listTaskOutputs(taskId);
-      if (active) setOutputs(saved);
+      if (active) setOutputs(saved ?? []);
     };
     setOutputs([]);
     void load();

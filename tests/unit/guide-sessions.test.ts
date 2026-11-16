@@ -3,12 +3,12 @@ import { chmodSync, existsSync, mkdtempSync, readFileSync, realpathSync, rmSync,
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
-import type { TaskGuide } from '../../src/shared/schemas';
+import type { Task, TaskGuide } from '../../src/shared/schemas';
 import { githubCopilot } from '../../src/main/agents/github-copilot';
 import { dataPaths, type DataPaths } from '../../src/main/paths';
 import type { SecretStore } from '../../src/main/secrets';
 import { SessionManager } from '../../src/main/sessions';
-import { CLEAR_STEP_DONE, parseStepDone, STEP_DONE_TOOL } from '../../src/main/step-done-tool';
+import { parseStepsDone, STEP_DONE_TOOL, withStepsDone } from '../../src/main/step-done-tool';
 import { Store } from '../../src/main/store';
 
 const written = vi.hoisted(() => [] as string[]);
@@ -37,6 +37,7 @@ const guide: TaskGuide = {
   name: 'Check',
   current: 0,
   promptPending: false,
+  done: [],
   steps: [{ name: 'Read', prompt: 'Read it.' }, { name: 'Fix', prompt: 'Fix it.' }, { name: 'Ask', you: 'Ask them.' }],
 };
 
@@ -81,6 +82,103 @@ async function startTask() {
   };
   return { taskId: task.id, sessionId: session.id, saved, setAgent };
 }
+
+describe('the first session of a task', () => {
+  const create = (change: Partial<Task> = {}) => {
+    const task = store.createTask({ companyId: 'acme', title: 'Fix', description: '', projectIds: [] } as never);
+    if (Object.keys(change).length > 0) store.updateTask(task.id, change);
+    return task.id;
+  };
+  const settle = () => {
+    lastSpawn.output('ready');
+    vi.advanceTimersByTime(1000);
+  };
+
+  it('sends its opening prompt by itself, so the agent starts working at once', async () => {
+    const taskId = create();
+    const session = await sessions.start(taskId);
+    written.length = 0;
+    settle();
+    expect(written[0]).toContain('Review the task');
+    expect(written.at(-1)).toBe('\r');
+    expect(store.listSessions().find((item) => item.id === session.id)?.draft).toBe(false);
+  });
+
+  it('sends the first step of its guide', async () => {
+    const taskId = create({ guide });
+    await sessions.start(taskId);
+    written.length = 0;
+    settle();
+    expect(written).toEqual([expect.stringContaining('Step 1 of 3, Read'), '\r']);
+  });
+
+  it('waits for Enter on a later session', async () => {
+    const taskId = create();
+    const first = await sessions.start(taskId);
+    settle();
+    sessions.stop(first.id);
+    lastSpawn.exit();
+    await sessions.start(taskId);
+    written.length = 0;
+    settle();
+    expect(written).toEqual([expect.stringContaining('Review the task')]);
+  });
+
+  it('waits for Enter on a step that needs approval, and writes nothing for a step the person does', async () => {
+    const approval = create({ guide: { ...guide, steps: [{ name: 'Post', prompt: 'Post it.', approval: true }] } });
+    await sessions.start(approval);
+    written.length = 0;
+    settle();
+    expect(written).toEqual([expect.stringContaining('Step 1 of 1, Post')]);
+    sessions.stopAll();
+    const yours = create({ guide: { ...guide, current: 2 } });
+    await sessions.start(yours);
+    written.length = 0;
+    settle();
+    expect(written).toEqual([]);
+  });
+
+  it('does not send a prompt someone else asked to write, such as review feedback', async () => {
+    const taskId = create();
+    await sessions.sendPrompt(taskId, 'Read the feedback');
+    written.length = 0;
+    settle();
+    expect(written).toEqual(['Read the feedback']);
+  });
+
+  it('does not press Enter while the agent asks a question, such as a permission', async () => {
+    const taskId = create();
+    const session = await sessions.start(taskId);
+    writeFileSync(paths.statusFile(session.id), 'needs-input');
+    written.length = 0;
+    settle();
+    expect(written).toEqual([expect.stringContaining('Review the task')]);
+  });
+
+  it('leaves the prompt for the person when the agent asked a question as it was written, even once it is answered', async () => {
+    const taskId = create({ guide });
+    const session = await sessions.start(taskId);
+    writeFileSync(paths.statusFile(session.id), 'needs-input');
+    lastSpawn.output('ready');
+    written.length = 0;
+    vi.advanceTimersByTime(700);
+    writeFileSync(paths.statusFile(session.id), 'idle');
+    vi.advanceTimersByTime(1000);
+    expect(written).toEqual([expect.stringContaining('Step 1 of 3, Read')]);
+    expect(store.listSessions().find((item) => item.id === session.id)).toMatchObject({ state: 'idle', draft: true });
+  });
+
+  it('does not send when the person typed over it first', async () => {
+    const taskId = create();
+    const session = await sessions.start(taskId);
+    lastSpawn.output('ready');
+    vi.advanceTimersByTime(700);
+    sessions.write(session.id, '\x15');
+    written.length = 0;
+    vi.advanceTimersByTime(1000);
+    expect(written).toEqual([]);
+  });
+});
 
 describe('opening a session again', () => {
   const stopped = async () => {
@@ -232,59 +330,74 @@ describe('the agent saying a step is finished', () => {
     expect(lastSpawn.env.PATH?.split(':')[0]).toBe(paths.toolsDir);
   });
 
-  it('reaches the session through the command', async () => {
-    const { sessionId, saved } = await startTask();
+  it('reaches the guide of the task through the command', async () => {
+    const { taskId, sessionId } = await startTask();
     const result = runTool(['1'], lastSpawn.env.HATSTAND_STEP_FILE);
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain('stop here');
-    expect(readFileSync(paths.stepFile(sessionId), 'utf8')).toBe('1');
+    expect(result.stdout).toContain('you finished step 1');
+    expect(readFileSync(paths.stepFile(sessionId), 'utf8')).toBe('1\n');
+    onChange.mockClear();
     vi.advanceTimersByTime(1000);
-    expect(saved()?.stepDone).toBe(1);
-  });
-
-  it('refuses a wrong call', () => {
-    expect(runTool([], join(dir, 'f')).status).toBe(2);
-    expect(runTool(['two'], join(dir, 'f')).status).toBe(2);
-    expect(runTool(['1']).status).toBe(2);
-    expect(existsSync(join(dir, 'f'))).toBe(false);
-  });
-
-  it('is forgotten when the person sends another prompt', async () => {
-    const { sessionId, saved } = await startTask();
-    writeFileSync(paths.stepFile(sessionId), '1');
-    vi.advanceTimersByTime(1000);
-    expect(saved()?.stepDone).toBe(1);
-    spawnSync('sh', ['-c', CLEAR_STEP_DONE], { env: { HATSTAND_STEP_FILE: paths.stepFile(sessionId) } });
-    vi.advanceTimersByTime(1000);
-    expect(saved()?.stepDone).toBeUndefined();
-  });
-
-  it('is forgotten when the step changes, so coming back needs a new one', async () => {
-    const { taskId, sessionId, saved } = await startTask();
-    writeFileSync(paths.stepFile(sessionId), '1');
-    vi.advanceTimersByTime(1000);
-    sessions.moveGuideStep(taskId, 1);
-    vi.advanceTimersByTime(1000);
-    expect(saved()?.stepDone).toBeUndefined();
+    expect(store.findTask(taskId).guide?.done).toEqual([1]);
+    expect(onChange).toHaveBeenCalled();
     expect(existsSync(paths.stepFile(sessionId))).toBe(false);
   });
 
-  it('ignores anything that is not a step number', () => {
-    expect(parseStepDone('2\n')).toBe(2);
-    for (const text of ['', '0', '-1', 'done', '1.5']) expect(parseStepDone(text)).toBeUndefined();
+  it('keeps every step reported, also those done while talking and out of order', async () => {
+    const { taskId } = await startTask();
+    runTool(['3'], lastSpawn.env.HATSTAND_STEP_FILE);
+    runTool(['2', '1'], lastSpawn.env.HATSTAND_STEP_FILE);
+    vi.advanceTimersByTime(1000);
+    expect(store.findTask(taskId).guide?.done).toEqual([1, 2, 3]);
+    expect(store.findTask(taskId).guide?.current).toBe(0);
+  });
+
+  it('keeps what was reported when the person sends another prompt or changes step', async () => {
+    const { taskId, sessionId } = await startTask();
+    writeFileSync(paths.stepFile(sessionId), '1\n');
+    vi.advanceTimersByTime(1000);
+    const { hooks } = JSON.parse(readFileSync(paths.settingsFile(sessionId), 'utf8')) as { hooks: { UserPromptSubmit: { hooks: { command: string }[] }[] } };
+    expect(JSON.stringify(hooks.UserPromptSubmit)).not.toContain('HATSTAND_STEP_FILE');
+    sessions.moveGuideStep(taskId, 1);
+    vi.advanceTimersByTime(1000);
+    expect(store.findTask(taskId).guide).toMatchObject({ current: 1, done: [1] });
+  });
+
+  it('ignores a step the guide does not have', async () => {
+    const { taskId, sessionId } = await startTask();
+    writeFileSync(paths.stepFile(sessionId), '9\n2\n');
+    vi.advanceTimersByTime(1000);
+    expect(store.findTask(taskId).guide?.done).toEqual([2]);
+  });
+
+  it('counts a step the person does as finished once they move past it, not when they go back', async () => {
+    const { taskId, sessionId } = await startTask();
+    store.updateTask(taskId, { guide: { ...guide, steps: [{ name: 'Sign in', you: 'Sign in yourself.' }, ...guide.steps], current: 0 } });
+    sessions.moveGuideStep(taskId, 1);
+    expect(store.findTask(taskId).guide).toMatchObject({ current: 1, done: [1] });
+    sessions.write(sessionId, '\x15');
+    store.updateTask(taskId, { guide: { ...(store.findTask(taskId).guide as TaskGuide), current: 3 } });
+    sessions.moveGuideStep(taskId, 0);
+    expect(store.findTask(taskId).guide?.done).toEqual([1]);
+  });
+
+  it('reads step numbers, and keeps them in order and within the guide', () => {
+    expect(parseStepsDone('2\n1\n2\n')).toEqual([2, 1]);
+    for (const text of ['', '0', '-1', 'done', '1.5', '03']) expect(parseStepsDone(text)).toEqual([]);
+    expect(withStepsDone([3], [1, 5], 4)).toEqual([1, 3]);
   });
 });
 
 describe('GitHub Copilot', () => {
-  it('runs the step command without asking, and forgets the signal on a new prompt', () => {
+  it('runs the step command without asking, and keeps the reports on a new prompt', () => {
     const { args } = githubCopilot.buildLaunch({ account: { type: 'github-copilot' }, company: { name: 'A', context: { pluginDirs: [] } }, task: { title: 'T' }, sessionId: 's', sessionDir: '/s', notesFile: '/n', resume: false, promptFile: '/p', settingsFile: '/f', addDirs: [] } as never);
     expect(args).toContain('--allow-tool=shell(hatstand-step-done:*)');
     const stepFile = join(dir, 'step');
     const statusFile = join(dir, 'status');
-    writeFileSync(stepFile, '1');
+    writeFileSync(stepFile, '1\n');
     const { hooks } = JSON.parse(githubCopilot.buildStatusSettings()) as { hooks: { userPromptSubmitted: { bash: string }[] } };
     spawnSync('sh', ['-c', hooks.userPromptSubmitted[0]?.bash ?? ''], { input: '{}', env: { PATH: process.env.PATH, HATSTAND_STEP_FILE: stepFile, HATSTAND_STATUS_FILE: statusFile } });
-    expect(readFileSync(stepFile, 'utf8')).toBe('');
+    expect(readFileSync(stepFile, 'utf8')).toBe('1\n');
     expect(readFileSync(statusFile, 'utf8')).toBe('working');
   });
 });

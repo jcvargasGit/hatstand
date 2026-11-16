@@ -46,7 +46,7 @@ export function findPlaybook(paths: DataPaths, companyId: string, playbookId: st
 }
 
 export function startGuide(playbook: PlaybookSummary): TaskGuide {
-  return { playbookId: playbook.id, name: playbook.name, type: playbook.type, steps: playbook.steps, current: 0, promptPending: true };
+  return { playbookId: playbook.id, name: playbook.name, type: playbook.type, steps: playbook.steps, current: 0, promptPending: true, done: [] };
 }
 
 function writePlaybook(paths: DataPaths, companyId: string, id: string, playbook: Playbook): string {

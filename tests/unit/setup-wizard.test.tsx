@@ -29,6 +29,8 @@ const snapshotOf = (company: Company): Snapshot => ({
   reviews: {},
   todayLayout: 'list',
   guideNewTasks: true,
+  guideUsage: {},
+  autoSendPrompt: true,
   localKnowledge: [],
   localPlugin: [],
   starterInstructions: [],

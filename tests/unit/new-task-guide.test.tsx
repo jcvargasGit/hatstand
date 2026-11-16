@@ -3,6 +3,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NewTaskPage } from '../../src/renderer/src/components/NewTaskPage';
+import { startDraft } from '../../src/renderer/src/lib/new-task-draft';
 import { NewTasksSection } from '../../src/renderer/src/components/NewTasksSection';
 import type { Bridge, Snapshot } from '../../src/shared/api';
 import { companySchema, preferencesSchema } from '../../src/shared/schemas';
@@ -30,7 +31,7 @@ afterEach(cleanup);
 
 const company = companySchema.parse({ id: 'c', name: 'Client', color: '#5BB8A6', projects: [{ id: 'api', name: 'api', path: '/a' }] });
 const snapshot = (guideNewTasks: boolean) => ({ companies: [company], tasks: [], sessions: [], accounts: { accounts: [] }, reviews: {}, guideNewTasks }) as unknown as Snapshot;
-const renderPage = (guideNewTasks: boolean) => render(<NewTaskPage snapshot={snapshot(guideNewTasks)} initialCompanyId="c" onCreated={async () => undefined} onChanged={async () => undefined} />);
+const renderPage = (guideNewTasks: boolean) => render(<NewTaskPage snapshot={snapshot(guideNewTasks)} initialDraft={startDraft(snapshot(guideNewTasks), 'c')} onCreated={async () => undefined} onChanged={async () => undefined} />);
 const guide = () => screen.getByLabelText(/^Guide/) as HTMLSelectElement;
 
 describe('the guide of a new task', () => {
@@ -62,7 +63,7 @@ describe('the guide of a new task', () => {
 
   it('prefers the default guide of the client over the guide of the type', async () => {
     const data = { ...snapshot(true), companies: [{ ...company, defaultPlaybookId: 'rfc' }] };
-    render(<NewTaskPage snapshot={data} initialCompanyId="c" onCreated={async () => undefined} onChanged={async () => undefined} />);
+    render(<NewTaskPage snapshot={data} initialDraft={startDraft(data, 'c')} onCreated={async () => undefined} onChanged={async () => undefined} />);
     await screen.findByRole('option', { name: 'RFC' });
     expect(guide().value).toBe('rfc');
     await userEvent.selectOptions(guide(), 'implement');
@@ -71,7 +72,7 @@ describe('the guide of a new task', () => {
 
   it('uses the default guide of the client when the setting is off', async () => {
     const data = { ...snapshot(false), companies: [{ ...company, defaultPlaybookId: 'rfc' }] };
-    render(<NewTaskPage snapshot={data} initialCompanyId="c" onCreated={async () => undefined} onChanged={async () => undefined} />);
+    render(<NewTaskPage snapshot={data} initialDraft={startDraft(data, 'c')} onCreated={async () => undefined} onChanged={async () => undefined} />);
     await screen.findByRole('option', { name: 'RFC' });
     expect(guide().value).toBe('rfc');
   });

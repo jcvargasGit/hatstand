@@ -14,7 +14,8 @@ type IdeaRowProps = {
   picked: boolean;
   onPick: (picked: boolean) => void;
   onChanged: () => Promise<void>;
-  onMadeTask: () => void;
+  /** Opens the item in the form of a new task, to choose its guide, area and repositories first. */
+  onMakeTask: () => void;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
   onDragStart: () => void;
@@ -23,7 +24,7 @@ type IdeaRowProps = {
 
 const keepRowClosed = (event: MouseEvent) => event.stopPropagation();
 
-export function IdeaRow({ task, selected, onSelect, picked, onPick, onChanged, onMadeTask, onMoveUp, onMoveDown, onDragStart, onDropHere }: IdeaRowProps) {
+export function IdeaRow({ task, selected, onSelect, picked, onPick, onChanged, onMakeTask, onMoveUp, onMoveDown, onDragStart, onDropHere }: IdeaRowProps) {
   const [confirming, setConfirming] = useState(false);
   const [dragState, setDragState] = useState<'idle' | 'dragging' | 'over'>('idle');
   const row = useRef<HTMLTableRowElement>(null);
@@ -129,13 +130,7 @@ export function IdeaRow({ task, selected, onSelect, picked, onPick, onChanged, o
                 aria-label="Make it a task"
                 title="Make it a task"
                 disabled={busy}
-                onClick={() =>
-                  void run(async () => {
-                    await api.updateTask(task.id, { status: 'todo' });
-                    await onChanged();
-                    onMadeTask();
-                  })
-                }
+                onClick={onMakeTask}
               >
                 <ArrowRight size={14} />
                 <span className="idea-action-label">Make it a task</span>

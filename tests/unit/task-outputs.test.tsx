@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Bridge, TaskOutput } from '../../src/shared/api';
 import { TaskOutputs } from '../../src/renderer/src/components/TaskOutputs';
 
-const report: TaskOutput = { name: 'report.md', updatedAt: '2026-11-06T10:00:00.000Z' };
+const report: TaskOutput = { name: 'report.md', path: '/data/tasks/t.report.md', updatedAt: '2026-11-06T10:00:00.000Z' };
 
 function open(outputs: TaskOutput[]) {
   const invoke = vi.fn(async (method: string) => {

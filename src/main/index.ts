@@ -15,6 +15,10 @@ import { parseEnvFile } from './env';
 import { listRemoteRepos } from './git-hosts';
 import { allowedFile, createDocument, listClientFiles, readClientFile } from './client-files';
 import { detectEditor, openClientWorkspace, openFileInEditor, openInEditor } from './editor';
+import { editorTarget } from './editor-target';
+import { newTaskDraftSchema, type NewTaskDraft } from '../shared/new-task-draft';
+import { createTaskWithGuide, makeTaskFromIdea } from './task-setup';
+import { newTaskWindowQuery, windowOptions, type WindowKind } from './windows';
 import { repoChanges, taskFileDiff, taskRepoChanges } from './git-changes';
 import { searchWorkspace } from './search';
 import { shouldStayAwake, StayAwake } from './stay-awake';
@@ -81,39 +85,51 @@ function notify(title: string, body: string): void {
 }
 
 function emit<E extends keyof HatstandEvents>(event: E, payload: HatstandEvents[E]): void {
-  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(event, payload);
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) window.webContents.send(event, payload);
+  }
 }
 
-function createWindow(): void {
-  mainWindow = new BrowserWindow({
-    width: 1440,
-    height: 900,
-    minWidth: 760,
-    minHeight: 520,
-    title: WINDOW_TITLE,
-    show: !headless,
-    backgroundColor: nativeTheme.shouldUseDarkColors ? '#1c1f26' : '#f6f7f9',
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-      backgroundThrottling: !headless,
-    },
-  });
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+function createWindow(kind: WindowKind, title: string, query?: Record<string, string>): BrowserWindow {
+  const window = new BrowserWindow(
+    windowOptions({ kind, title, preload: join(__dirname, '../preload/index.js'), headless, dark: nativeTheme.shouldUseDarkColors }),
+  );
+  window.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('https://')) void shell.openExternal(url);
     return { action: 'deny' };
   });
-  mainWindow.on('page-title-updated', (event) => event.preventDefault());
+  window.on('page-title-updated', (event) => event.preventDefault());
+  if (process.env.ELECTRON_RENDERER_URL) {
+    const url = new URL(process.env.ELECTRON_RENDERER_URL);
+    for (const [name, value] of Object.entries(query ?? {})) url.searchParams.set(name, value);
+    void window.loadURL(url.toString());
+  } else {
+    void window.loadFile(join(__dirname, '../renderer/index.html'), query ? { query } : undefined);
+  }
+  return window;
+}
+
+function createMainWindow(): void {
+  mainWindow = createWindow('main', WINDOW_TITLE);
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
-  if (process.env.ELECTRON_RENDERER_URL) {
-    void mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL);
-  } else {
-    void mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
-  }
+}
+
+/** Tasks being written in a window of their own. The draft lives here, so closing the panel or reloading the window loses nothing. */
+const newTaskDrafts = new Map<string, NewTaskDraft>();
+const newTaskWindows = new Map<string, BrowserWindow>();
+
+function openNewTaskWindow(draft: NewTaskDraft): string {
+  const draftId = randomUUID();
+  newTaskDrafts.set(draftId, draft);
+  const window = createWindow('new-task', 'New task', newTaskWindowQuery(draftId));
+  newTaskWindows.set(draftId, window);
+  window.on('closed', () => {
+    newTaskDrafts.delete(draftId);
+    newTaskWindows.delete(draftId);
+  });
+  return draftId;
 }
 
 async function bootstrap(): Promise<void> {
@@ -208,8 +224,9 @@ async function bootstrap(): Promise<void> {
       title,
       properties: [property, 'showHiddenFiles'] as ('openDirectory' | 'openFile' | 'showHiddenFiles')[],
     };
-    const result = mainWindow
-      ? await dialog.showOpenDialog(mainWindow, options)
+    const parent = BrowserWindow.getFocusedWindow() ?? mainWindow;
+    const result = parent
+      ? await dialog.showOpenDialog(parent, options)
       : await dialog.showOpenDialog(options);
     return result.canceled ? null : (result.filePaths[0] ?? null);
   };
@@ -316,9 +333,22 @@ async function bootstrap(): Promise<void> {
       emit('state-changed', null);
       return report;
     },
-    createTask: async ({ playbookId, ...input }) => {
-      const task = store.createTask(input);
-      return playbookId ? store.updateTask(task.id, { guide: startGuide(findPlaybook(paths, input.companyId, playbookId)) }) : task;
+    createTask: async (input) => createTaskWithGuide({ store, paths }, input),
+    makeTask: async (taskId, setup) => {
+      const task = makeTaskFromIdea({ store, paths, changeGuide: (id, guide) => sessions.changeGuide(id, guide) }, taskId, setup);
+      emit('state-changed', null);
+      return task;
+    },
+    openNewTaskWindow: async (draft) => openNewTaskWindow(newTaskDraftSchema.parse(draft)),
+    readNewTaskDraft: async (draftId) => newTaskDrafts.get(draftId) ?? null,
+    saveNewTaskDraft: async (draftId, draft) => {
+      if (newTaskDrafts.has(draftId)) newTaskDrafts.set(draftId, newTaskDraftSchema.parse(draft));
+    },
+    finishNewTaskWindow: async (draftId, taskId) => {
+      const task = store.findTask(taskId);
+      emit('state-changed', null);
+      emit('task-created', { taskId: task.id, companyId: task.companyId });
+      newTaskWindows.get(draftId)?.close();
     },
     updateTask: async (taskId, patch) => store.updateTask(taskId, patch),
     linkTaskIssue: async (taskId, reference) => {
@@ -455,6 +485,10 @@ async function bootstrap(): Promise<void> {
       store.savePreferences({ guideNewTasks: enabled === true });
       emit('state-changed', null);
     },
+    setAutoSendPrompt: async (enabled) => {
+      store.savePreferences({ autoSendPrompt: enabled === true });
+      emit('state-changed', null);
+    },
     searchEverything: async (query) => {
       const companies = store.listCompanies();
       return searchWorkspace(query, {
@@ -486,10 +520,14 @@ async function bootstrap(): Promise<void> {
     },
     openInEditor: async (companyId, path) => {
       const company = store.readCompany(companyId);
-      const copies = store.listTasks(companyId).flatMap((task) => task.worktrees.map((worktree) => worktree.path));
-      const known = [...company.projects.map((project) => project.path), company.planning?.path, company.rootDir, ...copies];
-      if (!known.includes(path)) throw new Error('This folder is not part of this client.');
-      await openInEditor(path, tools.path, (folder) => shell.openPath(folder));
+      const tasks = store.listTasks(companyId);
+      const copies = tasks.flatMap((task) => task.worktrees.map((worktree) => worktree.path));
+      const folders = [...company.projects.map((project) => project.path), company.planning?.path, company.rootDir, ...copies].filter((folder) => folder !== undefined);
+      const documents = tasks.flatMap((task) => store.listTaskOutputs(task).map((output) => output.path));
+      const target = editorTarget(folders, documents, path);
+      if (!target) throw new Error('This is not part of this client.');
+      if (target.kind === 'file') await openFile(target.path);
+      else await openInEditor(target.path, tools.path, (folder) => shell.openPath(folder));
     },
     detectEditor: async () => detectEditor(tools.path)?.name ?? null,
     openClientInEditor: async (companyId) => {
@@ -625,7 +663,7 @@ async function bootstrap(): Promise<void> {
     sessions.stopAll();
   });
 
-  createWindow();
+  createMainWindow();
   app.on('browser-window-focus', () => {
     for (const company of store.listCompanies()) {
       try {
@@ -637,7 +675,7 @@ async function bootstrap(): Promise<void> {
   });
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
   });
 }
 

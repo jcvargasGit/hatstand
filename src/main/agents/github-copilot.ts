@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { SessionState } from '../../shared/schemas';
-import { CLEAR_STEP_DONE, STEP_DONE_COMMAND } from '../step-done-tool';
+import { STEP_DONE_COMMAND } from '../step-done-tool';
 import { CHECK_PLAN_COMMAND } from '../check-plan-tool';
 import { writePrivateFile } from '../store';
 import { STATUS_FILE_ENV, type AgentAdapter } from './types';
@@ -59,7 +59,7 @@ export const githubCopilot: AgentAdapter = {
     return JSON.stringify({
       version: 1,
       hooks: {
-        userPromptSubmitted: [command(`cat > /dev/null; ${CLEAR_STEP_DONE}; ${report('working')}`)],
+        userPromptSubmitted: [command(`cat > /dev/null; ${report('working')}`)],
         preToolUse: [blockSkippingHooks, beforeTool],
         postToolUse: [statusCommand('working')],
         notification: [onNotification],

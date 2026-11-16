@@ -20,12 +20,14 @@ type InboxPageProps = {
   snapshot: Snapshot;
   companyId: string | null;
   onOpenTask: (taskId: string, companyId: string) => void;
+  /** Opens a backlog item in the New task form, where it becomes a task. */
+  onMakeTask: (taskId: string, companyId: string) => void;
   onChanged: () => Promise<void>;
 };
 
 type NotStarted = { taskId: string; companyId: string; message: string };
 
-export function InboxPage({ snapshot, companyId, onOpenTask, onChanged }: InboxPageProps) {
+export function InboxPage({ snapshot, companyId, onOpenTask, onMakeTask, onChanged }: InboxPageProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const dragging = useRef<string | null>(null);
   const { isPicked, pick } = useSelection();
@@ -172,7 +174,7 @@ export function InboxPage({ snapshot, companyId, onOpenTask, onChanged }: InboxP
                           picked={isPicked(task.id)}
                           onPick={(on) => pick([task.id], on)}
                           onChanged={onChanged}
-                          onMadeTask={() => onOpenTask(task.id, company.id)}
+                          onMakeTask={() => onMakeTask(task.id, company.id)}
                           onMoveUp={before ? () => moveWithin(items, task.id, before.id) : undefined}
                           onMoveDown={after ? () => moveWithin(items, task.id, after.id) : undefined}
                           onDragStart={() => {
@@ -193,7 +195,7 @@ export function InboxPage({ snapshot, companyId, onOpenTask, onChanged }: InboxP
         })
       )}
       </div>
-      {selected && <IdeaDetails key={selected.id} task={selected} onClose={closeDetails} onChanged={onChanged} onMadeTask={() => onOpenTask(selected.id, selected.companyId)} />}
+      {selected && <IdeaDetails key={selected.id} task={selected} onClose={closeDetails} onChanged={onChanged} onMakeTask={() => onMakeTask(selected.id, selected.companyId)} />}
     </main>
   );
 }

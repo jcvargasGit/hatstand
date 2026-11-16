@@ -12,10 +12,11 @@ type IdeaDetailsProps = {
   task: Task;
   onClose: () => void;
   onChanged: () => Promise<void>;
-  onMadeTask: () => void;
+  /** Opens the item in the form of a new task, to choose its guide, area and repositories first. */
+  onMakeTask: () => void;
 };
 
-export function IdeaDetails({ task, onClose, onChanged, onMadeTask }: IdeaDetailsProps) {
+export function IdeaDetails({ task, onClose, onChanged, onMakeTask }: IdeaDetailsProps) {
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description);
   const { error, busy, run } = useAction();
@@ -89,9 +90,9 @@ export function IdeaDetails({ task, onClose, onChanged, onMadeTask }: IdeaDetail
         disabled={busy}
         onClick={() =>
           void run(async () => {
-            await api.updateTask(task.id, { title: title.trim() || task.title, description, status: 'todo' });
+            await api.updateTask(task.id, { title: title.trim() || task.title, description });
             await onChanged();
-            onMadeTask();
+            onMakeTask();
           })
         }
       >

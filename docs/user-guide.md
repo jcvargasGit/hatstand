@@ -106,19 +106,25 @@ Both delete the client's saved keys and remove Hatstand's commit check from its 
 
 Clicking a task opens one of three views, and a task with a running session opens on its terminal.
 
-- **Overview** (⌘1): where the task is, where it goes, its notes, session, code and pull requests. Each copy of the code has **Open folder**, which opens its worktree in your file manager. Documents the agent saves for you, such as a report, appear there too, to read or open in your editor.
-- **Details** (⌘2): settings, notes, repositories split into not selected and selected, and the changes. Only repositories this task changed appear there, with both uncommitted files and what it committed on its branch.
-- **Terminal** (⌘3): the agent, using all the space. ⌘B hides the sidebar too, and **Full screen** (⌘Enter) gives the whole window to the terminal.
+- **Overview** (⌘1): what you need at a glance. It shows where the task is and which guide step it is on, the last thing the agent did, the checklist, the session, the documents the agent saved for you, the repositories it changed with their files, and the pull requests. Each copy of the code has a button that opens it in your editor, named after it, such as **Open in Cursor**.
+- **Task settings** (⌘2): what the task is set up with, in the same form as a new task: description, type, guide and its current step, area, agent, priority, repositories and code mode. Each change is saved at once. Each repository has a button that opens it in your editor. A task with its own copy of a repository offers two: the copy, and the original repository. Nothing appears in both Overview and Task settings.
+- **Terminal** (⌘3): the agent, using all the space. ⌘B hides the sidebar too, and **Full screen** (⌘Enter) gives the whole window to the terminal. Beside it, **agent work** shows the agent's summary, the repositories of the task with a button that opens each in your editor, the files the agent changed in each repository, the files it created, with its documents, and your own note. Each file is a link that opens it in your editor. The list updates by itself while the session runs. **Hide agent work** gives its space back to the terminal.
 
 **Documents** can open everything of a client in your editor: repositories, planning, knowledge, skills and guides in one window. It uses the first one installed of VS Code, Cursor, Windsurf, Zed, Sublime Text and IntelliJ IDEA. The workspace file lives in `~/.hatstand`, out of every repository.
 
-**New task** at the top of the list and the board opens the form, with the client you are looking at already chosen.
+**New task** at the top of the list and the board opens the form in the side panel, with the client you are looking at already chosen. The title and the description are on the left, and the other settings on the right: client, guide, area, agent, priority, repositories and code mode. The buttons that create the task stay at the bottom. In a narrow panel the two sides stack.
 
-**Needs you** in the sidebar lists what is waiting for you, grouped by client in the order of your clients. Click its title to hide or show the list; Hatstand remembers your choice and keeps the total in view.
+**Open in new window** moves the form to a window of its own, with everything you wrote and chose, so you can keep using Hatstand while you write. Creating the task there shows it, selected, in the main window.
+
+**Create and start session** opens the agent and sends its first prompt, so it starts working at once. This also happens after you answer the agent's question about trusting the folder. Hatstand never presses Enter while the agent asks you something else, and a step that needs your approval always waits for you. To have the first prompt wait for Enter, turn off **Send the first prompt of a task without waiting for Enter** in **Settings**.
+
+The sidebar lists the tasks of each client under the guide they follow. Tasks with no guide are under **Not classified**.
+
+**Needs you** in the sidebar lists what is waiting for you in the same tree: client, in the order of your clients, then guide, then tasks. Click its title to hide or show the list; Hatstand remembers your choice and keeps the total in view.
 
 ### Task numbers and issues
 
-Each client numbers its tasks #1, #2 and so on. A deleted task keeps its number, and the next task gets a new one. Under **Details**, a task can be linked by hand to a GitHub, GitLab or Jira issue, by pasting its link or a key such as `owner/repo#12`. The task keeps its number, and both show in its header. An issue can be linked to one task only. Hatstand does not create or change issues.
+Each client numbers its tasks #1, #2 and so on. A deleted task keeps its number, and the next task gets a new one. Under **Task settings**, a task can be linked by hand to a GitHub, GitLab or Jira issue, by pasting its link or a key such as `owner/repo#12`. The task keeps its number, and both show in its header. An issue can be linked to one task only. Hatstand does not create or change issues.
 
 ### Stages
 
@@ -130,11 +136,13 @@ A pull request counts as ready when its checks pass and no review thread is open
 
 ### Task guides
 
-A guide lists the steps of a kind of work. Hatstand includes **Implement a task**, **Review a pull request**, **Investigate a bug**, **Create tasks from requirements**, **Write an RFC**, **Debug with AWS logs** and **Check dashboards**. Choose one when you create a task, or later in its details. In a client with repositories, a new task starts with **Implement a task**. You can turn that off in **Settings**.
+A guide lists the steps of a kind of work. Hatstand includes **Implement a task**, **Review a pull request**, **Investigate a bug**, **Investigate a topic**, **Create tasks from requirements**, **Write an RFC**, **Debug with AWS logs** and **Check dashboards**. Choose one when you create a task, or later in its settings. The guides you use most come first in the list: Hatstand counts each task you create with a guide.
 
-Each step writes its prompt in the terminal without sending it. You read it and change it if you want. While there is text in the terminal, the button says **Send to agent**: it presses Enter for you, and Hatstand presses Enter only when you choose it. Hatstand never writes over your text, so send it or clear it before you change step.
+**Investigate a topic** is for an open investigation, such as a spike or an idea to look into. The agent reads the documents you give it, investigates, and ends with one Markdown file with the result, saved in the folder of the task's area, or in the client's knowledge when the task has no area. It creates no tasks. You can use the document later, for example with **Create tasks from requirements**. In a client with repositories, a new task starts with **Implement a task**. You can turn that off in **Settings**.
 
-**Next step** turns on when the agent says the step is finished, with no question left that blocks moving on. If the agent does not say so, you can still jump to any step, and write anything else to the agent. Hatstand knows you have text from the keys you press, not by reading the screen, so after an unusual way of clearing the box, **Send to agent** may send an empty Enter.
+Each step writes its prompt in the terminal without sending it, except the first prompt of a task, which is sent for you unless you turned that off. You read it and change it if you want. While there is text in the terminal, the button says **Send to agent**: it presses Enter for you, and Hatstand presses Enter only when you choose it. Hatstand never writes over your text, so send it or clear it before you change step.
+
+**Next step** turns on when the agent says the step is finished, with no question left that blocks moving on. A step the agent finished shows ✓ in the guide bar, also a later step it did along the way. Hatstand keeps the finished steps with the task, so they are still there after you stop the session or restart Hatstand. You still decide when to move on. If the agent does not say so, you can still jump to any step, and write anything else to the agent. Hatstand knows you have text from the keys you press, not by reading the screen, so after an unusual way of clearing the box, **Send to agent** may send an empty Enter.
 
 To change a guide for one client, open **Task guides** in its settings and choose **Customize**, or create a new one. Hatstand opens the copy so you can edit it. A guide is a YAML file:
 
@@ -196,7 +204,7 @@ The **Closed tasks** tab of a client lists its finished tasks by work period, ne
 
 ### Backlog
 
-The **Backlog** of each client (⌘I) keeps work you have not defined yet, out of your tasks. Paste a list or a table and each row becomes an item, or keep it as one. Sidebar and Today remind you how many are waiting for review. **Make it a task** moves one to your tasks. **Send back to backlog**, in an open task, does the opposite: the task leaves your tasks and waits at the end of the backlog, with its notes and session history.
+The **Backlog** of each client (⌘I) keeps work you have not defined yet, out of your tasks. Paste a list or a table and each row becomes an item, or keep it as one. Sidebar and Today remind you how many are waiting for review. **Make it a task** opens the task form with the title and description of the item already filled in. Saving it moves that same item to your tasks. **Send back to backlog**, in an open task, does the opposite: the task leaves your tasks and waits at the end of the backlog, with its notes and session history.
 
 Each line you write or paste is a task. A line that starts with two spaces and a dash becomes a checklist item of the task above, so a list with sublists stays together. The backlog says how many tasks it will add before you add them. Items wait in a table: change their order by dragging or with the arrows, give them a priority, and sort by priority when you want to. Click a row to see and edit its details in a sidebar, which covers the table when the window is narrow. The checklist and priority stay when you make it a task, and the agent reads the checklist.
 

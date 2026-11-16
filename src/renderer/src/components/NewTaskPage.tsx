@@ -1,184 +1,149 @@
-import { Play, Plus } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
+import { ArrowRight, ExternalLink, Play, Plus, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import type { Snapshot } from '../../../shared/api';
+import type { NewTaskDraft } from '../../../shared/new-task-draft';
 import { hasWorkspace } from '../../../shared/readiness';
-import { starterGuideId } from '../../../shared/task-types';
+import { suggestedRepositoryIds } from '../../../shared/work-repos';
 import { useAction } from '../hooks/useAction';
 import { usePlaybooks } from '../hooks/usePlaybooks';
 import { api } from '../lib/api';
-import { sharedSubdomain } from '../lib/today';
-import { AreaCreator } from './AreaCreator';
-import { ImproveDescription } from './ImproveDescription';
-import { MarkdownField } from './MarkdownField';
-import { RepoPicker } from './RepoPicker';
-import { suggestedRepositoryIds, workRepositories } from '../../../shared/work-repos';
+import { startDraft } from '../lib/new-task-draft';
+import { suggestedArea, suggestedGuide, type TaskChoices } from '../lib/task-form';
+import { TaskForm } from './TaskForm';
+import { TaskSettingsFields } from './TaskSettingsFields';
 
 type NewTaskPageProps = {
   snapshot: Snapshot;
-  initialCompanyId: string | null;
-  initialAreaId?: string;
+  /** What the form starts with: empty, a backlog item, or a draft moved from the side panel. */
+  initialDraft: NewTaskDraft;
+  /** Told every change, so a window of its own can keep the draft safe. */
+  onDraftChange?: (draft: NewTaskDraft) => void;
+  /** Moves the form to a window of its own. Without it, the form is already in one. */
+  onMoveToWindow?: (draft: NewTaskDraft) => Promise<void>;
+  onClose?: () => void;
   onCreated: (taskId: string, companyId: string) => Promise<void>;
   onChanged: () => Promise<void>;
 };
 
-export function NewTaskPage({ snapshot, initialCompanyId, initialAreaId, onCreated, onChanged }: NewTaskPageProps) {
-  const findCompany = (id: string) => snapshot.companies.find((item) => item.id === id);
-  const suggestRepositories = (id: string, areaId?: string) => {
-    const client = findCompany(id);
-    return client ? suggestedRepositoryIds(client, areaId) : [];
-  };
-  const [companyId, setCompanyId] = useState(initialCompanyId ?? snapshot.companies[0]?.id ?? '');
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [draftKey] = useState(() => `new-task-${crypto.randomUUID()}`);
-  const [projectIds, setProjectIds] = useState<string[]>(() => suggestRepositories(companyId, initialAreaId));
-  const [guideChoice, setGuideChoice] = useState<string | null>(null);
-  const [isolated, setIsolated] = useState(true);
-  const [chosenAreaId, setChosenAreaId] = useState<string | null>(initialAreaId ?? null);
-  const { playbooks } = usePlaybooks(companyId);
+const WAITS_FOR_ENTER = 'The agent opens with a prompt already written, from the guide if you chose one. Press Enter to send it, or change it first.';
+const STARTS_AT_ONCE = 'The agent starts working on the task as soon as the session opens. A step that needs your approval still waits for you.';
+
+/** Writes a task: a new one, or a backlog item that becomes one. It opens in the side panel, and can move to a window of its own. */
+export function NewTaskPage({ snapshot, initialDraft, onDraftChange, onMoveToWindow, onClose, onCreated, onChanged }: NewTaskPageProps) {
+  const [draft, setDraft] = useState(initialDraft);
+  const [suggestionKey] = useState(() => initialDraft.ideaId ?? `new-task-${crypto.randomUUID()}`);
+  const { playbooks } = usePlaybooks(draft.companyId);
   const { error, busy, run } = useAction();
-  const company = findCompany(companyId);
+  const company = snapshot.companies.find((item) => item.id === draft.companyId);
   const canStart = company !== undefined && hasWorkspace(company);
-  const starterGuide = snapshot.guideNewTasks && company ? starterGuideId(company) : undefined;
-  const availableGuide = (id?: string) => playbooks.find((playbook) => playbook.id === id)?.id;
-  const playbookId = guideChoice ?? availableGuide(company?.defaultPlaybookId) ?? availableGuide(starterGuide) ?? '';
-  const noGuideHint = company && workRepositories(company).length > 0 ? 'Counts as code work, up to a merged pull request.' : 'Goes from not started to done.';
-  const guideHint = playbookId ? playbooks.find((playbook) => playbook.id === playbookId)?.description : noGuideHint;
-  const areaId = chosenAreaId ?? (company && sharedSubdomain(company, projectIds)) ?? company?.defaultAreaId ?? '';
-  const focusFolders = company?.subdomains.find((area) => area.id === areaId)?.folders ?? [];
+  const isIdea = draft.ideaId !== undefined;
+  const current: TaskChoices = {
+    ...draft,
+    playbookId: draft.guideChosen ? draft.playbookId : suggestedGuide(snapshot, company, playbooks),
+    areaId: draft.areaChosen ? draft.areaId : suggestedArea(company, draft.projectIds),
+  };
+
+  useEffect(() => {
+    onDraftChange?.(draft);
+  }, [draft, onDraftChange]);
+
+  const change = (next: Partial<TaskChoices>) => {
+    if (next.companyId !== undefined && next.companyId !== draft.companyId) {
+      setDraft({ ...startDraft(snapshot, next.companyId), title: draft.title, description: draft.description });
+      return;
+    }
+    const projectIds = next.areaId !== undefined && company ? suggestedRepositoryIds(company, next.areaId) : next.projectIds;
+    setDraft((previous) => ({
+      ...previous,
+      ...next,
+      ...(projectIds ? { projectIds } : {}),
+      guideChosen: previous.guideChosen || next.playbookId !== undefined,
+      areaChosen: previous.areaChosen || next.areaId !== undefined,
+    }));
+  };
+
+  const save = async (): Promise<string> => {
+    const choices = {
+      title: draft.title.trim(),
+      projectIds: current.projectIds,
+      subdomainId: current.areaId || undefined,
+      playbookId: current.playbookId || undefined,
+      accountId: current.accountId || undefined,
+      isolated: current.isolated,
+      priority: current.priority,
+    };
+    if (draft.ideaId) return (await api.makeTask(draft.ideaId, { ...choices, description: draft.description })).id;
+    return (await api.createTask({ ...choices, companyId: current.companyId, description: draft.description.trim() || undefined })).id;
+  };
 
   const create = (startNow: boolean) =>
     run(async () => {
-      if (!company || !title.trim()) return;
-      const task = await api.createTask({
-        companyId,
-        title: title.trim(),
-        description: description.trim() || undefined,
-        projectIds,
-        subdomainId: areaId || undefined,
-        playbookId: playbookId || undefined,
-        isolated,
-      });
-      if (startNow) await api.startSession(task.id);
-      await onCreated(task.id, companyId);
+      if (!company || !draft.title.trim()) return;
+      const taskId = await save();
+      if (startNow) await api.startSession(taskId);
+      await onCreated(taskId, current.companyId);
     });
 
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    void create(canStart);
-  };
-
   return (
-    <main className="page">
-      <form className="new-task-form" onSubmit={submit}>
-        <h1>New task</h1>
-        <label className="stacked-field">
-          Client
-          <select
-            value={companyId}
-            onChange={(event) => {
-              setCompanyId(event.target.value);
-              setProjectIds(suggestRepositories(event.target.value));
-              setGuideChoice(null);
-              setChosenAreaId(null);
-            }}
-          >
-            {snapshot.companies.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="stacked-field">
-          Task title
-          <input autoFocus placeholder="What needs doing?" value={title} onChange={(event) => setTitle(event.target.value)} />
-        </label>
-        <div className="stacked-field">
-          <div className="description-field-head">
-            <span>Description</span>
-            <ImproveDescription
-              request={{ key: draftKey, companyId, title: title.trim(), description, subdomainId: areaId || undefined, projectIds }}
-              currentDescription={description}
-              disabledReason={company ? undefined : 'Choose a client first.'}
-              onAccept={setDescription}
-            />
-          </div>
-          <MarkdownField label="Description" placeholder="Optional. Context the agent should know." value={description} onChange={setDescription} />
+    <section className="panel new-task-panel">
+      <header className="panel-head">
+        <div className="panel-title">
+          <h2>{isIdea ? 'Make it a task' : 'New task'}</h2>
         </div>
-        <label className="stacked-field">
-          Guide
-          <select value={playbookId} onChange={(event) => setGuideChoice(event.target.value)}>
-            <option value="">No guide</option>
-            {playbooks.map((playbook) => (
-              <option key={playbook.id} value={playbook.id}>
-                {playbook.name}
-              </option>
-            ))}
-          </select>
-          {guideHint && <small className="hint">{guideHint}</small>}
-        </label>
-        {company && (
-          <div className="area-field">
-            <label className="stacked-field">
-              Area
-              <select
-                value={areaId}
-                onChange={(event) => {
-                  setChosenAreaId(event.target.value);
-                  setProjectIds(suggestedRepositoryIds(company, event.target.value));
-                }}
-              >
-                {company.subdomains.map((area) => (
-                  <option key={area.id} value={area.id}>
-                    {area.name}
-                  </option>
-                ))}
-              </select>
-              {focusFolders.length > 0 && <small className="hint">The agent focuses on {focusFolders.map((folder) => folder.path).join(', ')}.</small>}
-            </label>
-            {company.subdomains.length === 0 && (
-              <AreaCreator
-                companyId={company.id}
-                onCreated={async (createdAreaId) => {
-                  await onChanged();
-                  setChosenAreaId(createdAreaId);
-                }}
-              />
-            )}
-          </div>
-        )}
-        {company && workRepositories(company).length > 0 && <RepoPicker key={company.id} company={company} selected={projectIds} onChange={setProjectIds} />}
-        {company && workRepositories(company).length > 0 && (
-          <label className="stacked-field">
-            Code
-            <select value={isolated ? 'own' : 'shared'} onChange={(event) => setIsolated(event.target.value === 'own')}>
-              <option value="own">Copy on change (uses a git worktree)</option>
-              <option value="shared">Shared folder</option>
-            </select>
-            <small className="hint">
-              {isolated
-                ? 'If the agent needs to change a repository, it makes a copy on its own branch (a git worktree).'
-                : 'No copy and no branch. The agent works in the client’s folder, so other tasks can change the same files.'}
-            </small>
-          </label>
-        )}
-        {company && !canStart && <p className="warning">Add an area, a repository or a client folder to {company.name} before starting a session.</p>}
-        {error && <p className="error">{error}</p>}
-        <div className="inline-form">
-          {canStart && (
-            <button type="submit" disabled={busy || !title.trim()}>
-              <Play size={14} />
-              Create and start session
+        <div className="panel-actions">
+          {onMoveToWindow && (
+            <button type="button" className="quiet" title="Keep writing in a window of its own. Nothing you wrote is lost." disabled={busy} onClick={() => void run(() => onMoveToWindow(draft))}>
+              <ExternalLink size={14} />
+              Open in new window
             </button>
           )}
-          <button type="button" className={canStart ? 'quiet' : undefined} disabled={busy || !title.trim()} onClick={() => void create(false)}>
-            <Plus size={15} />
-            Create task
-          </button>
+          {onClose && (
+            <button type="button" className="quiet" aria-label="Close" title="Close" onClick={onClose}>
+              <X size={14} />
+            </button>
+          )}
         </div>
-        {canStart && <p className="hint">The agent opens with a prompt already written, from the guide if you chose one. Press Enter to send it, or change it first.</p>}
-      </form>
-    </main>
+      </header>
+      <TaskForm
+        label={isIdea ? 'Backlog item to task' : 'New task'}
+        title={{ value: draft.title, autoFocus: true, onChange: (title) => setDraft((previous) => ({ ...previous, title })) }}
+        description={draft.description}
+        improveRequest={{ key: suggestionKey, companyId: current.companyId, title: draft.title.trim(), description: draft.description, subdomainId: current.areaId || undefined, projectIds: current.projectIds }}
+        improveDisabledReason={company ? undefined : 'Choose a client first.'}
+        onDescriptionChange={(description) => setDraft((previous) => ({ ...previous, description }))}
+        onSubmit={() => void create(canStart)}
+        settings={
+          <TaskSettingsFields
+            snapshot={snapshot}
+            company={company}
+            choices={current}
+            playbooks={playbooks}
+            clients={isIdea ? undefined : snapshot.companies}
+            onChange={change}
+            onAreaCreated={async (areaId) => {
+              await onChanged();
+              setDraft((previous) => ({ ...previous, areaId, areaChosen: true }));
+            }}
+          />
+        }
+        actions={
+          <>
+            {company && !canStart && <p className="warning">Add an area, a repository or a client folder to {company.name} before starting a session.</p>}
+            {error && <p className="error">{error}</p>}
+            {canStart && <p className="hint">{snapshot.autoSendPrompt ? STARTS_AT_ONCE : WAITS_FOR_ENTER}</p>}
+            <button type="button" className={canStart ? 'quiet' : undefined} disabled={busy || !draft.title.trim()} onClick={() => void create(false)}>
+              {isIdea ? <ArrowRight size={14} /> : <Plus size={15} />}
+              {isIdea ? 'Make it a task' : 'Create task'}
+            </button>
+            {canStart && (
+              <button type="button" disabled={busy || !draft.title.trim()} onClick={() => void create(true)}>
+                <Play size={14} />
+                {isIdea ? 'Make it a task and start session' : 'Create and start session'}
+              </button>
+            )}
+          </>
+        }
+      />
+    </section>
   );
 }

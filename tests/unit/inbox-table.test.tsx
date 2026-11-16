@@ -23,9 +23,10 @@ const snapshotOf = (tasks: Task[]) => ({ companies: [company], tasks }) as unkno
 const first = idea('one', 'Fix the login', { description: 'Staging only\nSecond line', checklist: [{ id: 'a', text: 'Reproduce', done: false }] });
 const second = idea('two', 'Review the report');
 const onOpenTask = vi.fn();
+const onMakeTask = vi.fn();
 const onChanged = vi.fn(async () => undefined);
 const details = () => screen.queryByRole('complementary', { name: 'Backlog item details' });
-const show = (tasks: Task[] = [first, second]) => <InboxPage snapshot={snapshotOf(tasks)} companyId="c" onOpenTask={onOpenTask} onChanged={onChanged} />;
+const show = (tasks: Task[] = [first, second]) => <InboxPage snapshot={snapshotOf(tasks)} companyId="c" onOpenTask={onOpenTask} onMakeTask={onMakeTask} onChanged={onChanged} />;
 
 beforeEach(() => vi.clearAllMocks());
 afterEach(cleanup);
@@ -76,21 +77,23 @@ describe('the backlog table', () => {
     expect(api.deleteTask).toHaveBeenCalledWith('one');
   });
 
-  it('makes a row a task and opens it', async () => {
+  it('opens the task form for a row, without making it a task yet', async () => {
     render(show());
     const row = screen.getByRole('button', { name: 'Fix the login' }).closest('tr') as HTMLElement;
     await userEvent.click(within(row).getByRole('button', { name: 'Make it a task' }));
-    expect(api.updateTask).toHaveBeenCalledWith('one', { status: 'todo' });
-    await waitFor(() => expect(onOpenTask).toHaveBeenCalledWith('one', 'c'));
+    expect(onMakeTask).toHaveBeenCalledWith('one', 'c');
+    expect(api.updateTask).not.toHaveBeenCalled();
+    expect(onOpenTask).not.toHaveBeenCalled();
   });
 
-  it('makes a task from the details with the edits made there', async () => {
+  it('opens the task form from the details with the edits made there, still as a backlog item', async () => {
     render(show());
     await userEvent.click(screen.getByRole('button', { name: 'Review the report' }));
     await userEvent.type(within(details()!).getByLabelText('Details'), 'Known so far');
     await userEvent.click(within(details()!).getByRole('button', { name: 'Make it a task' }));
-    expect(api.updateTask).toHaveBeenCalledWith('two', { title: 'Review the report', description: 'Known so far', status: 'todo' });
-    await waitFor(() => expect(onOpenTask).toHaveBeenCalledWith('two', 'c'));
+    await waitFor(() => expect(onMakeTask).toHaveBeenCalledWith('two', 'c'));
+    expect(api.updateTask).toHaveBeenCalledWith('two', { title: 'Review the report', description: 'Known so far' });
+    expect(api.updateTask).not.toHaveBeenCalledWith('two', expect.objectContaining({ status: 'todo' }));
   });
 
   it('saves and closes on Escape', async () => {
