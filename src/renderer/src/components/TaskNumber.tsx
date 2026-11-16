@@ -1,5 +1,7 @@
 import type { Task } from '../../../shared/schemas';
+import { formatTaskReference } from '../../../shared/task-reference';
 
 export function TaskNumber({ task }: { task: Task }) {
-  return task.number === undefined ? null : <span className="task-number">#{task.number}</span>;
+  const reference = formatTaskReference(task);
+  return reference === undefined ? null : <span className="task-number">{reference}</span>;
 }

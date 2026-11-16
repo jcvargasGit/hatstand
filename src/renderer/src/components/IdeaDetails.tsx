@@ -7,6 +7,7 @@ import { ImproveDescription } from './ImproveDescription';
 import { MarkdownField } from './MarkdownField';
 import { PrioritySelect } from './PrioritySelect';
 import { TaskChecklist } from './TaskChecklist';
+import { TaskReferenceCopy } from './TaskReferenceCopy';
 
 type IdeaDetailsProps = {
   task: Task;
@@ -44,6 +45,7 @@ export function IdeaDetails({ task, onClose, onChanged, onMakeTask }: IdeaDetail
     <aside className="idea-details" aria-label="Backlog item details">
       <div className="idea-details-head">
         <h3>Backlog item</h3>
+        <TaskReferenceCopy task={task} />
         <button autoFocus className="quiet" aria-label="Close details" title="Close" onClick={onClose}>
           <X size={14} />
         </button>

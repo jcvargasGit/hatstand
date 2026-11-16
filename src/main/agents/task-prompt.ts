@@ -5,6 +5,7 @@ import { STEP_DONE_COMMAND } from '../step-done-tool';
 import { CHECK_PLAN_COMMAND } from '../check-plan-tool';
 import type { BacklogPromptInput } from '../backlog-plan';
 import { taskTypeName, taskTypeOf } from '../../shared/task-types';
+import { formatTaskReference } from '../../shared/task-reference';
 import { workRepositories } from '../../shared/work-repos';
 
 const COMMITS_RESULTS: (TaskType | undefined)[] = ['planning', 'design'];
@@ -116,6 +117,14 @@ function backlogSection({ planFile, items, schema }: BacklogPromptInput): string
   ];
 }
 
+function referenceLines(task: Task): string[] {
+  const reference = formatTaskReference(task);
+  return [
+    reference ? `Reference: ${reference}. UUID: ${task.id}.` : `UUID: ${task.id}.`,
+    'A reference names one task across every client: the client id, #, and the task number. Use it when you mention this task.',
+  ];
+}
+
 function checklistSection({ checklist }: Task): string[] {
   if (checklist.length === 0) return [];
   return ['## Checklist for this task', ...checklist.map((item) => `- [${item.done ? 'x' : ' '}] ${item.text}`), ''];
@@ -185,6 +194,7 @@ export function buildSystemPrompt(input: TaskPromptInput): string {
     '',
     '## Current task',
     task.source ? `${task.source.key}: ${task.title}` : task.title,
+    ...referenceLines(task),
     ...(type ? [`Type: ${taskTypeName(type)}`] : []),
     task.description,
     '',

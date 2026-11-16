@@ -172,7 +172,7 @@ try {
   await shot(page, '2-new-task');
   await page.getByRole('button', { name: 'Create task' }).click();
   await page.getByRole('heading', { name: 'Retry failed uploads' }).waitFor();
-  await page.getByRole('region', { name: 'Task', exact: true }).getByText(/^#\d+$/).waitFor();
+  await page.getByRole('region', { name: 'Task', exact: true }).getByRole('button', { name: /^Copy reference [a-z0-9-]+#\d+$/ }).waitFor();
   await page.getByRole('button', { name: 'Edit in VS Code' }).click();
   const notedTask = (await invoke(page, 'getSnapshot')).tasks.find((item) => item.title === 'Retry failed uploads');
   const notesFile = join(home, 'companies', notedTask.companyId, 'tasks', `${notedTask.id}.md`);

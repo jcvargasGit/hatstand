@@ -158,6 +158,14 @@ describe('clientTree', () => {
     expect(titles(tree[0]?.active ?? [])).toEqual(['Fix login']);
   });
 
+  it('finds a task by its reference or its id, in the client it names', () => {
+    const tasks = [{ ...task('Fix login', 'a'), number: 7 }, { ...task('Gallery', 'b'), number: 7 }];
+    const found = (query: string) => clientTree(snapshot(tasks, []), query).flatMap((branch) => titles(branch.active));
+    expect(found('b#7')).toEqual(['Gallery']);
+    expect(found('#7')).toEqual(['Fix login', 'Gallery']);
+    expect(found('Gallery')).toEqual(['Gallery']);
+  });
+
   it('searches tasks in every state, and hides clients with no match', () => {
     const tree = clientTree(snapshot([task('Fix login', 'a', 'done'), task('Gallery', 'b')], []), 'login');
     expect(tree.map((branch) => branch.company.id)).toEqual(['a']);

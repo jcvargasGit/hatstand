@@ -149,7 +149,7 @@ describe('the Done lane and the Closed tab', () => {
     const local = task({ id: 'l', number: 13, title: 'Tidy up', status: 'done', doneAt: '2026-11-06T12:00:00', source: { kind: 'github', key: '#40' } });
     render(<ClosedPage snapshot={snapshot([jira, local])} company={client()} onOpenTask={vi.fn()} onChanged={async () => undefined} />);
     const row = screen.getByRole('button', { name: /Ship it/ }).closest('tr') as HTMLElement;
-    expect(within(row).getByText('#12')).toBeTruthy();
+    expect(within(row).getByText('c#12')).toBeTruthy();
     expect(within(row).getByText('Why').getAttribute('title')).toBe('Why');
     const link = within(row).getByRole('link', { name: 'Open Jira ticket ACME-12' });
     expect(link.getAttribute('href')).toBe('https://example.atlassian.net/browse/ACME-12');

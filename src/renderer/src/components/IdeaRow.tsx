@@ -6,6 +6,7 @@ import { api } from '../lib/api';
 import { checklistProgress, firstLine, ideaTitleId } from '../lib/inbox';
 import { ImproveDescription } from './ImproveDescription';
 import { PrioritySelect } from './PrioritySelect';
+import { TaskNumber } from './TaskNumber';
 
 type IdeaRowProps = {
   task: Task;
@@ -78,6 +79,7 @@ export function IdeaRow({ task, selected, onSelect, picked, onPick, onChanged, o
         </div>
       </td>
       <td className="idea-col-title">
+        <TaskNumber task={task} />
         <button id={ideaTitleId(task.id)} className="idea-toggle" aria-expanded={selected} title={task.title}>
           <span>{task.title}</span>
         </button>

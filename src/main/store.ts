@@ -30,6 +30,7 @@ import { withFolderPointer } from './folder-pointer';
 import { defaultClientFolder } from './task-folders';
 import { areaFolder, defaultArea, placeAreaFolders, withCoreArea } from '../shared/areas';
 import { slugify } from '../shared/slug';
+import { isReferenceOf, parseTaskReference } from '../shared/task-reference';
 
 export { slugify };
 
@@ -425,6 +426,15 @@ export class Store {
       .flatMap((company) => this.listTasks(company.id))
       .find((item) => item.id === taskId);
     if (!task) throw new Error(`Task ${taskId} no longer exists.`);
+    return task;
+  }
+
+  findTaskByReference(input: string): Task {
+    const reference = parseTaskReference(input);
+    if (reference.kind === 'uuid') return this.findTask(reference.id);
+    if (!this.listCompanies().some((company) => company.id === reference.companyId)) throw new Error(`There is no client with the id ${reference.companyId}.`);
+    const task = this.listTasks(reference.companyId).find((item) => isReferenceOf(reference, item));
+    if (!task) throw new Error(`The client ${reference.companyId} has no task #${reference.number}.`);
     return task;
   }
 
