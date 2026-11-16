@@ -1,6 +1,7 @@
 import { readFile, stat } from 'node:fs/promises';
 import type { ClientFile, SearchReport, SearchResult } from '../shared/api';
 import type { Company, Task } from '../shared/schemas';
+import { formatTaskReference, isReferenceOf, readTaskReference } from '../shared/task-reference';
 
 const MAX_PER_KIND = 8;
 const MAX_CONTENT_HITS = 12;
@@ -50,7 +51,16 @@ export async function searchWorkspace(query: string, sources: SearchSources): Pr
     client: clientName.get(task.companyId) ?? '',
     snippet: detail,
   });
-  const titled = tasks.filter((task) => matchesAll(`${task.title} ${task.source?.key ?? ''} ${task.number ? `#${task.number}` : ''}`, words));
+  const reference = readTaskReference(query);
+  const referenced = reference ? tasks.filter((task) => isReferenceOf(reference, task)) : [];
+  const titled = [
+    ...referenced,
+    ...tasks.filter(
+      (task) =>
+        !referenced.includes(task) &&
+        matchesAll(`${task.title} ${task.source?.key ?? ''} ${task.number ? `#${task.number}` : ''} ${formatTaskReference(task) ?? ''} ${task.id}`, words),
+    ),
+  ];
   const described = tasks
     .filter((task) => !titled.includes(task))
     .flatMap((task) => {

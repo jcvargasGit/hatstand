@@ -202,6 +202,22 @@ describe('Store', () => {
     expect(store.updateTask(first.id, { title: 'Renamed' }).number).toBe(1);
   });
 
+  it('finds a task by its client and number, or by its id, from any client', () => {
+    const acme = store.createCompany('Acme', '#112233');
+    const globex = store.createCompany('Globex', '#445566');
+    const inAcme = store.createTask({ companyId: acme.id, title: 'Fix login' });
+    const inGlobex = store.createTask({ companyId: globex.id, title: 'Gallery' }, undefined, 'idea');
+    expect([inAcme.number, inGlobex.number]).toEqual([1, 1]);
+
+    expect(store.findTaskByReference('acme#1').id).toBe(inAcme.id);
+    expect(store.findTaskByReference('globex#1').id).toBe(inGlobex.id);
+    expect(store.findTaskByReference(inGlobex.id.toUpperCase()).id).toBe(inGlobex.id);
+    expect(() => store.findTaskByReference('initech#1')).toThrow('There is no client with the id initech.');
+    expect(() => store.findTaskByReference('acme#2')).toThrow('The client acme has no task #2.');
+    expect(() => store.findTaskByReference('11111111-2222-3333-4444-555555555555')).toThrow(/no longer exists/);
+    expect(() => store.findTaskByReference('#1')).toThrow(/acme#12, or the UUID/);
+  });
+
   it('numbers existing tasks by creation date, once, without touching their dates', () => {
     const acme = store.createCompany('Acme', '#112233');
     const write = (id: string, createdAt: string) =>

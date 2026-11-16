@@ -49,6 +49,14 @@ describe('the backlog table', () => {
     expect(details()).toBeNull();
   });
 
+  it('shows the reference of an item in its row, and lets you copy it from the details', async () => {
+    render(show([idea('one', 'Fix the login', { number: 4 })]));
+    const title = screen.getByRole('button', { name: 'Fix the login' });
+    expect(within(title.closest('tr') as HTMLElement).getByText('c#4')).toBeTruthy();
+    await userEvent.click(title);
+    expect(within(details()!).getByRole('button', { name: 'Copy reference c#4' })).toBeTruthy();
+  });
+
   it('shows the item you clicked last, without mixing up its edits', async () => {
     render(show());
     await userEvent.click(screen.getByRole('button', { name: 'Fix the login' }));

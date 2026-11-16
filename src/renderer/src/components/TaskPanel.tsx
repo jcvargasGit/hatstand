@@ -1,6 +1,7 @@
 import { Archive, ArchiveRestore, Check, Play, Plus, RotateCcw, Settings, Square, Trash2, Undo2, Maximize2, Minimize2, PanelRightClose, PanelRightOpen } from 'lucide-react';
 import { useState } from 'react';
 import type { Snapshot } from '../../../shared/api';
+import { shownAreaName } from '../../../shared/areas';
 import { hasWorkspace } from '../../../shared/readiness';
 import type { Task, TaskPatch } from '../../../shared/schemas';
 import { useAction } from '../hooks/useAction';
@@ -17,7 +18,7 @@ import { ClientAvatar } from './ClientAvatar';
 import { GuideSteps } from './GuideSteps';
 import { SubagentActivity } from './SubagentActivity';
 import { TaskDetails } from './TaskDetails';
-import { TaskNumber } from './TaskNumber';
+import { TaskReferenceCopy } from './TaskReferenceCopy';
 import { TaskOverview } from './TaskOverview';
 import { TaskStateIcon } from './TaskStateIcon';
 import { TaskTitle } from './TaskTitle';
@@ -116,6 +117,8 @@ export function TaskPanel({ snapshot, task, onChanged, onOpenClient, onSentBack 
 
   const taskRepoCount = workRepositories(company).filter((repo) => task.projectIds.includes(repo.id)).length;
 
+  const areaName = shownAreaName(company, task.subdomainId);
+
   return (
     <section className={showsTerminalFull ? 'panel is-terminal-full' : 'panel'} aria-label="Task">
       <header className="panel-head">
@@ -123,7 +126,8 @@ export function TaskPanel({ snapshot, task, onChanged, onOpenClient, onSentBack 
           <p className="panel-client">
             <ClientAvatar company={company} size="small" />
             {company.name}
-            <TaskNumber task={task} />
+            {areaName && <span className="panel-area">{areaName}</span>}
+            <TaskReferenceCopy task={task} />
             {task.source && <span className="task-key">{task.source.key}</span>}
           </p>
           <TaskTitle key={task.id} title={task.title} disabled={busy} onRename={(title) => void patch({ title, customTitle: true })} />

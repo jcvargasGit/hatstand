@@ -4529,6 +4529,26 @@ html input[type='radio'] {
   font-variant-numeric: tabular-nums;
 }
 
+.task-reference {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-weight: 400;
+}
+
+.task-reference-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.05rem 0.35rem;
+  font-size: 0.85em;
+  font-variant-numeric: tabular-nums;
+}
+
+.task-reference-status {
+  font-size: 0.85em;
+}
+
 .tree-menu-line {
   display: flex;
   align-items: center;

@@ -108,6 +108,22 @@ describe('search', () => {
     expect((await searchWorkspace('archived', sources(files))).results).toEqual([]);
   });
 
+  it('finds a task of any client by its pasted reference or UUID', async () => {
+    const uuid = '26780f88-9c57-48ee-b47c-9092f792dfc7';
+    const numbered = (id: string, title: string, companyId: string, number: number) => ({ ...task(id, title, companyId), number });
+    const two = {
+      ...sources(),
+      companies: [company('acme'), company('globex')],
+      tasks: [numbered('a1', 'Fix the export', 'acme', 1), numbered('a12', 'Twelfth', 'acme', 12), numbered(uuid, 'Gallery', 'globex', 1)],
+    };
+    const found = async (query: string) => (await searchWorkspace(query, two)).results.flatMap((item) => (item.kind === 'task' ? [item.taskId] : []));
+    expect(await found('globex#1')).toEqual([uuid]);
+    expect(await found('acme#1')).toEqual(['a1', 'a12']);
+    expect(await found('Acme #12')).toEqual(['a12']);
+    expect(await found(uuid.toUpperCase())).toEqual([uuid]);
+    expect(await found('initech#1')).toEqual([]);
+  });
+
   it('ignores a query that is too short, and says when it stopped reading early', async () => {
     expect((await searchWorkspace(' a ', sources())).results).toEqual([]);
     const spec = join(dir, 'late.md');
