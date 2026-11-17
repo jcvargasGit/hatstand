@@ -1,44 +1,40 @@
+// The terminals of task sessions: each runs an agent in a pty, and this keeps them in the live map.
+// What the agent reports, the copies of the code it asks for, and the steps of the guide each have a
+// module of their own next to this one, which this class composes.
 import { randomUUID } from 'node:crypto';
-import { appendFileSync, chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import * as pty from 'node-pty';
 import type { SessionOutput } from '../shared/api';
-import type { Account, Company, Project, Session, SessionState, SubagentRun, Task, TaskGuide, TaskWorktree } from '../shared/schemas';
+import type { Account, Company, Project, Session, SubagentRun, Task, TaskGuide, TaskWorktree } from '../shared/schemas';
 import { claudeCode } from './agents/claude-code';
 import { draftLengthAfter } from './agents/prompt-draft';
 import { PromptPrefill } from './agents/prompt-prefill';
-import { readAgentProgress, readTranscriptTail, sessionStateFrom, transcriptPathFrom, type AgentProgress } from './agents/agent-progress';
-import { endRunningSubagents, parseSubagentActivity, SESSION_RESTART_LINE } from './agents/subagent-activity';
-import { buildStepPrompt, buildSystemPrompt, openingPrompt } from './agents/task-prompt';
-import { ACTIVITY_FILE_ENV, reportedStates, STATUS_FILE_ENV, WAITING_AT_PROMPT, type AgentAdapter } from './agents/types';
-import { buildAgentEnv } from './env';
+import { transcriptPathFrom } from './agents/agent-progress';
+import { endRunningSubagents, parseSubagentActivity } from './agents/subagent-activity';
+import { buildSystemPrompt, openingPrompt } from './agents/task-prompt';
+import type { AgentAdapter } from './agents/types';
 import { githubCopilot } from './agents/github-copilot';
-import { hideSecrets, sessionGitEnv } from './git-credentials';
 import type { DataPaths } from './paths';
 import type { SecretStore } from './secrets';
 import { findExecutable } from './shell';
 import { readClientInstructions } from './starter-files';
 import { accountsForClient } from '../shared/accounts';
-import { COPY_REQUESTS_ENV, EDIT_REPO_TOOL, READ_ONLY_REPOS_ENV } from './edit-repo-tool';
-import { parseStepsDone, STEP_DONE_TOOL, STEP_FILE_ENV, withStepsDone } from './step-done-tool';
-import { refreshFingerprints } from './guard/service';
-import { identityEnv } from './git-identity';
 import { activeKnowledgeDir, activePlanning } from './active-folders';
-import { answerPlanCheck, backlogPromptInput } from './backlog-plan';
-import { CHECK_PLAN_TOOL, PLAN_CHECKS_ENV } from './check-plan-tool';
+import { backlogPromptInput } from './backlog-plan';
 import { activeWorktrees, companyWithCode, reposOutside, sessionFolder, taskArea, workingDirFor, taskFocus, taskFolderPaths, taskKnowledgeFolder, taskRepositories } from './task-folders';
-import { prepareWorktrees } from './worktrees';
-import { gitTokenName } from '../shared/git-source';
 import { areaFolder as areaFolderName } from '../shared/areas';
 import { writePrivateFile, type Store } from './store';
 import { SUMMARY_PROMPT } from './agents/summary-refresh';
 import { DRAFT_IN_THE_WAY, summaryBlockedReason } from '../shared/task-summary';
-import { repoToCopy, workRepositories } from '../shared/work-repos';
+import { workRepositories } from '../shared/work-repos';
+import { TaskCopies } from './session-copies';
+import { SessionGuides } from './session-guide';
+import { SessionEnv, type FingerprintRefresher } from './session-env';
+import { answerPlanChecks, preparePlanChecks } from './session-plan-checks';
+import { requireSession, SessionStates, type TrackedSession } from './session-state';
 
 const MAX_BUFFER_CHARS = 400_000;
 const STATUS_POLL_MS = 1000;
-const TRANSCRIPT_RECHECK_MS = 15_000;
-const TRANSCRIPT_MIN_READ_MS = 2_000;
 const ANSWERS_THE_AGENT = /[\r\d]/;
 const SUBMIT_DELAY_MS = 300;
 // Shift+Enter reaches the agent as ESC + Enter. It only adds a line, as in draftLengthAfter, so it answers nothing.
@@ -61,8 +57,10 @@ export function resolveAccount(accounts: Account[], defaultId: string | undefine
   return account;
 }
 
-type TurnCheck = { modifiedAt: number; checkedAt: number; progress: AgentProgress };
-type LiveSession = { process: pty.IPty; buffer: string; emitted: number; watcher: NodeJS.Timeout; prefill: PromptPrefill | null; startedAt: number; turnCheck: TurnCheck | null; state: SessionState; draftLength: number };
+const BUSY_FOR_PROMPT = 'The agent is busy or asking you something. Try again when it is waiting at its prompt.';
+
+/** A running session. SessionStates keeps its tracked state up to date. */
+type LiveSession = TrackedSession & { process: pty.IPty; buffer: string; emitted: number; watcher: NodeJS.Timeout; prefill: PromptPrefill | null; draftLength: number };
 
 export type SessionEvents = {
   onData(sessionId: string, data: string, end: number): void;
@@ -73,7 +71,10 @@ export type SessionEvents = {
 export class SessionManager {
   private readonly live = new Map<string, LiveSession>();
   private readonly lastOutput = new Map<string, SessionOutput>();
-  private readonly answeringCopies = new Set<string>();
+  private readonly states: SessionStates;
+  private readonly copies: TaskCopies;
+  private readonly guides: SessionGuides;
+  private readonly env: SessionEnv;
 
   constructor(
     private readonly paths: DataPaths,
@@ -81,80 +82,24 @@ export class SessionManager {
     private readonly secrets: SecretStore,
     private readonly shellPath: string,
     private readonly events: SessionEvents,
+    protection: FingerprintRefresher,
   ) {
     mkdirSync(paths.runDir, { recursive: true, mode: 0o700 });
-  }
-
-  private async copyRepos(task: Task, company: Company, repos: Project[]): Promise<TaskWorktree[]> {
-    const secrets = this.secrets.read(company.id);
-    const token = company.gitSource ? secrets[gitTokenName(company.gitSource.provider)] : undefined;
-    const networkEnv = { ...sessionGitEnv(company.gitSource, secrets), ...(company.gitSource && token ? { [gitTokenName(company.gitSource.provider)]: token } : {}) };
-    return prepareWorktrees({ paths: this.paths, company, task, repos, path: this.shellPath, networkEnv });
-  }
-
-  private originalRepoFolders(companyId: string): string[] {
-    return workRepositories(this.store.readCompany(companyId)).filter((repo) => existsSync(repo.path)).map((repo) => realpathSync(repo.path));
-  }
-
-  private async restoreCopies(task: Task, company: Company): Promise<Task> {
-    if (!task.isolated || task.worktrees.length === 0) return task;
-    const repos = company.projects.filter((repo) => task.worktrees.some((worktree) => worktree.projectId === repo.id));
-    return this.store.setTaskCode(task.id, await this.copyRepos(task, company, repos));
+    this.states = new SessionStates(paths, store, events, (sessionId) => this.live.get(sessionId));
+    this.copies = new TaskCopies(paths, store, secrets, shellPath, events);
+    this.env = new SessionEnv(paths, store, secrets, shellPath, protection);
+    this.guides = new SessionGuides(paths, store, events, {
+      offerToRunningSession: (taskId, prompt, busyMessage) => this.offerToRunningSession(taskId, prompt, busyMessage),
+    });
   }
 
   async createCopy(taskId: string, repo: Project): Promise<TaskWorktree> {
-    const task = this.store.findTask(taskId);
-    const company = this.store.readCompany(task.companyId);
-    const worktrees = await this.copyRepos(task, company, [repo]);
-    const worktree = worktrees.find((item) => item.projectId === repo.id);
-    if (!worktree) throw new Error(`${repo.name} cannot have its own copy. It needs to be the top folder of a git repository, with at least one commit. To change it anyway, choose Shared folder in the task details.`);
-    this.store.setTaskCode(task.id, worktrees, [...new Set([...task.projectIds, repo.id])]);
-    this.events.onChange();
-    return worktree;
-  }
-
-  private pollPlanChecks(session: Session, folder: string): void {
-    if (!existsSync(folder)) return;
-    for (const request of readdirSync(folder).filter((name) => name.endsWith('.request'))) {
-      const file = join(folder, request);
-      const reply = file.slice(0, -'.request'.length);
-      rmSync(file);
-      try {
-        const { ok, text } = answerPlanCheck(this.store, this.paths, session.taskId);
-        writePrivateFile(`${reply}.${ok ? 'ok' : 'error'}`, text);
-      } catch (error) {
-        writePrivateFile(`${reply}.error`, `${error instanceof Error ? error.message : 'The plan could not be checked.'}\n`);
-      }
-    }
-  }
-
-  private async answerCopyRequest(session: Session, repoName: string): Promise<string> {
-    const company = this.store.readCompany(session.companyId);
-    const repo = repoToCopy(company, repoName);
-    const worktree = await this.createCopy(session.taskId, repo);
-    return `Your copy of ${repo.name} is ready.\nFolder: ${worktree.path}\nBranch: ${worktree.branch}\nWork and commit only in that folder.\n`;
-  }
-
-  private pollCopyRequests(session: Session, folder: string): void {
-    if (this.answeringCopies.has(session.id) || !existsSync(folder)) return;
-    const [request] = readdirSync(folder).filter((name) => name.endsWith('.request'));
-    if (!request) return;
-    const file = join(folder, request);
-    const reply = file.slice(0, -'.request'.length);
-    const repoName = readFileSync(file, 'utf8').trim();
-    rmSync(file);
-    this.answeringCopies.add(session.id);
-    void this.answerCopyRequest(session, repoName)
-      .then(
-        (text) => writePrivateFile(`${reply}.ok`, text),
-        (error: unknown) => writePrivateFile(`${reply}.error`, `${error instanceof Error ? error.message : 'The copy could not be created.'}\n`),
-      )
-      .finally(() => this.answeringCopies.delete(session.id));
+    return this.copies.create(taskId, repo);
   }
 
   async start(taskId: string, prompt?: string): Promise<Session> {
     const company = this.store.readCompany(this.store.findTask(taskId).companyId);
-    const task = await this.restoreCopies(this.store.findTask(taskId), company);
+    const task = await this.copies.restore(this.store.findTask(taskId), company);
     const accounts = this.store.readAccounts();
     const account = resolveAccount(accounts.accounts, accounts.defaultAccountId, company, task);
     const now = new Date().toISOString();
@@ -176,8 +121,8 @@ export class SessionManager {
   }
 
   resume(sessionId: string, prompt?: string): Session {
-    if (this.live.has(sessionId)) return this.requireSession(sessionId);
-    const previous = this.requireSession(sessionId);
+    if (this.live.has(sessionId)) return requireSession(this.store, sessionId);
+    const previous = requireSession(this.store, sessionId);
     const task = this.store.findTask(previous.taskId);
     const company = this.store.readCompany(previous.companyId);
     const account = this.store.readAccounts().accounts.find((item) => item.id === previous.accountId);
@@ -198,10 +143,8 @@ export class SessionManager {
   private launch(session: Session, task: Task, realCompany: Company, account: Account, resume: boolean, prompt?: string, submitOpening = false): void {
     const company = companyWithCode(realCompany, task);
     const adapter = adapters[account.type];
-    const statusFile = this.paths.statusFile(session.id);
     const promptFile = this.paths.promptFile(session.id);
     const settingsFile = this.paths.settingsFile(session.id);
-    const activityFile = this.paths.activityFile(session.id);
     const notesFile = this.paths.notesFile(company.id, task.id);
     const area = taskArea(company, task);
     const areaFolder = area ? this.paths.areaDir(company.id, areaFolderName(area)) : undefined;
@@ -209,13 +152,10 @@ export class SessionManager {
     const planning = activePlanning(this.paths, company);
     const backlog = backlogPromptInput(this.store, this.paths, task);
     const repositories = backlog ? workRepositories(company) : taskRepositories(company, task);
-    const canAskForCopies = !backlog && task.isolated && workRepositories(company).length > 0;
 
     if (!existsSync(notesFile)) this.store.writeNotes(task, '');
-    writePrivateFile(statusFile, session.state);
+    const reports = this.states.prepareSession(session);
     writePrivateFile(settingsFile, adapter.buildStatusSettings());
-    if (existsSync(activityFile)) appendFileSync(activityFile, SESSION_RESTART_LINE);
-    else writePrivateFile(activityFile, '');
     writePrivateFile(
       promptFile,
       buildSystemPrompt({
@@ -234,8 +174,9 @@ export class SessionManager {
       }),
     );
 
-    const copiesFolder = canAskForCopies ? this.paths.taskWorktreesDir(company.id, task.id) : null;
-    if (copiesFolder) mkdirSync(copiesFolder, { recursive: true, mode: 0o700 });
+    const copies = this.copies.prepareSession(session.id, company, task, backlog !== undefined);
+    const planChecks = backlog ? preparePlanChecks(this.paths, session.id) : null;
+    const steps = this.guides.prepareSession(session.id);
     const pluginDir = company.context.pluginDir ?? (this.store.hasLocalPlugin(company.id) ? this.paths.pluginDir(company.id) : undefined);
     const sessionDir = this.paths.sessionDir(session.id);
     adapter.prepareSession?.({ sessionDir, promptFile, settingsFile });
@@ -249,31 +190,14 @@ export class SessionManager {
       resume,
       promptFile,
       settingsFile,
-      addDirs: [...knowledgeDirs, ...(pluginDir ? [pluginDir] : []), ...reposOutside(session.cwd, [...repositories, planning]), this.paths.tasksDir(company.id), ...(copiesFolder ? [copiesFolder] : [])],
+      addDirs: [...knowledgeDirs, ...(pluginDir ? [pluginDir] : []), ...reposOutside(session.cwd, [...repositories, planning]), this.paths.tasksDir(company.id), ...(copies.copiesFolder ? [copies.copiesFolder] : [])],
     });
-    const copyRequests = this.paths.copyRequestsDir(session.id);
-    if (canAskForCopies) {
-      mkdirSync(copyRequests, { recursive: true, mode: 0o700 });
-      writePrivateFile(this.paths.editRepoTool, EDIT_REPO_TOOL);
-      chmodSync(this.paths.editRepoTool, 0o700);
-    }
-    const planChecks = backlog ? this.paths.planChecksDir(session.id) : null;
-    if (planChecks) {
-      mkdirSync(planChecks, { recursive: true, mode: 0o700 });
-      writePrivateFile(this.paths.checkPlanTool, CHECK_PLAN_TOOL);
-      chmodSync(this.paths.checkPlanTool, 0o700);
-    }
-    const originalsReadOnly = canAskForCopies || backlog !== undefined;
-    writePrivateFile(this.paths.stepDoneTool, STEP_DONE_TOOL);
-    chmodSync(this.paths.stepDoneTool, 0o700);
-    const secrets = this.secrets.read(company.id);
-    refreshFingerprints(this.paths, this.store.readCompany(company.id), secrets);
-    const hiddenSecrets = adapter.hiddenSecrets ?? [];
-    const env = buildAgentEnv({
-      base: process.env,
-      path: `${this.paths.toolsDir}:${this.shellPath}`,
-      secrets: hideSecrets(secrets, hiddenSecrets),
-      extra: { ...sessionGitEnv(company.gitSource, secrets, hiddenSecrets), ...identityEnv(company.gitIdentity), ...(canAskForCopies ? { [COPY_REQUESTS_ENV]: copyRequests } : {}), ...(originalsReadOnly ? { [READ_ONLY_REPOS_ENV]: JSON.stringify(this.originalRepoFolders(task.companyId)) } : {}), ...(planChecks ? { [PLAN_CHECKS_ENV]: planChecks } : {}), ...launch.env, [STATUS_FILE_ENV]: statusFile, [ACTIVITY_FILE_ENV]: activityFile, [STEP_FILE_ENV]: this.paths.stepFile(session.id) },
+    const env = this.env.build({
+      company,
+      adapter,
+      before: { ...copies.env, ...planChecks?.env },
+      launchEnv: launch.env,
+      after: { ...reports.env, ...steps.env },
     });
 
     const executable = findExecutable(launch.command, this.shellPath);
@@ -292,7 +216,7 @@ export class SessionManager {
     const writeOpening = (text: string) => {
       child.write(text);
       this.addToDraft(session.id, text);
-      writtenAtPrompt = this.isAtItsPrompt(session.id);
+      writtenAtPrompt = this.states.isAtItsPrompt(session.id);
     };
     const sendOpening = () => {
       if (writtenAtPrompt) this.submitOpening(session.id, child);
@@ -304,10 +228,10 @@ export class SessionManager {
       buffer: '',
       emitted: 0,
       watcher: setInterval(() => {
-        this.pollStatus(session.id);
-        this.pollStepDone(session.id);
-        if (canAskForCopies) this.pollCopyRequests(session, copyRequests);
-        if (planChecks) this.pollPlanChecks(session, planChecks);
+        this.states.poll(session.id);
+        this.guides.pollStepsDone(session.id);
+        if (copies.requestsFolder) this.copies.pollRequests(session, copies.requestsFolder);
+        if (planChecks) answerPlanChecks(this.store, this.paths, session, planChecks.folder);
       }, STATUS_POLL_MS),
       prefill,
       startedAt: Date.now(),
@@ -328,57 +252,19 @@ export class SessionManager {
     child.onExit(() => {
       prefill?.cancel();
       clearInterval(live.watcher);
-      this.pollStepDone(session.id);
+      this.guides.pollStepsDone(session.id);
       this.setDraftLength(session.id, 0);
       this.live.delete(session.id);
       this.lastOutput.set(session.id, { text: live.buffer, end: live.emitted });
-      this.setState(session.id, 'stopped');
+      this.states.set(session.id, 'stopped');
     });
-  }
-
-  private pollStatus(sessionId: string): void {
-    const file = this.paths.statusFile(sessionId);
-    if (!existsSync(file)) return;
-    const reported = readFileSync(file, 'utf8').trim();
-    if (reported === WAITING_AT_PROMPT) {
-      writePrivateFile(file, 'idle');
-      const state = this.stateFromAgent(sessionId, 'idle');
-      this.setState(sessionId, state);
-      if (state === 'idle') this.events.onNeedsInput(this.requireSession(sessionId));
-      return;
-    }
-    const state = reportedStates.find((item) => item === reported);
-    if (state) this.setState(sessionId, this.stateFromAgent(sessionId, state));
   }
 
   /** Sends the opening prompt of a first session, unless the session ended or the person cleared the prompt first. */
   private submitOpening(sessionId: string, child: pty.IPty): void {
     const live = this.live.get(sessionId);
-    if (!live || live.process !== child || live.draftLength === 0 || !this.isAtItsPrompt(sessionId)) return;
+    if (!live || live.process !== child || live.draftLength === 0 || !this.states.isAtItsPrompt(sessionId)) return;
     this.write(sessionId, '\r');
-  }
-
-  /** Enter would answer a question the agent asks, such as a permission, so the opening prompt is only sent while the agent waits at its prompt. */
-  private isAtItsPrompt(sessionId: string): boolean {
-    this.pollStatus(sessionId);
-    const state = this.live.get(sessionId)?.state;
-    return state === 'idle' || state === 'background';
-  }
-
-  /** Moves the steps the agent reported into the guide of the task, so they outlive the session. */
-  private pollStepDone(sessionId: string): void {
-    const file = this.paths.stepFile(sessionId);
-    if (!existsSync(file)) return;
-    const reading = `${file}.${randomUUID()}.reading`;
-    renameSync(file, reading);
-    const reported = parseStepsDone(readFileSync(reading, 'utf8'));
-    rmSync(reading, { force: true });
-    const task = this.store.findTask(this.requireSession(sessionId).taskId);
-    if (!task.guide || reported.length === 0) return;
-    const done = withStepsDone(task.guide.done, reported, task.guide.steps.length);
-    if (done.join() === task.guide.done.join()) return;
-    this.store.updateTask(task.id, { guide: { ...task.guide, done } });
-    this.events.onChange();
   }
 
   private setDraftLength(sessionId: string, length: number): void {
@@ -387,7 +273,7 @@ export class SessionManager {
     const changed = live.draftLength > 0 !== length > 0;
     live.draftLength = length;
     if (!changed) return;
-    this.store.saveSession({ ...this.requireSession(sessionId), draft: length > 0 });
+    this.store.saveSession({ ...requireSession(this.store, sessionId), draft: length > 0 });
     this.events.onChange();
   }
 
@@ -395,48 +281,10 @@ export class SessionManager {
     this.setDraftLength(sessionId, (this.live.get(sessionId)?.draftLength ?? 0) + text.length);
   }
 
-  private stateFromAgent(sessionId: string, reported: SessionState): SessionState {
-    const live = this.live.get(sessionId);
-    const activityFile = this.paths.activityFile(sessionId);
-    if (!live || reported === 'needs-input' || !existsSync(activityFile)) return reported;
-    try {
-      const transcript = transcriptPathFrom(readFileSync(activityFile, 'utf8'));
-      if (!transcript || !existsSync(transcript)) return reported;
-      const modifiedAt = statSync(transcript).mtimeMs;
-      const now = Date.now();
-      const check = live.turnCheck;
-      const elapsed = check ? now - check.checkedAt : Infinity;
-      const isCurrent = check && (check.modifiedAt === modifiedAt ? elapsed < TRANSCRIPT_RECHECK_MS : elapsed < TRANSCRIPT_MIN_READ_MS);
-      const progress = isCurrent ? check.progress : readAgentProgress(readTranscriptTail(transcript), live.startedAt, now);
-      if (!isCurrent) live.turnCheck = { modifiedAt, checkedAt: now, progress };
-      return sessionStateFrom(reported, progress, now - modifiedAt);
-    } catch {
-      return reported;
-    }
-  }
-
-  private setState(sessionId: string, state: SessionState): void {
-    const live = this.live.get(sessionId);
-    if (live) live.state = state;
-    const session = this.requireSession(sessionId);
-    if (session.state === state) return;
-    const updated = { ...session, state, updatedAt: new Date().toISOString() };
-    this.store.saveSession(updated);
-    if (state === 'idle' || state === 'background' || state === 'stopped') this.store.applyAgentStatus(session.taskId);
-    this.events.onChange();
-    if (state === 'needs-input') this.events.onNeedsInput(updated);
-  }
-
-  private requireSession(sessionId: string): Session {
-    const session = this.store.listSessions().find((item) => item.id === sessionId);
-    if (!session) throw new Error(`Session ${sessionId} no longer exists.`);
-    return session;
-  }
-
   write(sessionId: string, data: string): void {
     const live = this.live.get(sessionId);
     // The answer is recorded before the agent can read it, so a quick reply from the agent is not overwritten.
-    if (live && answersTheAgent(data)) this.markAnswered(sessionId);
+    if (live && answersTheAgent(data)) this.states.markAnswered(sessionId);
     live?.process.write(data);
     live?.prefill?.onInput(data);
     if (live && live.state !== 'needs-input') this.setDraftLength(sessionId, draftLengthAfter(live.draftLength, data));
@@ -445,15 +293,10 @@ export class SessionManager {
   sendDraft(sessionId: string): void {
     const live = this.live.get(sessionId);
     if (!live) throw new Error('This session is not running.');
-    this.pollStatus(sessionId);
+    this.states.poll(sessionId);
     if (live.state !== 'idle' && live.state !== 'background') throw new Error('The agent is busy or asking you something. Send your text when it is waiting at its prompt.');
     if (live.draftLength === 0) throw new Error('There is no text to send.');
     this.write(sessionId, '\r');
-  }
-
-  private markAnswered(sessionId: string): void {
-    const file = this.paths.statusFile(sessionId);
-    if (existsSync(file) && readFileSync(file, 'utf8').trim() === 'needs-input') writePrivateFile(file, 'working');
   }
 
   resize(sessionId: string, cols: number, rows: number): void {
@@ -482,35 +325,11 @@ export class SessionManager {
   }
 
   moveGuideStep(taskId: string, index: number): void {
-    const { guide } = this.store.findTask(taskId);
-    if (!guide?.steps[index]) throw new Error('This step no longer exists in the guide.');
-    const yourStepDone = index > guide.current && guide.steps[guide.current]?.you !== undefined;
-    const done = yourStepDone ? withStepsDone(guide.done, [guide.current + 1], guide.steps.length) : guide.done;
-    this.changeGuide(taskId, { ...guide, current: index, done });
+    this.guides.moveStep(taskId, index);
   }
 
   changeGuide(taskId: string, guide: TaskGuide): void {
-    const task = { ...this.store.findTask(taskId), guide };
-    const company = this.store.readCompany(task.companyId);
-    const prompt = buildStepPrompt(task, taskFocus(company, task), taskKnowledgeFolder(this.paths, company, task));
-    const session = this.store.listSessions().find((item) => item.taskId === taskId && this.live.has(item.id));
-    const live = session && this.live.get(session.id);
-    if (!session || !live) {
-      this.store.updateTask(taskId, { guide: { ...guide, promptPending: prompt !== null } });
-      return;
-    }
-    if (live.draftLength > 0) throw new Error(DRAFT_IN_THE_WAY);
-    if (live.prefill?.isWaiting) {
-      live.prefill.retarget(prompt);
-    } else {
-      if (session.state !== 'idle' && session.state !== 'background') throw new Error('The agent is busy or asking you something. Change step when it is waiting at its prompt.');
-      if (prompt !== null) {
-        live.process.write(prompt);
-        this.addToDraft(session.id, prompt);
-      }
-    }
-    this.store.updateTask(taskId, { guide: { ...guide, promptPending: false } });
-    this.events.onChange();
+    this.guides.change(taskId, guide);
   }
 
   async sendPrompt(taskId: string, prompt: string): Promise<void> {
@@ -518,12 +337,7 @@ export class SessionManager {
     const running = sessions.find((item) => this.live.has(item.id));
     const live = running && this.live.get(running.id);
     if (running && live) {
-      if (live.draftLength > 0) throw new Error(DRAFT_IN_THE_WAY);
-      if (live.prefill?.isWaiting) live.prefill.retarget(prompt);
-      else if (running.state === 'idle' || running.state === 'background') {
-        live.process.write(prompt);
-        this.addToDraft(running.id, prompt);
-      } else throw new Error('The agent is busy or asking you something. Try again when it is waiting at its prompt.');
+      this.offerPrompt(running, live, prompt, BUSY_FOR_PROMPT);
       return;
     }
     const [latest] = sessions;
@@ -532,15 +346,44 @@ export class SessionManager {
   }
 
   async refreshSummary(taskId: string): Promise<void> {
-    const session = this.store.listSessions().find((item) => item.taskId === taskId && this.live.has(item.id));
+    const session = this.runningSession(taskId);
     const live = session && this.live.get(session.id);
-    if (session) this.pollStatus(session.id);
+    if (session) this.states.poll(session.id);
     const blocked = summaryBlockedReason(live?.state, Boolean(live?.prefill?.isWaiting) || (live?.draftLength ?? 0) > 0);
     if (!session || !live || blocked) throw new Error(blocked ?? 'Resume the session to update the TL;DR.');
     live.process.write(SUMMARY_PROMPT);
     await new Promise((resolve) => setTimeout(resolve, SUBMIT_DELAY_MS));
     if (this.live.get(session.id) !== live) return;
     live.process.write('\r');
+  }
+
+  private runningSession(taskId: string): Session | undefined {
+    return this.store.listSessions().find((item) => item.taskId === taskId && this.live.has(item.id));
+  }
+
+  private offerToRunningSession(taskId: string, prompt: string | null, busyMessage: string): boolean {
+    const session = this.runningSession(taskId);
+    const live = session && this.live.get(session.id);
+    if (!session || !live) return false;
+    this.offerPrompt(session, live, prompt, busyMessage);
+    return true;
+  }
+
+  /**
+   * Gives a prompt to a running session: to the opening prompt still waiting to be typed, or typed at the
+   * agent's prompt for the person to send. Never over text already in the terminal, nor while the agent is busy.
+   */
+  private offerPrompt(session: Session, live: LiveSession, prompt: string | null, busyMessage: string): void {
+    if (live.draftLength > 0) throw new Error(DRAFT_IN_THE_WAY);
+    if (live.prefill?.isWaiting) {
+      live.prefill.retarget(prompt);
+      return;
+    }
+    if (session.state !== 'idle' && session.state !== 'background') throw new Error(busyMessage);
+    if (prompt !== null) {
+      live.process.write(prompt);
+      this.addToDraft(session.id, prompt);
+    }
   }
 
   hasLiveClientSession(companyId: string): boolean {

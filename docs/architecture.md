@@ -26,6 +26,18 @@ Implement `AgentAdapter` in `src/main/agents`: how to launch or resume it with c
 
 Claude Code hooks, passed with `--settings`, write the state to the file in `HATSTAND_STATUS_FILE`. The main process polls that file. No file is added to the repository.
 
+## Session modules
+
+`SessionManager` in `sessions.ts` owns the terminals (`node-pty`), the map of running sessions, and the one-second timer of each. The rest lives next to it:
+
+- `session-state.ts`: what the agent reports, and the saved state of the session.
+- `session-copies.ts`: the copies of the code of a task, and the requests of the agent for a new one.
+- `session-guide.ts`: changing the step of a guide, and the steps the agent reports done.
+- `session-plan-checks.ts`: the plan checks of a session that plans the backlog.
+- `session-env.ts`: the environment the agent starts with.
+
+Polling must stay cheap, because every running session does it every second. A tick that finds nothing new reads no session file, and a change reads only the file of that session (`Store.readSession`), never all of them.
+
 ## Task finished
 
 The agent reports `done` in the `## Status` section of the task notes. That is a claim and it never closes the task.

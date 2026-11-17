@@ -178,6 +178,8 @@ async function bootstrap(): Promise<void> {
       const task = store.findTask(session.taskId);
       notify('A session is waiting for you', task.title);
     },
+  }, {
+    refreshFingerprints: (company) => refreshFingerprints(paths, company, secrets.read(company.id)),
   });
 
   applyStayAwake();

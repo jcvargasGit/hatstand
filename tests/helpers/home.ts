@@ -1,6 +1,6 @@
 // A throwaway Hatstand folder for a test, so no test ever touches ~/.hatstand.
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { dataPaths, type DataPaths } from '../../src/main/paths';
@@ -35,5 +35,14 @@ export function makeHome(prefix = 'hatstand-test-'): TestHome {
 export function makeGitRepo(path: string): string {
   mkdirSync(path, { recursive: true });
   execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: path });
+  return path;
+}
+
+/** A git repository with one commit, so a task can have its own copy of it. */
+export function makeCommittedRepo(path: string): string {
+  makeGitRepo(path);
+  writeFileSync(join(path, 'README.md'), 'hello\n');
+  execFileSync('git', ['add', '.'], { cwd: path });
+  execFileSync('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-qm', 'first'], { cwd: path });
   return path;
 }

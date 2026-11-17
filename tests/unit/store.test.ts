@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -169,6 +170,19 @@ describe('Store', () => {
     const second = store.createCompany('Acme', '#445566');
     expect([first.id, second.id]).toEqual(['acme', 'acme-2']);
     expect(store.listCompanies()).toHaveLength(2);
+  });
+
+  it('reads one session by its id, and nothing for an id that is not a saved session', () => {
+    const now = new Date().toISOString();
+    const [one, two, three] = [randomUUID(), randomUUID(), randomUUID()];
+    const session = { id: one, taskId: 't', companyId: 'acme', accountId: 'a', cwd: home, state: 'idle' as const, startedAt: now, updatedAt: now };
+    store.saveSession(session);
+    store.saveSession({ ...session, id: two, state: 'working' });
+    expect(store.readSession(two)).toMatchObject({ id: two, state: 'working' });
+    expect(store.readSession(three)).toBeUndefined();
+    mkdirSync(join(paths.sessionsDir, 'nested'));
+    writeFileSync(join(paths.sessionsDir, 'nested', `${one}.json`), readFileSync(paths.sessionFile(one)));
+    expect(store.readSession(`nested/${one}`)).toBeUndefined();
   });
 
   it('keeps client files readable only by the owner', () => {

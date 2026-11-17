@@ -6,10 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vite
 import type { Task, TaskGuide } from '../../src/shared/schemas';
 import { githubCopilot } from '../../src/main/agents/github-copilot';
 import { dataPaths, type DataPaths } from '../../src/main/paths';
-import type { SecretStore } from '../../src/main/secrets';
 import { SessionManager } from '../../src/main/sessions';
 import { parseStepsDone, STEP_DONE_TOOL, withStepsDone } from '../../src/main/step-done-tool';
 import { Store } from '../../src/main/store';
+import { fakeAgentBin, fakeProtection, noSecrets } from '../helpers/sessions';
 
 const written = vi.hoisted(() => [] as string[]);
 const lastSpawn = vi.hoisted(() => ({ exit: (() => {}) as () => void, output: (() => {}) as (data: string) => void, env: {} as Record<string, string>, args: [] as string[] }));
@@ -51,15 +51,12 @@ beforeEach(() => {
   vi.useFakeTimers();
   written.length = 0;
   dir = realpathSync(mkdtempSync(join(tmpdir(), 'hatstand-guide-')));
-  const bin = join(dir, 'bin');
-  spawnSync('mkdir', [bin]);
-  writeFileSync(join(bin, 'claude'), '#!/bin/sh\n');
-  chmodSync(join(bin, 'claude'), 0o755);
+  const bin = fakeAgentBin(dir);
   paths = dataPaths(join(dir, 'home'));
   store = new Store(paths);
   store.saveCompany({ ...store.createCompany('Acme', '#112233'), rootDir: dir });
   onChange = vi.fn<() => void>();
-  sessions = new SessionManager(paths, store, { read: () => ({}) } as unknown as SecretStore, bin, { onData: () => {}, onChange, onNeedsInput: () => {} });
+  sessions = new SessionManager(paths, store, noSecrets, bin, { onData: () => {}, onChange, onNeedsInput: () => {} }, fakeProtection());
 });
 
 afterEach(() => {
