@@ -8,6 +8,7 @@ import { useEditorName } from '../hooks/useEditorName';
 import { api } from '../lib/api';
 import { AREA_LINK_SUGGESTIONS } from '../lib/link-suggestions';
 import { taskStateText } from '../lib/today';
+import { AreaDescriptionPrompt } from './AreaDescriptionPrompt';
 import { ClientFiles } from './ClientFiles';
 import { LinksEditor } from './LinksEditor';
 import { MarkdownField } from './MarkdownField';
@@ -193,6 +194,7 @@ export function AreaPage({ snapshot, company, area, onChanged, onBack, onNewTask
               />
             </div>
           </section>
+          <AreaDescriptionPrompt area={area} disabled={busy} onSave={(descriptionPrompt) => void saveArea({ descriptionPrompt })} />
           {wholeRepos.length > 0 && (
             <section className="overview-card" aria-label="Repositories of this area">
               <RepoPicker

@@ -12,7 +12,7 @@ type ImproveDescriptionProps = {
 };
 
 export function ImproveDescription({ request, currentDescription, disabledReason, compact = false, onAccept }: ImproveDescriptionProps) {
-  const { state, start, close } = useDescriptionSuggestion();
+  const { state, open, compose, send, close } = useDescriptionSuggestion();
   const empty = !request.title?.trim() && !request.description?.trim();
   const reason = disabledReason ?? (empty ? 'Write a title or a description first.' : undefined);
 
@@ -22,9 +22,9 @@ export function ImproveDescription({ request, currentDescription, disabledReason
         type="button"
         className="quiet improve-description"
         aria-label={compact ? `Improve the description of ${request.title || 'this task'}` : undefined}
-        disabled={reason !== undefined || state.phase === 'working'}
-        title={reason ?? 'The assistant reads the project and suggests a fuller description. Nothing changes until you accept it.'}
-        onClick={() => start(request)}
+        disabled={reason !== undefined || state.phase !== 'idle'}
+        title={reason ?? 'Write a prompt, and the assistant reads the project and suggests a fuller description. Nothing changes until you accept it.'}
+        onClick={() => open(request)}
       >
         <Sparkles size={14} />
         {!compact && 'Improve description'}
@@ -33,7 +33,12 @@ export function ImproveDescription({ request, currentDescription, disabledReason
         <DescriptionSuggestionDialog
           state={state}
           currentDescription={currentDescription}
-          onRetry={() => start({ ...state.request, description: currentDescription })}
+          onSend={(instructions) => state.phase === 'composing' && send({ request: state.request, instructions, defaults: state.defaults })}
+          onRetry={() => {
+            const latest = { ...state.request, description: currentDescription };
+            if (state.phase === 'loading' || state.instructions === undefined || state.defaults === undefined) return open(latest);
+            compose({ request: latest, instructions: state.instructions, defaults: state.defaults });
+          }}
           onClose={close}
           onAccept={(description) => {
             close();

@@ -45,6 +45,7 @@ export const subdomainSchema = z.object({
   name: z.string().trim().min(1, 'Name this area.'),
   folder: z.string().regex(/^[a-z0-9][a-z0-9-]*$/, 'Use lowercase letters, numbers and dashes for the folder.').optional(),
   description: z.string().default(''),
+  descriptionPrompt: z.string().optional(),
   folders: z.array(subdomainFolderSchema).default([]),
   links: z.array(clientLinkSchema).default([]),
 });

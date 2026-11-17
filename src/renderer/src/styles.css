@@ -4964,6 +4964,10 @@ html input[type='radio'] {
   overflow-wrap: anywhere;
 }
 
+.suggestion-prompt .markdown-field-editor {
+  min-height: 14.5em;
+}
+
 .suggestion-working {
   display: flex;
   align-items: center;
