@@ -614,6 +614,7 @@ async function bootstrap(): Promise<void> {
     },
     suggestDescription: async (request) => suggester.suggest(request),
     cancelDescriptionSuggestion: async (key) => suggester.cancel(key),
+    descriptionInstructions: async (companyId, subdomainId) => suggester.instructionsFor(companyId, subdomainId),
     planBacklog: async (companyId, taskIds) => {
       const task = createBacklogPlanTask(store, companyId, taskIds);
       emit('state-changed', null);

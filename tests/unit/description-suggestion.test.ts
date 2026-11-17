@@ -6,6 +6,7 @@ import { buildDescriptionPrompt } from '../../src/main/agents/description-prompt
 import { BLOCKED_TOOLS, buildSuggestionLaunch, DescriptionSuggester, runWithExecFile, type SuggestionRunner } from '../../src/main/description-suggestion';
 import { dataPaths, type DataPaths } from '../../src/main/paths';
 import { Store } from '../../src/main/store';
+import { DEFAULT_DESCRIPTION_INSTRUCTIONS, MAX_DESCRIPTION_INSTRUCTIONS } from '../../src/shared/description-instructions';
 import { parseSuggestionOutput, suggestionRequestSchema } from '../../src/shared/description-suggestion';
 import { companySchema, type Account } from '../../src/shared/schemas';
 
@@ -36,11 +37,19 @@ describe('reading the answer of the agent', () => {
     expect(suggestionRequestSchema.safeParse({ key: 'k', companyId: 'c', title: ' ', description: '' }).success).toBe(false);
     expect(suggestionRequestSchema.safeParse({ key: 'k', companyId: 'c', title: 'Export' }).success).toBe(true);
   });
+
+  it('takes a prompt of the person, up to a limit', () => {
+    const request = { key: 'k', companyId: 'c', title: 'Export' };
+    expect(suggestionRequestSchema.parse({ ...request, instructions: '' }).instructions).toBe('');
+    expect(suggestionRequestSchema.parse(request).instructions).toBeUndefined();
+    expect(suggestionRequestSchema.safeParse({ ...request, instructions: 'x'.repeat(MAX_DESCRIPTION_INSTRUCTIONS) }).success).toBe(true);
+    expect(suggestionRequestSchema.safeParse({ ...request, instructions: 'x'.repeat(MAX_DESCRIPTION_INSTRUCTIONS + 1) }).success).toBe(false);
+  });
 });
 
 describe('the prompt for a better description', () => {
   const company = companySchema.parse({ id: 'acme', name: 'Acme', color: '#112233' });
-  const base = { company, repositories: [{ id: 'api', name: 'api', path: '/code/api' }], knowledgeDir: '/k', companyInstructions: '', title: 'Export', description: 'CSV export of invoices' };
+  const base = { company, repositories: [{ id: 'api', name: 'api', path: '/code/api' }], knowledgeDir: '/k', companyInstructions: '', title: 'Export', description: 'CSV export of invoices', instructions: DEFAULT_DESCRIPTION_INSTRUCTIONS };
 
   it('carries the task, the folders and the read-only rule', () => {
     const prompt = buildDescriptionPrompt({ ...base, area: { id: 'b', name: 'Billing', description: 'Invoices', folders: [], links: [] }, areaFolder: '/areas/billing' });
@@ -58,6 +67,27 @@ describe('the prompt for a better description', () => {
     const prompt = buildDescriptionPrompt({ ...base, companyInstructions: '# Task format\nThree sections.' });
     expect(prompt).toContain('## Client instructions');
     expect(prompt).toContain('Three sections.');
+  });
+
+  it('keeps the default instructions as they were before the prompt could be edited', () => {
+    const prompt = buildDescriptionPrompt(base);
+    expect(prompt).toContain('CSV export of invoices\n\n## How to write the new description\n- Keep every fact and decision of the current description.');
+    expect(prompt).toContain('- Never include secret values, keys or passwords.\n\n## Answer\nAnswer with only this JSON');
+    expect(DEFAULT_DESCRIPTION_INSTRUCTIONS.split('\n')).toHaveLength(6);
+  });
+
+  it('follows the prompt of the person in place of the default instructions', () => {
+    const prompt = buildDescriptionPrompt({ ...base, instructions: '  Write three short sections.\n', companyInstructions: 'House rules.' });
+    expect(prompt).toContain('## How to write the new description\nWrite three short sections.\n\n## Client instructions');
+    expect(prompt).not.toContain('Do not create subtasks');
+    expect(prompt.trimEnd().endsWith('{"description": "<the new description in Markdown>"}')).toBe(true);
+  });
+
+  it('leaves the section out when the prompt is blank, and keeps the fixed rules', () => {
+    const prompt = buildDescriptionPrompt({ ...base, instructions: ' \n' });
+    expect(prompt).not.toContain('## How to write the new description');
+    expect(prompt).toContain('Use only Read, Grep and Glob');
+    expect(prompt).toContain('CSV export of invoices\n\n## Answer');
   });
 });
 
@@ -112,6 +142,48 @@ describe('the suggester', () => {
     expect(cwd).toBe(repo);
     expect(launch?.args).toContain(repo);
     expect(launch?.args).not.toContain('--dangerously-skip-permissions');
+  });
+
+  const sentPrompt = (runner: ReturnType<typeof vi.fn<SuggestionRunner>>) => runner.mock.calls.at(-1)?.[1].args[1] ?? '';
+  const answering = () => vi.fn<SuggestionRunner>(async () => ({ stdout: envelope('{"description": "Better"}') }));
+  const addArea = (descriptionPrompt?: string) => {
+    const area = store.createArea('acme', 'Billing');
+    const company = store.readCompany('acme');
+    store.saveCompany({ ...company, subdomains: company.subdomains.map((item) => (item.id === area.id ? { ...item, descriptionPrompt } : item)) });
+    return area.id;
+  };
+
+  it('uses the default prompt for a task with no area, or an area with no prompt', async () => {
+    const runner = answering();
+    const suggester = new DescriptionSuggester(paths, store, bin, runner);
+    await suggester.suggest(request);
+    expect(sentPrompt(runner)).toContain(DEFAULT_DESCRIPTION_INSTRUCTIONS);
+    const subdomainId = addArea();
+    await suggester.suggest({ ...request, subdomainId });
+    expect(sentPrompt(runner)).toContain(DEFAULT_DESCRIPTION_INSTRUCTIONS);
+    expect(suggester.instructionsFor('acme')).toBe(DEFAULT_DESCRIPTION_INSTRUCTIONS);
+    expect(suggester.instructionsFor('acme', subdomainId)).toBe(DEFAULT_DESCRIPTION_INSTRUCTIONS);
+  });
+
+  it('uses the prompt of the area when the request brings none', async () => {
+    const subdomainId = addArea('Name the invoice tables.');
+    const runner = answering();
+    const suggester = new DescriptionSuggester(paths, store, bin, runner);
+    expect(suggester.instructionsFor('acme', subdomainId)).toBe('Name the invoice tables.');
+    await suggester.suggest({ ...request, subdomainId });
+    expect(sentPrompt(runner)).toContain('## How to write the new description\nName the invoice tables.');
+    expect(sentPrompt(runner)).not.toContain('Do not create subtasks');
+  });
+
+  it('uses the prompt of the request over the one of the area', async () => {
+    const subdomainId = addArea('Name the invoice tables.');
+    const runner = answering();
+    const suggester = new DescriptionSuggester(paths, store, bin, runner);
+    await suggester.suggest({ ...request, subdomainId, instructions: 'Only fix the spelling.' });
+    expect(sentPrompt(runner)).toContain('Only fix the spelling.');
+    expect(sentPrompt(runner)).not.toContain('Name the invoice tables.');
+    await suggester.suggest({ ...request, subdomainId, instructions: '' });
+    expect(sentPrompt(runner)).not.toContain('## How to write the new description');
   });
 
   it('says when the agent took too long', async () => {

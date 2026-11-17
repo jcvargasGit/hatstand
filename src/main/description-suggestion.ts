@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { parseSuggestionOutput, SUGGESTION_TIMEOUT_MS, suggestionRequestSchema, type DescriptionSuggestion } from '../shared/description-suggestion';
 import { areaFolder as areaFolderName } from '../shared/areas';
+import { descriptionInstructionsFor } from '../shared/description-instructions';
 import type { Account } from '../shared/schemas';
 import { activeKnowledgeDir } from './active-folders';
 import { buildDescriptionPrompt } from './agents/description-prompt';
@@ -90,6 +91,7 @@ export class DescriptionSuggester {
       companyInstructions: readClientInstructions(company),
       title: request.title,
       description: request.description,
+      instructions: request.instructions ?? descriptionInstructionsFor(area),
     });
     const folders = [knowledgeDir, ...(areaFolder ? [areaFolder] : []), ...repositories.map((repo) => repo.path)].filter((dir) => existsSync(dir));
     const launch = buildSuggestionLaunch(account, prompt, folders, this.shellPath);
@@ -110,6 +112,10 @@ export class DescriptionSuggester {
     } finally {
       if (this.running.get(request.key) === controller) this.running.delete(request.key);
     }
+  }
+
+  instructionsFor(companyId: string, subdomainId?: string): string {
+    return descriptionInstructionsFor(taskArea(this.store.readCompany(companyId), { subdomainId }));
   }
 
   cancel(key: string): void {

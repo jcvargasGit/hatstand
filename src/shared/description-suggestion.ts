@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MAX_DESCRIPTION_INSTRUCTIONS } from './description-instructions';
 
 export const SUGGESTION_TIMEOUT_MS = 5 * 60_000;
 
@@ -11,6 +12,7 @@ export const suggestionRequestSchema = z
     subdomainId: z.string().optional(),
     projectIds: z.array(z.string()).default([]),
     accountId: z.string().optional(),
+    instructions: z.string().max(MAX_DESCRIPTION_INSTRUCTIONS, `Keep the prompt under ${MAX_DESCRIPTION_INSTRUCTIONS} characters.`).optional(),
   })
   .refine((request) => request.title !== '' || request.description.trim() !== '', { message: 'Write a title or a description first.' });
 

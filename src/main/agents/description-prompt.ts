@@ -9,10 +9,12 @@ export type DescriptionPromptInput = {
   companyInstructions: string;
   title: string;
   description: string;
+  /** How the person wants the description written. Blank leaves the section out. */
+  instructions: string;
 };
 
 export function buildDescriptionPrompt(input: DescriptionPromptInput): string {
-  const { company, area, areaFolder, repositories, knowledgeDir, companyInstructions, title, description } = input;
+  const { company, area, areaFolder, repositories, knowledgeDir, companyInstructions, title, description, instructions } = input;
   return [
     `You improve the description of a task for the client ${company.name}, before anyone works on it.`,
     '',
@@ -26,14 +28,7 @@ export function buildDescriptionPrompt(input: DescriptionPromptInput): string {
     `Title: ${title || '(no title)'}`,
     'Current description:',
     description.trim() || '(empty)',
-    '',
-    '## How to write the new description',
-    '- Keep every fact and decision of the current description. Do not drop anything the person wrote.',
-    '- Add what the code and the knowledge show: where the change goes, what it touches, and how to tell it is finished.',
-    '- Do not invent requirements. When something is unclear, list it as an open question inside the description.',
-    '- Write it in Markdown, in the language of the current description, unless the client instructions below ask for another language or format.',
-    '- Describe only this task. Do not create subtasks or checklists, and do not change the title.',
-    '- Never include secret values, keys or passwords.',
+    ...(instructions.trim() ? ['', '## How to write the new description', instructions.trim()] : []),
     ...(companyInstructions.trim() ? ['', '## Client instructions', 'Follow any task format they define.', companyInstructions.trim()] : []),
     '',
     '## Answer',

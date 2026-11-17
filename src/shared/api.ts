@@ -300,6 +300,7 @@ export type HatstandApi = {
   setBacklogPlanApproval(taskId: string, approved: boolean): Promise<BacklogPlanReport>;
   suggestDescription(request: SuggestionRequest): Promise<DescriptionSuggestion>;
   cancelDescriptionSuggestion(key: string): Promise<void>;
+  descriptionInstructions(companyId: string, subdomainId?: string): Promise<string>;
 };
 
 export type HatstandEvents = {

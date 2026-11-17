@@ -136,9 +136,16 @@ try {
   await details.waitFor({ state: 'detached' });
   await group.getByText('Lo que se sabe **hasta ahora**').first().waitFor();
 
-  // The assistant suggests a better description, read-only, and Accept replaces only the description.
+  // The person can change the prompt first. Then the assistant suggests a better description, read-only, and Accept replaces only the description.
   await group.getByRole('button', { name: 'Segunda tarea', exact: true }).click();
   await details.getByRole('button', { name: 'Improve description' }).click();
+  const promptStep = page.getByRole('dialog', { name: 'Improve description' });
+  await promptStep.getByText('Keep every fact and decision').waitFor();
+  assert.equal(existsSync(join(root, 'suggestion.json')), false, 'The assistant does not run before the prompt is sent.');
+  await promptStep.getByRole('textbox', { name: 'Prompt' }).focus();
+  await page.keyboard.type('Nombra los archivos que cambian. ');
+  await shot('inbox-suggestion-prompt');
+  await promptStep.getByRole('button', { name: 'Send' }).click();
   const suggestion = page.getByRole('dialog', { name: 'Suggested description' });
   await suggestion.getByText('Mejor descripción').waitFor();
   await shot('inbox-suggestion');
@@ -150,6 +157,8 @@ try {
   const suggestionRun = JSON.parse(readFileSync(join(root, 'suggestion.json'), 'utf8'));
   assert.equal(suggestionRun.args[suggestionRun.args.indexOf('--allowedTools') + 1], 'Read,Grep,Glob', 'The assistant can only read.');
   assert.ok(suggestionRun.args[1].includes('Lo que se sabe **hasta ahora**'), 'The assistant gets the current description.');
+  assert.ok(suggestionRun.args[1].includes('Nombra los archivos que cambian.'), 'The assistant gets what the person added to the prompt.');
+  assert.ok(suggestionRun.args[1].includes('Keep every fact and decision'), 'The rest of the default prompt stays.');
   await page.keyboard.press('Escape');
   await details.waitFor({ state: 'detached' });
 
