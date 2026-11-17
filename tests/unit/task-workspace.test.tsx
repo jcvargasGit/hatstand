@@ -417,6 +417,8 @@ describe('Sidebar', () => {
     toggleNeedsYou: vi.fn(),
     ...overrides,
   });
+  const onChanged = vi.fn(async () => {});
+  beforeEach(() => onChanged.mockClear());
   const renderSidebar = (tasks: Task[], value = layout(), client = company) => {
     const onNavigate = vi.fn();
     const onSelectTask = vi.fn();
@@ -429,6 +431,7 @@ describe('Sidebar', () => {
         onNavigate={onNavigate}
         onSelectTask={onSelectTask}
         onOpenSearch={vi.fn()}
+        onChanged={onChanged}
       />,
     );
     return { onNavigate, onSelectTask };
@@ -505,6 +508,7 @@ describe('Sidebar', () => {
         onNavigate={onNavigate}
         onSelectTask={vi.fn()}
         onOpenSearch={vi.fn()}
+        onChanged={onChanged}
       />,
     );
     expect(within(screen.getByRole('region', { name: 'Acme tasks' })).getByText('Needs your answer')).toBeTruthy();
@@ -527,6 +531,7 @@ describe('Sidebar', () => {
           onNavigate={vi.fn()}
           onSelectTask={vi.fn()}
           onOpenSearch={vi.fn()}
+          onChanged={onChanged}
         />,
       );
 
@@ -556,6 +561,7 @@ describe('Sidebar', () => {
           onNavigate={vi.fn()}
           onSelectTask={vi.fn()}
           onOpenSearch={vi.fn()}
+          onChanged={onChanged}
         />,
       );
       const guidesOf = (region: HTMLElement) => [...region.querySelectorAll<HTMLElement>('.task-tree-guide')].map((group) => [group.querySelector('.task-tree-guide-name span')?.textContent, within(group).getAllByRole('button').length - 1]);
@@ -598,6 +604,116 @@ describe('Sidebar', () => {
     const { onNavigate } = renderSidebar([]);
     await userEvent.click(screen.getByRole('button', { name: 'Settings' }));
     expect(onNavigate).toHaveBeenCalledWith({ kind: 'settings' });
+  });
+
+  describe('flagging a task', () => {
+    const taskRow = (title: RegExp) => screen.getByRole('button', { name: title });
+    const rowTitles = () => [...document.querySelectorAll('.tree-task-title')].map((title) => title.textContent);
+
+    it('opens a menu with a right click, saves the chosen emoji and closes', async () => {
+      renderSidebar([task({ title: 'Fix login' })]);
+      expect(screen.queryByRole('menu')).toBeNull();
+      fireEvent.contextMenu(taskRow(/Fix login/));
+      const menu = within(screen.getByRole('menu', { name: 'Flag for Fix login' }));
+      expect(menu.queryByRole('menuitem', { name: 'Remove flag' })).toBeNull();
+      await userEvent.click(menu.getByRole('menuitemradio', { name: 'Flag with 🚩' }));
+      expect(invoke).toHaveBeenCalledWith('updateTask', 't', { flag: '🚩' });
+      await waitFor(() => expect(onChanged).toHaveBeenCalled());
+      expect(screen.queryByRole('menu')).toBeNull();
+    });
+
+    it('keeps only the first emoji of what is typed', async () => {
+      renderSidebar([task({ title: 'Fix login' })]);
+      fireEvent.contextMenu(taskRow(/Fix login/));
+      await userEvent.type(screen.getByLabelText('Other emoji'), '🎯 soon{Enter}');
+      expect(invoke).toHaveBeenCalledWith('updateTask', 't', { flag: '🎯' });
+    });
+
+    it('saves nothing when Enter is pressed on an empty field', async () => {
+      renderSidebar([task({ title: 'Fix login' })]);
+      fireEvent.contextMenu(taskRow(/Fix login/));
+      await userEvent.type(screen.getByLabelText('Other emoji'), '   {Enter}');
+      expect(invoke).not.toHaveBeenCalledWith('updateTask', 't', expect.anything());
+      expect(screen.getByRole('menu')).toBeTruthy();
+    });
+
+    it('shows the flag on the row, marks it in the menu and removes it', async () => {
+      renderSidebar([task({ title: 'Fix login', flag: '🔥' })]);
+      const row = taskRow(/Fix login/);
+      expect(within(row).getByRole('img', { name: 'Flagged 🔥' })).toBeTruthy();
+      expect(row.classList.contains('is-flagged')).toBe(true);
+      expect(row.querySelector('.tree-task-title')?.textContent).toBe('Fix login');
+      fireEvent.contextMenu(row);
+      expect(screen.getByRole('menuitemradio', { name: 'Flag with 🔥' }).getAttribute('aria-checked')).toBe('true');
+      expect(screen.getByRole('menuitemradio', { name: 'Flag with 🚩' }).getAttribute('aria-checked')).toBe('false');
+      await userEvent.click(screen.getByRole('menuitem', { name: 'Remove flag' }));
+      expect(invoke).toHaveBeenCalledWith('updateTask', 't', { flag: '' });
+    });
+
+    it('shows no flag on a task without one', () => {
+      renderSidebar([task({ title: 'Fix login' })]);
+      expect(taskRow(/Fix login/).classList.contains('is-flagged')).toBe(false);
+      expect(screen.queryByRole('img', { name: /^Flagged/ })).toBeNull();
+    });
+
+    it('closes with Escape or a click outside, without saving', async () => {
+      renderSidebar([task({ title: 'Fix login' })]);
+      fireEvent.contextMenu(taskRow(/Fix login/));
+      await userEvent.keyboard('{Escape}');
+      expect(screen.queryByRole('menu')).toBeNull();
+      fireEvent.contextMenu(taskRow(/Fix login/));
+      fireEvent.mouseDown(screen.getByLabelText('Filter tasks'));
+      expect(screen.queryByRole('menu')).toBeNull();
+      expect(invoke).not.toHaveBeenCalledWith('updateTask', 't', expect.anything());
+    });
+
+    it('shows one menu at a time, for the task that was clicked last', () => {
+      renderSidebar([task({ id: 'a', title: 'First' }), task({ id: 'b', title: 'Second' })]);
+      fireEvent.contextMenu(taskRow(/First/));
+      fireEvent.contextMenu(taskRow(/Second/));
+      expect(screen.getAllByRole('menu').map((menu) => menu.getAttribute('aria-label'))).toEqual(['Flag for Second']);
+    });
+
+    it('keeps the order of the tasks when one is flagged', () => {
+      const tasks = ['a', 'b', 'c'].map((id, index) => task({ id, title: `Task ${id}`, createdAt: `2026-01-0${index + 1}` }));
+      renderSidebar(tasks);
+      const plain = rowTitles();
+      cleanup();
+      renderSidebar(tasks.map((item) => (item.id === 'a' ? { ...item, flag: '🚩' } : item)));
+      expect(rowTitles()).toEqual(plain);
+      expect(plain).toEqual(['Task c', 'Task b', 'Task a']);
+    });
+
+    it('flags a waiting task from Needs you, and a finished one', async () => {
+      const waiting: Session = { id: 's', taskId: 'a', companyId: 'acme', accountId: 'c', cwd: '/', state: 'needs-input', startedAt: '', updatedAt: '' };
+      render(
+        <Sidebar
+          snapshot={{ ...snapshot([task({ id: 'a', title: 'Waiting one' }), task({ id: 'b', title: 'Finished one', status: 'done' })]), sessions: [waiting] }}
+          view={{ kind: 'today', companyId: null }}
+          selectedTaskId={null}
+          layout={layout()}
+          onNavigate={vi.fn()}
+          onSelectTask={vi.fn()}
+          onOpenSearch={vi.fn()}
+          onChanged={onChanged}
+        />,
+      );
+      fireEvent.contextMenu(within(screen.getByRole('region', { name: 'Needs you' })).getByRole('button', { name: /Waiting one/ }));
+      await userEvent.click(screen.getByRole('menuitemradio', { name: 'Flag with ⭐' }));
+      expect(invoke).toHaveBeenCalledWith('updateTask', 'a', { flag: '⭐' });
+
+      await userEvent.click(screen.getByRole('button', { name: 'Done and archived (1)' }));
+      fireEvent.contextMenu(screen.getByRole('button', { name: /Finished one/ }));
+      await userEvent.click(screen.getByRole('menuitemradio', { name: 'Flag with ✅' }));
+      expect(invoke).toHaveBeenCalledWith('updateTask', 'b', { flag: '✅' });
+    });
+  });
+
+  it('lists every open task of a client, with no limit', () => {
+    renderSidebar(Array.from({ length: 12 }, (_, index) => task({ id: `t${index}`, title: `Open ${index}` })));
+    const branch = within(screen.getByRole('region', { name: 'Acme tasks' }));
+    expect(branch.getAllByRole('button', { name: /Open \d+/ })).toHaveLength(12);
+    expect(branch.queryByRole('button', { name: /^Show \d+ more$/ })).toBeNull();
   });
 });
 

@@ -424,6 +424,66 @@ code {
   white-space: nowrap;
 }
 
+.tree-task-flag {
+  flex: none;
+  line-height: 1.35;
+}
+
+.tree-task.is-flagged .tree-task-title {
+  font-weight: 600;
+}
+
+.flag-menu {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  width: 232px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.5rem;
+  background: var(--surface);
+  box-shadow: 0 12px 32px rgb(10 12 18 / 28%);
+}
+
+.flag-menu-choices {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.25rem;
+}
+
+.flag-menu-choices button {
+  min-height: 34px;
+  border-color: transparent;
+  padding: 0;
+  background: transparent;
+  font-size: 1.1rem;
+}
+
+.flag-menu-choices button:hover,
+.flag-menu-remove:hover {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.flag-menu-choices button[aria-checked='true'] {
+  border-color: var(--client);
+  background: color-mix(in srgb, var(--client) 22%, transparent);
+}
+
+.flag-menu-other {
+  width: 100%;
+}
+
+.flag-menu-remove {
+  justify-content: flex-start;
+  border-color: transparent;
+  padding: 0.3rem 0.4rem;
+  background: transparent;
+  color: var(--text);
+  font-weight: 400;
+}
+
 .tree-task small {
   overflow: hidden;
   color: var(--muted);

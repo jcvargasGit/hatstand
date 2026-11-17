@@ -298,6 +298,8 @@ export const backlogPlanLinkSchema = z.object({
   approval: backlogPlanApprovalSchema.optional(),
 });
 
+export const taskFlagSchema = z.string().trim().max(16);
+
 export const taskSchema = z.object({
   id: z.string().min(1),
   number: z.number().int().positive().optional(),
@@ -317,6 +319,7 @@ export const taskSchema = z.object({
   backlogPlan: backlogPlanLinkSchema.optional(),
   checklist: z.array(checklistItemSchema).default([]),
   priority: taskPrioritySchema.default('none'),
+  flag: taskFlagSchema.optional(),
   rank: z.number().optional(),
   boardLane: boardLaneSchema.optional(),
   isolated: z.boolean().default(false),
@@ -369,6 +372,7 @@ export const taskPatchSchema = z
     isolated: z.boolean(),
     checklist: z.array(checklistItemSchema),
     priority: taskPrioritySchema,
+    flag: taskFlagSchema,
     rank: z.number(),
     boardLane: boardLaneSchema,
   })

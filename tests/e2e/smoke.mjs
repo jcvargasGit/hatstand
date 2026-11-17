@@ -194,6 +194,17 @@ try {
   await shot(page, '2-task-settings');
   await page.getByRole('tab', { name: 'Overview' }).click();
 
+  const flaggedRow = page.getByRole('region', { name: 'Acme Studio tasks' }).getByRole('button', { name: /Retry failed uploads/ });
+  await flaggedRow.click({ button: 'right' });
+  const flagMenu = page.getByRole('menu', { name: 'Flag for Retry failed uploads' });
+  const flagBox = await flagMenu.boundingBox();
+  const flagViewport = await page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight }));
+  assert.ok(flagBox.x >= 0 && flagBox.y >= 0 && flagBox.x + flagBox.width <= flagViewport.width && flagBox.y + flagBox.height <= flagViewport.height, 'the flag menu opens inside the window');
+  await shot(page, '2-flag-menu');
+  await flagMenu.getByRole('menuitemradio', { name: 'Flag with 🚩' }).click();
+  await flaggedRow.getByRole('img', { name: 'Flagged 🚩' }).waitFor();
+  assert.equal((await invoke(page, 'getSnapshot')).tasks.find((item) => item.id === notedTask.id).flag, '🚩', 'the flag of a task is saved');
+  assert.ok(readFileSync(join(home, 'companies', notedTask.companyId, 'tasks', `${notedTask.id}.json`), 'utf8').includes('🚩'), 'the flag is written to the file of the task');
   await invoke(page, 'createTask', { companyId: notedTask.companyId, title: 'Task created later', playbookId: 'implement' });
   await page.getByRole('button', { name: 'Start session' }).click();
   await page.getByTestId('terminal').getByText('fake claude is ready').waitFor({ timeout: 15000 });

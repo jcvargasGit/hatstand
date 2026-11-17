@@ -122,6 +122,8 @@ The sidebar lists the tasks of each client under the guide they follow. Tasks wi
 
 **Needs you** in the sidebar lists what is waiting for you in the same tree: client, in the order of your clients, then guide, then tasks. Click its title to hide or show the list; Hatstand remembers your choice and keeps the total in view.
 
+Right-click a task in the sidebar to flag it with an emoji, such as 🚩 for what matters most. Pick one from the list or type another, and choose **Remove flag** to clear it. The flag shows next to the task's name and does not change the order of the list. The sidebar lists every open task of a client; finished ones stay under **Done and archived**.
+
 ### Task numbers and issues
 
 Each client numbers its tasks #1, #2 and so on. A deleted task keeps its number, and the next task gets a new one.

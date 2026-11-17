@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight, FileText, House, Inbox, Layers, ListChecks, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings, Sun } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { useCallback, useState, type ReactNode } from 'react';
 import type { Snapshot } from '../../../shared/api';
 import type { Company } from '../../../shared/schemas';
 import type { View } from '../App';
@@ -8,13 +8,13 @@ import { useStayAwake } from '../hooks/useStayAwake';
 import { api } from '../lib/api';
 import { moveClient } from '../lib/client-order';
 import { shortcutLabel } from '../lib/shortcuts';
+import type { MenuPoint } from '../lib/task-flag';
 import { clientTree, ideaCount, waitingByClient, waitingCount, type TodayItem } from '../lib/today';
 import { ClientAvatar } from './ClientAvatar';
 import { ReleaseControl } from './ReleaseControl';
 import { ClientTreeBranch } from './ClientTreeBranch';
+import { TaskFlagMenu } from './TaskFlagMenu';
 import { TaskTree } from './TaskTree';
-
-const TASKS_SHOWN = 8;
 
 type SidebarProps = {
   snapshot: Snapshot;
@@ -24,6 +24,7 @@ type SidebarProps = {
   onNavigate: (view: View) => void;
   onSelectTask: (item: TodayItem) => void;
   onOpenSearch: () => void;
+  onChanged: () => Promise<void>;
 };
 
 type TreeMenuRowProps = {
@@ -45,9 +46,8 @@ function TreeMenuRow({ icon, label, client, count, current, onSelect }: TreeMenu
   );
 }
 
-export function Sidebar({ snapshot, view, selectedTaskId, layout, onNavigate, onSelectTask, onOpenSearch }: SidebarProps) {
+export function Sidebar({ snapshot, view, selectedTaskId, layout, onNavigate, onSelectTask, onOpenSearch, onChanged }: SidebarProps) {
   const [query, setQuery] = useState('');
-  const [showAll, setShowAll] = useState<string[]>([]);
   const [showFinished, setShowFinished] = useState<string[]>([]);
   const [closedGuides, setClosedGuides] = useState<string[]>([]);
   const [closedWaiting, setClosedWaiting] = useState<string[]>([]);
@@ -57,6 +57,15 @@ export function Sidebar({ snapshot, view, selectedTaskId, layout, onNavigate, on
   const waitingGroups = waitingByClient(snapshot);
   const waitingTotal = waitingGroups.reduce((total, group) => total + group.items.length, 0);
   const ideas = ideaCount(snapshot, null);
+
+  const [flagMenu, setFlagMenu] = useState<{ taskId: string; at: MenuPoint } | null>(null);
+  const flagTask = flagMenu ? snapshot.tasks.find((task) => task.id === flagMenu.taskId) : undefined;
+  const openFlagMenu = (item: TodayItem, at: MenuPoint) => setFlagMenu({ taskId: item.task.id, at });
+  const closeFlagMenu = useCallback(() => setFlagMenu(null), []);
+  const setFlag = async (taskId: string, flag: string) => {
+    await api.updateTask(taskId, { flag });
+    await onChanged();
+  };
 
   const toggleIn = (list: string[], id: string) => (list.includes(id) ? list.filter((item) => item !== id) : [...list, id]);
   const toggleGuide = (key: string) => setClosedGuides((closed) => toggleIn(closed, key));
@@ -177,7 +186,7 @@ export function Sidebar({ snapshot, view, selectedTaskId, layout, onNavigate, on
                   onOpen={() => openClient(company)}
                 >
                   <div className="tree-task-list">
-                    <TaskTree label={`${company.name} needs you`} items={items} selectedTaskId={selectedTaskId} closed={closedGuides} onToggle={toggleGuide} onSelect={onSelectTask} />
+                    <TaskTree label={`${company.name} needs you`} items={items} selectedTaskId={selectedTaskId} closed={closedGuides} onToggle={toggleGuide} onSelect={onSelectTask} onMenu={openFlagMenu} />
                   </div>
                 </ClientTreeBranch>
               ))}
@@ -188,7 +197,6 @@ export function Sidebar({ snapshot, view, selectedTaskId, layout, onNavigate, on
         {clientTree(snapshot, query).map(({ company, active, finished }) => {
           const isOpen = searching || !layout.closedClients.includes(company.id);
           const count = waitingCount(snapshot, company.id);
-          const visible = showAll.includes(company.id) || searching ? active : active.slice(0, TASKS_SHOWN);
           const finishedOpen = searching || showFinished.includes(company.id);
           return (
             <ClientTreeBranch
@@ -273,12 +281,7 @@ export function Sidebar({ snapshot, view, selectedTaskId, layout, onNavigate, on
                 </>
               )}
               <div className={searching ? undefined : 'tree-task-list'}>
-              <TaskTree label={`${company.name} open tasks`} items={visible} selectedTaskId={selectedTaskId} closed={closedGuides} forceOpen={searching} onToggle={toggleGuide} onSelect={onSelectTask} />
-              {active.length > visible.length && (
-                <button className="tree-more" onClick={() => setShowAll(toggleIn(showAll, company.id))}>
-                  Show {active.length - visible.length} more
-                </button>
-              )}
+              <TaskTree label={`${company.name} open tasks`} items={active} selectedTaskId={selectedTaskId} closed={closedGuides} forceOpen={searching} onToggle={toggleGuide} onSelect={onSelectTask} onMenu={openFlagMenu} />
               {finished.length > 0 && (
                 <>
                   <button
@@ -290,7 +293,7 @@ export function Sidebar({ snapshot, view, selectedTaskId, layout, onNavigate, on
                     Done and archived ({finished.length})
                   </button>
                   {finishedOpen && (
-                    <TaskTree label={`${company.name} done and archived`} items={finished} selectedTaskId={selectedTaskId} closed={closedGuides} forceOpen={searching} onToggle={toggleGuide} onSelect={onSelectTask} />
+                    <TaskTree label={`${company.name} done and archived`} items={finished} selectedTaskId={selectedTaskId} closed={closedGuides} forceOpen={searching} onToggle={toggleGuide} onSelect={onSelectTask} onMenu={openFlagMenu} />
                   )}
                 </>
               )}
@@ -317,6 +320,9 @@ export function Sidebar({ snapshot, view, selectedTaskId, layout, onNavigate, on
           <span className="nav-name">Settings</span>
         </button>
       </div>
+      {flagMenu && flagTask && (
+        <TaskFlagMenu task={flagTask} at={flagMenu.at} onPick={(flag) => void setFlag(flagTask.id, flag)} onClose={closeFlagMenu} />
+      )}
     </nav>
   );
 }

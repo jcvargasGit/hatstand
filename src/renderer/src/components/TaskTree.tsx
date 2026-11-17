@@ -1,4 +1,5 @@
 import { ChevronDown, ChevronRight } from 'lucide-react';
+import type { MenuPoint } from '../lib/task-flag';
 import { groupByGuide, type TodayItem } from '../lib/today';
 import { TaskLink } from './TaskLink';
 
@@ -12,10 +13,11 @@ type TaskTreeProps = {
   forceOpen?: boolean;
   onToggle: (key: string) => void;
   onSelect: (item: TodayItem) => void;
+  onMenu: (item: TodayItem, at: MenuPoint) => void;
 };
 
 /** Tasks under the guide they follow: the one tree every list of tasks in the sidebar uses. */
-export function TaskTree({ label, items, selectedTaskId, closed, forceOpen = false, onToggle, onSelect }: TaskTreeProps) {
+export function TaskTree({ label, items, selectedTaskId, closed, forceOpen = false, onToggle, onSelect, onMenu }: TaskTreeProps) {
   return (
     <div className="task-tree" role="group" aria-label={label}>
       {groupByGuide(items).map((group) => {
@@ -29,7 +31,7 @@ export function TaskTree({ label, items, selectedTaskId, closed, forceOpen = fal
               <span className="task-tree-count">{group.items.length}</span>
             </button>
             {open &&
-              group.items.map((item) => <TaskLink key={item.task.id} item={item} selected={item.task.id === selectedTaskId} onSelect={() => onSelect(item)} />)}
+              group.items.map((item) => <TaskLink key={item.task.id} item={item} selected={item.task.id === selectedTaskId} onSelect={() => onSelect(item)} onMenu={(at) => onMenu(item, at)} />)}
           </div>
         );
       })}
