@@ -153,6 +153,7 @@ export function App() {
         onNavigate={navigate}
         onSelectTask={(item) => openTask(item.task.id, item.company.id)}
         onOpenSearch={() => setSearching(true)}
+        onChanged={refresh}
       />
       {searching && <CommandPalette snapshot={active} commands={commands} onResult={openSearchResult} onClose={() => setSearching(false)} />}
       {SECTION_VIEWS.has(view.kind) && (

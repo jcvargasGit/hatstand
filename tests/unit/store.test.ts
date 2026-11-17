@@ -94,6 +94,49 @@ describe('what the agent reports in the notes', () => {
   });
 });
 
+describe('the flag of a task', () => {
+  const setup = () => {
+    const company = store.createCompany('Flags', '#112233');
+    return store.createTask({ companyId: company.id, title: 'Ship the fix' });
+  };
+  const onDisk = (task: { companyId: string; id: string }) => JSON.parse(readFileSync(paths.taskFile(task.companyId, task.id), 'utf8'));
+
+  it('starts without one, and loads a task saved before flags existed', () => {
+    const task = setup();
+    expect(task.flag).toBeUndefined();
+    expect('flag' in onDisk(task)).toBe(false);
+    expect(new Store(paths).findTask(task.id).flag).toBeUndefined();
+  });
+
+  it('saves it, and keeps it when the task is read again or changed', () => {
+    const task = setup();
+    expect(store.updateTask(task.id, { flag: ' 🚩 ' }).flag).toBe('🚩');
+    expect(onDisk(task).flag).toBe('🚩');
+    expect(new Store(paths).findTask(task.id).flag).toBe('🚩');
+    expect(store.updateTask(task.id, { priority: 'high' }).flag).toBe('🚩');
+    expect(store.updateTask(task.id, { flag: '⭐' }).flag).toBe('⭐');
+  });
+
+  it('removes it with an empty value, and writes no empty field', () => {
+    const task = setup();
+    store.updateTask(task.id, { flag: '🚩' });
+    expect(store.updateTask(task.id, { flag: '' }).flag).toBeUndefined();
+    expect('flag' in onDisk(task)).toBe(false);
+  });
+
+  it('does not move the task or change the rest of it', () => {
+    const task = setup();
+    const flagged = store.updateTask(task.id, { flag: '🚩' });
+    expect({ ...flagged, flag: undefined, updatedAt: task.updatedAt }).toEqual({ ...task, flag: undefined });
+  });
+
+  it('refuses a text that is not a short mark', () => {
+    const task = setup();
+    expect(() => store.updateTask(task.id, { flag: 'this is a whole sentence' })).toThrow();
+    expect(store.findTask(task.id).flag).toBeUndefined();
+  });
+});
+
 describe('sending a task back to the backlog', () => {
   const setup = () => {
     const company = store.createCompany('Backlog', '#112233');

@@ -469,7 +469,8 @@ export class Store {
     const current = this.findTask(taskId);
     const change = taskPatchSchema.parse(patch);
     const subdomainId = 'subdomainId' in patch ? this.validAreaId(current.companyId, change.subdomainId) : current.subdomainId;
-    const changed = withDoneDate(current, { ...current, ...change, subdomainId, updatedAt: new Date().toISOString() });
+    const flag = 'flag' in change ? change.flag || undefined : current.flag;
+    const changed = withDoneDate(current, { ...current, ...change, flag, subdomainId, updatedAt: new Date().toISOString() });
     const updated = change.rank === undefined ? withBacklogPlace(current, changed, this.listTasks(current.companyId)) : changed;
     const task = current.status === 'done' && updated.status !== 'done' && current.agentStatus === 'done' ? this.withReportCleared(updated) : updated;
     this.writeTask(task);

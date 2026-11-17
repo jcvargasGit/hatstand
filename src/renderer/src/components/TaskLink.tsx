@@ -1,5 +1,7 @@
 import { shownAreaName } from '../../../shared/areas';
 import { taskTypeOf } from '../../../shared/task-types';
+import type { MouseEvent } from 'react';
+import type { MenuPoint } from '../lib/task-flag';
 import { stepProgress, type TodayItem } from '../lib/today';
 import { TaskNumber } from './TaskNumber';
 import { TaskStateIcon } from './TaskStateIcon';
@@ -10,14 +12,27 @@ type TaskLinkProps = {
   selected: boolean;
   showClient?: boolean;
   onSelect: () => void;
+  onMenu: (at: MenuPoint) => void;
 };
 
-export function TaskLink({ item, selected, showClient = false, onSelect }: TaskLinkProps) {
+export function TaskLink({ item, selected, showClient = false, onSelect, onMenu }: TaskLinkProps) {
   const detail = [showClient ? item.company.name : shownAreaName(item.company, item.task.subdomainId), stepProgress(item.task)].filter(Boolean).join(', ');
   const type = taskTypeOf(item.task, item.company);
+  const flag = item.task.flag;
+  const openMenu = (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    const fromKeyboard = event.clientX === 0 && event.clientY === 0;
+    const row = event.currentTarget.getBoundingClientRect();
+    onMenu(fromKeyboard ? { x: row.left + 24, y: row.bottom } : { x: event.clientX, y: event.clientY });
+  };
   return (
-    <button className="tree-task" title={item.task.title} aria-current={selected ? 'true' : undefined} onClick={onSelect}>
+    <button className={flag ? 'tree-task is-flagged' : 'tree-task'} title={item.task.title} aria-current={selected ? 'true' : undefined} onClick={onSelect} onContextMenu={openMenu}>
       <TaskStateIcon item={item} size={15} />
+      {flag && (
+        <span className="tree-task-flag" role="img" aria-label={`Flagged ${flag}`}>
+          {flag}
+        </span>
+      )}
       <span className="tree-task-text">
         <span className="tree-task-title">
           <TaskNumber task={item.task} />

@@ -156,13 +156,13 @@ describe('the tree of tasks', () => {
   it('shows the tasks under their guide, folds a guide away, and opens a task', async () => {
     const onSelect = vi.fn();
     const onToggle = vi.fn();
-    const { rerender } = render(<TaskTree label="Acme open tasks" items={[item('a'), item('b', 'Write an RFC')]} selectedTaskId="b" closed={[]} onToggle={onToggle} onSelect={onSelect} />);
+    const { rerender } = render(<TaskTree label="Acme open tasks" items={[item('a'), item('b', 'Write an RFC')]} selectedTaskId="b" closed={[]} onToggle={onToggle} onSelect={onSelect} onMenu={vi.fn()} />);
     const rfc = within(screen.getByRole('group', { name: 'Write an RFC in Acme open tasks' }));
     expect(rfc.getByRole('button', { name: /Task b/ }).getAttribute('aria-current')).toBe('true');
     expect(within(screen.getByRole('group', { name: 'Not classified in Acme open tasks' })).getByRole('button', { name: /Task a/ })).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: /^Write an RFC/ }));
     expect(onToggle).toHaveBeenCalledWith('Acme open tasks:guide:x');
-    rerender(<TaskTree label="Acme open tasks" items={[item('a'), item('b', 'Write an RFC')]} selectedTaskId={null} closed={['Acme open tasks:guide:x']} onToggle={onToggle} onSelect={onSelect} />);
+    rerender(<TaskTree label="Acme open tasks" items={[item('a'), item('b', 'Write an RFC')]} selectedTaskId={null} closed={['Acme open tasks:guide:x']} onToggle={onToggle} onSelect={onSelect} onMenu={vi.fn()} />);
     expect(screen.queryByRole('button', { name: /Task b/ })).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: /Task a/ }));
     expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ task: expect.objectContaining({ id: 'a' }) }));
