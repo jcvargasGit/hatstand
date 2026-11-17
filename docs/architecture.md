@@ -4,10 +4,18 @@ Hatstand is an Electron app. The main process owns all data, secrets and termina
 
 ```
 src/shared     Zod schemas with inferred types, and the API contract
-src/main       store, secrets, sessions, guard, trackers, agents
+src/main       store, secrets, sessions, services, guard, trackers, agents
 src/preload    the bridge exposed to the renderer
 src/renderer   Today, task panel, client settings, agents
 ```
+
+## Main process
+
+`src/main/index.ts` is the composition point. It owns what needs Electron: the windows, the menu, the keychain cipher, dialogs, `shell`, notifications and the IPC registration. It builds the store, the sessions and the review monitor, and hands them to the services.
+
+`src/main/services` holds the handlers of the API, one file per domain. A service receives what it needs as arguments (`ServiceContext` plus its own dependencies) and never imports `electron`, so a unit test builds it from a throwaway store and fakes. `tests/unit/services-composition.test.ts` fails if a service loads Electron or if two services answer the same method.
+
+A handler that opens something on the desktop is split in two: `services/desktop-targets.ts` chooses the folder or file and checks it belongs to the client, and `index.ts` opens it. Add a method to the service of its domain, and to `DESKTOP_METHODS` only when it needs a dialog or `shell`.
 
 ## Model
 
