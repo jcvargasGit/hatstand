@@ -1,14 +1,14 @@
 import { spawn } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBacklogPlanTask } from '../../src/main/backlog-plan';
 import { dataPaths, type DataPaths } from '../../src/main/paths';
-import type { SecretStore } from '../../src/main/secrets';
 import { SessionManager } from '../../src/main/sessions';
 import { Store } from '../../src/main/store';
 import type { Task } from '../../src/shared/schemas';
+import { fakeAgentBin, fakeProtection, noSecrets } from '../helpers/sessions';
 
 const lastSpawn = vi.hoisted(() => ({ env: {} as Record<string, string>, cwd: '' }));
 
@@ -26,20 +26,19 @@ let paths: DataPaths;
 let store: Store;
 let sessions: SessionManager;
 let inbox: Task[];
+let protection: ReturnType<typeof fakeProtection>;
 
 beforeEach(() => {
   dir = realpathSync(mkdtempSync(join(tmpdir(), 'hatstand-plan-session-')));
-  const bin = join(dir, 'bin');
+  const bin = fakeAgentBin(dir);
   repo = join(dir, 'code', 'api');
-  mkdirSync(bin);
   mkdirSync(repo, { recursive: true });
-  writeFileSync(join(bin, 'claude'), '#!/bin/sh\n');
-  chmodSync(join(bin, 'claude'), 0o755);
   paths = dataPaths(join(dir, 'home'));
   store = new Store(paths);
   store.saveCompany({ ...store.createCompany('Acme', '#112233'), projects: [{ id: 'api', name: 'api', path: repo }] });
+  protection = fakeProtection();
   inbox = ['Add the export', 'Send it by email'].map((title) => store.createTask({ companyId: 'acme', title }, undefined, 'idea'));
-  sessions = new SessionManager(paths, store, { read: () => ({}) } as unknown as SecretStore, bin, { onData: () => {}, onChange: () => {}, onNeedsInput: () => {} });
+  sessions = new SessionManager(paths, store, noSecrets, bin, { onData: () => {}, onChange: () => {}, onNeedsInput: () => {} }, protection);
 });
 
 afterEach(() => {
@@ -94,6 +93,12 @@ describe('a session that plans the backlog', () => {
     expect(valid.code).toBe(0);
     expect(valid.out).toContain('The plan is valid: 2 in the order');
   }, 20_000);
+
+  it('refreshes the commit check of the client through the protection it was given, before the agent starts', async () => {
+    const task = createBacklogPlanTask(store, 'acme', inbox.map((item) => item.id));
+    await sessions.start(task.id);
+    expect(protection.refreshFingerprints).toHaveBeenCalledExactlyOnceWith(store.readCompany('acme'));
+  });
 
   it('leaves ordinary tasks as they were', async () => {
     const task = store.createTask({ companyId: 'acme', title: 'Fix it', projectIds: ['api'] });

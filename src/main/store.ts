@@ -586,6 +586,14 @@ export class Store {
     );
   }
 
+  /** Reads one session by its id, without reading the others. */
+  readSession(sessionId: string): Session | undefined {
+    const file = this.paths.sessionFile(sessionId);
+    if (!existsSync(file)) return undefined;
+    const session = sessionSchema.parse(JSON.parse(readFileSync(file, 'utf8')));
+    return session.id === sessionId ? session : undefined;
+  }
+
   firstSessionAt(taskId: string): string | null {
     const [first] = this.listSessions()
       .filter((session) => session.taskId === taskId)

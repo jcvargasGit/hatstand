@@ -1,11 +1,11 @@
-import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { dataPaths } from '../../src/main/paths';
-import type { SecretStore } from '../../src/main/secrets';
 import { SessionManager } from '../../src/main/sessions';
 import { Store } from '../../src/main/store';
+import { fakeAgentBin, fakeProtection, noSecrets } from '../helpers/sessions';
 
 const pty = vi.hoisted(() => ({ output: (_data: string) => {}, exit: () => {} }));
 
@@ -30,19 +30,16 @@ let sent: { data: string; end: number }[];
 
 beforeEach(() => {
   dir = realpathSync(mkdtempSync(join(tmpdir(), 'hatstand-output-')));
-  const bin = join(dir, 'bin');
-  mkdirSync(bin);
-  writeFileSync(join(bin, 'claude'), '#!/bin/sh\n');
-  chmodSync(join(bin, 'claude'), 0o755);
+  const bin = fakeAgentBin(dir);
   const paths = dataPaths(join(dir, 'home'));
   store = new Store(paths);
   store.saveCompany({ ...store.createCompany('Acme', '#112233'), rootDir: dir });
   sent = [];
-  sessions = new SessionManager(paths, store, { read: () => ({}) } as unknown as SecretStore, bin, {
+  sessions = new SessionManager(paths, store, noSecrets, bin, {
     onData: (_id, data, end) => sent.push({ data, end }),
     onChange: () => {},
     onNeedsInput: () => {},
-  });
+  }, fakeProtection());
 });
 
 afterEach(() => {
