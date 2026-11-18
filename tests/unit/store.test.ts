@@ -312,3 +312,98 @@ describe('SecretStore', () => {
     expect(secrets.names('acme')).toEqual([]);
   });
 });
+
+describe('what the SecretStore knows about each key', () => {
+  let clock: Date;
+  let secrets: SecretStore;
+  const details = () => readFileSync(paths.keyDetailsFile('acme'), 'utf8');
+
+  beforeEach(() => {
+    clock = new Date('2026-11-18T10:00:00.000Z');
+    secrets = new SecretStore(paths, reversingCipher, () => clock);
+    store.createCompany('Acme', '#112233');
+  });
+
+  it('keeps when a key was saved next to secrets.enc, and never its value', () => {
+    secrets.merge('acme', { GITHUB_TOKEN: 'plain-value', ACME_API_TOKEN: 'other-value' });
+    expect(secrets.list('acme')).toEqual([
+      { name: 'ACME_API_TOKEN', savedAt: '2026-11-18T10:00:00.000Z' },
+      { name: 'GITHUB_TOKEN', savedAt: '2026-11-18T10:00:00.000Z' },
+    ]);
+    expect(details()).not.toContain('plain-value');
+    expect(details()).not.toContain('other-value');
+    expect(statSync(paths.keyDetailsFile('acme')).mode & 0o777).toBe(0o600);
+  });
+
+  it('lists keys saved before keys.yaml existed', () => {
+    secrets.merge('acme', { GITHUB_TOKEN: 'plain-value' });
+    rmSync(paths.keyDetailsFile('acme'));
+    expect(secrets.list('acme')).toEqual([{ name: 'GITHUB_TOKEN' }]);
+    expect(secrets.read('acme')).toEqual({ GITHUB_TOKEN: 'plain-value' });
+  });
+
+  it('carries on when keys.yaml is damaged', () => {
+    secrets.merge('acme', { GITHUB_TOKEN: 'plain-value' });
+    writeFileSync(paths.keyDetailsFile('acme'), 'keys: [not, a, map');
+    expect(secrets.list('acme')).toEqual([{ name: 'GITHUB_TOKEN' }]);
+    expect(secrets.recordCheck('acme', 'GITHUB_TOKEN', { result: 'valid' })).toBe(true);
+    expect(secrets.list('acme')[0]?.check?.result).toBe('valid');
+  });
+
+  it('remembers a check, and writes nothing when the answer is the same', () => {
+    secrets.merge('acme', { GITHUB_TOKEN: 'plain-value' });
+    const expiresAt = '2026-12-01T08:00:00.000Z';
+    expect(secrets.recordCheck('acme', 'GITHUB_TOKEN', { result: 'valid', expiresAt })).toBe(true);
+    expect(secrets.list('acme')[0]?.check).toEqual({ at: '2026-11-18T10:00:00.000Z', result: 'valid', expiresAt });
+
+    const written = details();
+    clock = new Date('2026-11-19T10:00:00.000Z');
+    expect(secrets.recordCheck('acme', 'GITHUB_TOKEN', { result: 'valid', expiresAt })).toBe(false);
+    expect(details()).toBe(written);
+
+    expect(secrets.recordCheck('acme', 'GITHUB_TOKEN', { result: 'rejected' })).toBe(true);
+    expect(secrets.list('acme')[0]?.check).toEqual({ at: '2026-11-19T10:00:00.000Z', result: 'rejected' });
+  });
+
+  it('records nothing about a key the client does not have', () => {
+    expect(secrets.recordCheck('acme', 'GITHUB_TOKEN', { result: 'rejected' })).toBe(false);
+    expect(existsSync(paths.keyDetailsFile('acme'))).toBe(false);
+  });
+
+  it('starts a replaced key over, and leaves a key saved again with the same value alone', () => {
+    secrets.merge('acme', { GITHUB_TOKEN: 'old-value', GITLAB_TOKEN: 'same-value' });
+    secrets.recordCheck('acme', 'GITHUB_TOKEN', { result: 'rejected' });
+    secrets.recordCheck('acme', 'GITLAB_TOKEN', { result: 'valid' });
+    clock = new Date('2026-11-20T10:00:00.000Z');
+    secrets.merge('acme', { GITHUB_TOKEN: 'new-value', GITLAB_TOKEN: 'same-value' });
+
+    const [github, gitlab] = secrets.list('acme');
+    expect(github).toEqual({ name: 'GITHUB_TOKEN', savedAt: '2026-11-20T10:00:00.000Z' });
+    expect(gitlab?.savedAt).toBe('2026-11-18T10:00:00.000Z');
+    expect(gitlab?.check?.result).toBe('valid');
+  });
+
+  it('forgets a rejection once the provider accepts the key, and only a rejection', () => {
+    secrets.merge('acme', { GITHUB_TOKEN: 'plain-value' });
+    secrets.recordCheck('acme', 'GITHUB_TOKEN', { result: 'valid' });
+    expect(secrets.clearRejection('acme', 'GITHUB_TOKEN')).toBe(false);
+    secrets.recordCheck('acme', 'GITHUB_TOKEN', { result: 'rejected' });
+    expect(secrets.clearRejection('acme', 'GITHUB_TOKEN')).toBe(true);
+    expect(secrets.list('acme')).toEqual([{ name: 'GITHUB_TOKEN', savedAt: '2026-11-18T10:00:00.000Z' }]);
+  });
+
+  it('keeps a note through a replace, and drops everything when the key is deleted', () => {
+    secrets.merge('acme', { ACME_API_TOKEN: 'plain-value' });
+    secrets.setNote('acme', 'ACME_API_TOKEN', '  Billing sandbox  ');
+    secrets.merge('acme', { ACME_API_TOKEN: 'new-value' });
+    expect(secrets.list('acme')[0]?.note).toBe('Billing sandbox');
+
+    secrets.setNote('acme', 'ACME_API_TOKEN', ' ');
+    expect(secrets.list('acme')[0]).not.toHaveProperty('note');
+    expect(() => secrets.setNote('acme', 'MISSING', 'x')).toThrow(/no key called MISSING/);
+
+    secrets.remove('acme', 'ACME_API_TOKEN');
+    expect(secrets.list('acme')).toEqual([]);
+    expect(details()).not.toContain('ACME_API_TOKEN');
+  });
+});

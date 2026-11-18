@@ -407,6 +407,27 @@ export const secretNameSchema = z
   .string()
   .regex(/^[A-Za-z_][A-Za-z0-9_]*$/, 'Use letters, numbers and underscores, starting with a letter.');
 
+export const keyCheckSchema = z.object({
+  at: z.string(),
+  result: z.enum(['valid', 'rejected']),
+  expiresAt: z.string().optional(),
+});
+
+export const keyDetailsSchema = z.object({
+  savedAt: z.string().optional(),
+  note: z.string().optional(),
+  check: keyCheckSchema.optional(),
+});
+
+export const keyDetailsFileSchema = z.object({
+  keys: z.record(z.string(), keyDetailsSchema).default({}),
+});
+
+export const keyInfoSchema = keyDetailsSchema.extend({ name: z.string() });
+
+export type KeyCheck = z.infer<typeof keyCheckSchema>;
+export type KeyDetails = z.infer<typeof keyDetailsSchema>;
+export type KeyInfo = z.infer<typeof keyInfoSchema>;
 export type ClientLink = z.infer<typeof clientLinkSchema>;
 export type GitIdentityInput = z.infer<typeof gitIdentityInputSchema>;
 export type GitIdentity = z.infer<typeof gitIdentitySchema>;

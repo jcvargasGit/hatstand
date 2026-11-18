@@ -14,7 +14,7 @@ export type Emit = <E extends keyof HatstandEvents>(event: E, payload: HatstandE
 export type ServiceContext = {
   store: Store;
   paths: DataPaths;
-  secrets: Pick<SecretStore, 'read' | 'merge' | 'names' | 'remove'>;
+  secrets: Pick<SecretStore, 'read' | 'merge' | 'names' | 'remove' | 'list' | 'recordCheck' | 'clearRejection' | 'setNote'>;
   tools: ShellTools;
   emit: Emit;
   /** The person's home folder, where ~ points, and where git keeps its settings. A test passes a throwaway one. */

@@ -34,7 +34,7 @@ export function AssignedWork({ companyId, onChanged }: AssignedWorkProps) {
         <Download size={15} />
         {busy ? 'Importing' : 'Import assigned work'}
       </button>
-      {sync && sync.checked.length === 0 && <p className="hint">No tracker keys found. Add them under Keys first.</p>}
+      {sync && sync.checked.length === 0 && <p className="hint">No tracker keys found. Add the keys of Jira, GitHub or GitLab above first.</p>}
       {sync && sync.checked.length > 0 && (
         <p className="hint">
           Checked {sync.checked.join(', ')}. Added {plural(sync.added, 'task', 'tasks')} and updated {sync.updated}.

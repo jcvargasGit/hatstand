@@ -1434,10 +1434,6 @@ button.danger {
   background: transparent;
 }
 
-.wizard #section-keys > h2 {
-  display: none;
-}
-
 .source-choice {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -1759,6 +1755,99 @@ button.danger {
 
 .chip-remove:hover {
   color: var(--text);
+}
+
+.key-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  width: 100%;
+}
+
+.key-group h3 {
+  font-size: 0.95rem;
+}
+
+.key-list {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0;
+  list-style: none;
+}
+
+.key-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
+  padding: 0.65rem 0.8rem;
+}
+
+.key-row + .key-row {
+  border-top: 1px solid var(--line);
+}
+
+.key-row p {
+  margin: 0;
+}
+
+.key-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.key-name {
+  font-weight: 600;
+}
+
+.key-row.is-missing .key-name {
+  color: var(--muted);
+}
+
+.key-state {
+  border-radius: 999px;
+  padding: 0.05rem 0.55rem;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 550;
+}
+
+.key-state.is-valid {
+  color: var(--success);
+}
+
+.key-state.is-expires-soon {
+  color: var(--warn);
+}
+
+.key-state.is-expired,
+.key-state.is-rejected {
+  color: var(--danger);
+}
+
+.key-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-left: auto;
+}
+
+.key-actions button {
+  padding: 0.2rem 0.55rem;
+  font-size: 0.85rem;
+}
+
+.key-note {
+  width: 100%;
+  max-width: 420px;
 }
 
 .inline-form {

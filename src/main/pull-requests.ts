@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { gitOrigin } from '../shared/git-source';
 import { isCopilot } from '../shared/review';
 import type { FailedCheck, GitSource, PullRequest, ReviewComment } from '../shared/schemas';
+import { KeyRejectedError } from './key-rejected';
 
 export type Fetcher = typeof fetch;
 export type RemoteRef = { host: string; path: string };
@@ -39,13 +40,17 @@ export function reviewHost(remote: RemoteRef, source: GitSource | undefined, sec
 
 const shorten = (text: string) => (text.length > MAX_COMMENT_CHARS ? `${text.slice(0, MAX_COMMENT_CHARS)}…` : text);
 
-function failedResponse(name: string, status: number): Error {
-  if (status === 401) return new Error(`${name} rejected this client's token. Paste a new one in the client settings.`);
+type HostName = 'GitHub' | 'GitLab';
+
+function failedResponse(name: HostName, status: number): Error {
+  if (status === 401) {
+    return new KeyRejectedError(`${name} rejected this client's token. Replace it under Keys and secrets in the client settings.`, name === 'GitHub' ? 'github' : 'gitlab');
+  }
   if (status === 403) return new Error(`${name} refused access. Check the token's permissions, or try again if the rate limit was reached.`);
   return new Error(`${name} answered ${status}. Hatstand will try again.`);
 }
 
-async function readJson(url: string, init: RequestInit, name: string, fetcher: Fetcher): Promise<unknown> {
+async function readJson(url: string, init: RequestInit, name: HostName, fetcher: Fetcher): Promise<unknown> {
   const response = await fetcher(url, { ...init, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
   if (!response.ok) throw failedResponse(name, response.status);
   return response.json();

@@ -58,6 +58,14 @@ Reopening a closed task writes `in progress` in its notes, so an old report does
 
 `buildAgentEnv` starts from a short allowlist rather than the app's environment, then adds the keys of that client. Keys of other clients and anything else in the app's environment do not reach the agent.
 
+## Keys
+
+`SecretStore` in `src/main/secrets.ts` owns two files per client. `secrets.enc` holds names and values, sealed with the system keychain. `keys.yaml` holds what is not secret about each key: when it was saved, a note, and the last check. Saving a new value starts that key over, so a replaced key has no old check.
+
+The renderer never receives a value. It gets `KeyInfo` from `listKeys`, and works out what to show with the pure functions in `src/shared/key-status.ts` and the catalog of known keys in `src/shared/known-keys.ts`.
+
+`checkKey` in `src/main/key-check.ts` asks the provider of a token whether it works and when it expires. A call that fails with a 401 throws `KeyRejectedError`, and the caller marks the key with `noteRejectedKey`. Only a 401 marks a key: any other failure says nothing about it.
+
 ## Platforms
 
 Hatstand runs on macOS, and on Linux as an experiment. Windows is not supported. Keep platform checks small and close to what they guard, and pass the platform in as a value so tests can cover both.

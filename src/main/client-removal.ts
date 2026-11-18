@@ -29,6 +29,7 @@ export function removeClient(store: Store, paths: DataPaths, companyId: string, 
   store.deleteSessionsOfCompany(company.id);
   store.removeAccountsOfCompany(company.id);
   rmSync(paths.secretsFile(company.id), { force: true });
+  rmSync(paths.keyDetailsFile(company.id), { force: true });
 
   const folder = paths.company(company.id);
   if (deleteFiles) {

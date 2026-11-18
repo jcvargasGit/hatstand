@@ -107,3 +107,36 @@ describe('clientReadiness', () => {
     expect(done(input({ projects: [project, second], protectedPaths: ['/repos/api', '/repos/web'] }), 'protection')).toBe(true);
   });
 });
+
+describe('a key that stopped working', () => {
+  const now = new Date('2026-11-18T12:00:00Z');
+  const check = (rest: object = {}) => ({ at: now.toISOString(), result: 'valid' as const, ...rest });
+  const healthOf = (keys: ReadinessInput['keys']) => {
+    const readiness = clientReadiness(input({}, { secretNames: (keys ?? []).map((key) => key.name), keys, now }));
+    return { item: readiness.items.find((entry) => entry.id === 'key-health'), percent: readiness.percent };
+  };
+
+  it('adds nothing while every key is fine, so the percent stays', () => {
+    const fine = healthOf([{ name: 'GITHUB_TOKEN', check: check({ expiresAt: '2027-03-03T12:00:00Z' }) }, { name: 'ACME_API_TOKEN' }]);
+    expect(fine.item).toBeUndefined();
+    expect(fine.percent).toBe(clientReadiness(input({}, { secretNames: ['GITHUB_TOKEN'] })).percent);
+  });
+
+  it.each([
+    [{ result: 'rejected' as const }, 'Rejected. GitHub rejected it. Create a new token and replace this one.'],
+    [{ expiresAt: '2026-11-10T12:00:00Z' }, 'Expired on Nov 10, 2026. Create a new token and replace this one.'],
+    [{ expiresAt: '2026-11-23T13:00:00Z' }, 'Expires in 5 days. Create a new token and replace this one before it stops working.'],
+  ])('asks to replace a key that is %j', (state, hint) => {
+    const { item, percent } = healthOf([{ name: 'GITHUB_TOKEN', check: check(state) }]);
+    expect(item).toMatchObject({ label: 'Replace GITHUB_TOKEN', hint, done: false, level: 'recommended', section: 'section-keys' });
+    expect(percent).toBeLessThan(clientReadiness(input({}, { secretNames: ['GITHUB_TOKEN'] })).percent);
+  });
+
+  it('names the other keys with a problem in the same item', () => {
+    const { item } = healthOf([
+      { name: 'GITHUB_TOKEN', check: check({ result: 'rejected' }) },
+      { name: 'GITLAB_TOKEN', check: check({ expiresAt: '2026-11-10T12:00:00Z' }) },
+    ]);
+    expect(item?.hint).toMatch(/Also: GITLAB_TOKEN\.$/);
+  });
+});

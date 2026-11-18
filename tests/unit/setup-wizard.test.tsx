@@ -109,11 +109,11 @@ describe('SetupWizard', () => {
 
   it('moves forward and back, and offers to skip a step that is not done', async () => {
     await renderWizard();
-    await userEvent.click(screen.getByRole('button', { name: /Keys and tools/ }));
+    await userEvent.click(screen.getByRole('button', { name: /Keys and secrets/ }));
     await userEvent.click(screen.getByRole('button', { name: 'Skip for now' }));
     expect(screen.getByRole('heading', { name: 'Links of this client' })).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Back' }));
-    expect(screen.getByRole('heading', { name: 'Keys and tools' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Keys and secrets' })).toBeTruthy();
   });
 
   it('continuing without repositories uses the default folder', async () => {
@@ -187,9 +187,29 @@ describe('SetupWizard', () => {
       gitIdentity: { name: 'A', email: 'a@e.dev', folder: '/repos/', appliedAt: 'x' },
       context: { knowledgeDir: '/kb', pluginDir: '/plugin' },
     };
-    answer({ listSecretNames: ['GITHUB_TOKEN'] });
+    answer({ listKeys: [{ name: 'GITHUB_TOKEN' }] });
     await renderWizard(ready);
     expect(screen.getByRole('heading', { name: 'Review' })).toBeTruthy();
+  });
+
+  it('opens on the keys when one stopped working, and takes the check mark off that step', async () => {
+    const ready: Company = {
+      ...empty,
+      projects: [{ id: 'a', name: 'a', path: '/a' }],
+      protectedPaths: ['/a'],
+      gitIdentity: { name: 'A', email: 'a@e.dev', folder: '/repos/', appliedAt: 'x' },
+      context: { knowledgeDir: '/kb', pluginDir: '/plugin' },
+    };
+    answer({ listKeys: [{ name: 'GITHUB_TOKEN', check: { at: 'x', result: 'rejected' } }] });
+    await renderWizard(ready);
+    expect(screen.getByRole('heading', { name: 'Keys and secrets' })).toBeTruthy();
+    const step = screen.getByRole('button', { name: /Keys and secrets/ });
+    expect(step.querySelector('svg')).toBeNull();
+    expect(screen.getByRole('button', { name: /Knowledge/ }).querySelector('svg')).not.toBeNull();
+
+    await userEvent.click(screen.getByRole('button', { name: /Review/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Replace GITHUB_TOKEN' }));
+    expect(screen.getByRole('heading', { name: 'Keys and secrets' })).toBeTruthy();
   });
 });
 

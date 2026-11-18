@@ -106,7 +106,7 @@ try {
   await page.getByRole('heading', { name: 'Client knowledge' }).waitFor();
   await shot(page, '2c-setup-knowledge');
   await page.getByRole('button', { name: 'Continue' }).click();
-  await page.getByRole('heading', { name: 'Keys and tools' }).waitFor();
+  await page.getByRole('heading', { name: 'Keys and secrets' }).waitFor();
   await page.getByRole('button', { name: 'Skip for now' }).click();
   await page.getByRole('heading', { name: 'Links of this client' }).waitFor();
   await page.getByRole('button', { name: 'Skip for now' }).click();
@@ -142,6 +142,9 @@ try {
 
   assert.ok(existsSync(join(home, 'companies', acme.id, 'secrets.enc')));
   assert.ok(!readFileSync(join(home, 'companies', acme.id, 'secrets.enc')).includes('acme-secret-value-123'));
+  const keyDetails = () => readFileSync(join(home, 'companies', acme.id, 'keys.yaml'), 'utf8');
+  assert.ok(keyDetails().includes('ACME_API_TOKEN'), 'what Hatstand knows about a key is kept next to it');
+  assert.ok(!keyDetails().includes('acme-secret-value-123'), 'and never its value');
 
   const report = await invoke(page, 'installGuard', acme.id);
   assert.deepEqual(report.installed, [repo]);
@@ -279,6 +282,17 @@ try {
   await page.getByRole('navigation', { name: 'Setup steps' }).getByRole('button', { name: /Keys/ }).click();
   await page.getByText('ACME_API_TOKEN').waitFor();
   assert.ok(!(await page.locator('body').innerText()).includes('acme-secret-value-123'), 'key values are never shown');
+  await page.getByText(/lists and downloads repositories/).first().waitFor();
+
+  await page.getByRole('button', { name: 'Replace ACME_API_TOKEN' }).click();
+  await page.getByLabel('New value for ACME_API_TOKEN').fill('acme-replaced-value-456');
+  await page.getByLabel('New value for ACME_API_TOKEN').press('Enter');
+  await page.getByLabel('New value for ACME_API_TOKEN').waitFor({ state: 'detached' });
+  const shown = await page.locator('body').innerText();
+  assert.ok(!shown.includes('acme-replaced-value-456') && !shown.includes('acme-secret-value-123'), 'a replaced key shows neither value');
+  assert.ok(!readFileSync(join(home, 'companies', acme.id, 'secrets.enc')).includes('acme-replaced-value-456'));
+  assert.ok(!keyDetails().includes('acme-replaced-value-456'));
+  assert.deepEqual(await invoke(page, 'listSecretNames', acme.id), ['ACME_API_TOKEN'], 'replacing a key keeps one key with that name');
   await shot(page, '5-client-settings');
 
   const hiddenKnowledge = join(root, '.claude/companies/acme/knowledge');
