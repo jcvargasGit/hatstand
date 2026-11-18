@@ -1,7 +1,8 @@
 import type { HatstandApi } from '../../shared/api';
 import { gitOrigin, gitTokenName } from '../../shared/git-source';
-import { gitSourceSchema } from '../../shared/schemas';
+import { gitSourceSchema, type GitSource } from '../../shared/schemas';
 import { listRemoteRepos } from '../git-hosts';
+import { noteAcceptedKey, noteRejectedKey } from '../key-rejected';
 import { findGitRoot, prepareCloneDir, resolveUserPath } from '../paths';
 import { cloneRepos } from '../repo-clone';
 import { detectRepoLayout } from '../repo-layout';
@@ -13,17 +14,31 @@ export type RepositoryService = Pick<HatstandApi, 'connectGitSource' | 'download
 export function createRepositoryService({ store, paths, secrets, tools, emit, userHome, fetch }: ServiceContext): RepositoryService {
   /** Clients downloading right now, so a second click does not clone the same repositories twice. */
   const downloading = new Set<string>();
+  /** Lists with the saved token of the client, and remembers whether the provider accepted it. */
+  const listWithSavedToken = async (companyId: string, source: GitSource, token: string) => {
+    try {
+      const repos = await listRemoteRepos(source, token, fetch);
+      noteAcceptedKey(secrets, companyId, source.provider);
+      return repos;
+    } catch (error) {
+      if (noteRejectedKey(secrets, companyId, error)) emit('state-changed', null);
+      throw error;
+    }
+  };
   return {
     connectGitSource: async (companyId, rawSource, rawToken) => {
       const source = gitSourceSchema.parse(rawSource);
       const tokenName = gitTokenName(source.provider);
-      const token = rawToken?.trim() || secrets.read(companyId)[tokenName];
+      const pasted = rawToken?.trim();
+      const token = pasted || secrets.read(companyId)[tokenName];
       if (!token) throw new Error('Paste a token so Hatstand can see this client\'s repositories.');
-      const repos = await listRemoteRepos(source, token, fetch);
+      // A token that was only pasted is not the saved key, so its rejection says nothing about that key.
+      const repos = pasted ? await listRemoteRepos(source, token, fetch) : await listWithSavedToken(companyId, source, token);
       secrets.merge(companyId, {
         [tokenName]: token,
         ...(source.provider === 'gitlab' ? { GITLAB_URL: gitOrigin(source) } : {}),
       });
+      noteAcceptedKey(secrets, companyId, source.provider);
       store.saveCompany({ ...store.readCompany(companyId), gitSource: source });
       emit('state-changed', null);
       return repos;
@@ -37,7 +52,7 @@ export function createRepositoryService({ store, paths, secrets, tools, emit, us
       const baseDir = prepareCloneDir(rawDir, paths.home, userHome);
       downloading.add(companyId);
       try {
-        const available = await listRemoteRepos(source, token, fetch);
+        const available = await listWithSavedToken(companyId, source, token);
         return await cloneRepos({
           repos: available.filter((repo) => repoPaths.includes(repo.path)),
           baseDir,

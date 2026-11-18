@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { github, gitlab, jira, type Fetcher, type TrackerIssue } from '../../src/main/trackers';
-import { planSync } from '../../src/main/trackers/sync';
+import { KeyRejectedError } from '../../src/main/key-rejected';
+import { planSync, syncTrackers } from '../../src/main/trackers/sync';
+import { makeHome } from '../helpers/home';
+import { memorySecrets } from '../helpers/services';
 import type { Task } from '../../src/shared/schemas';
 
 function fakeFetch(body: unknown, status = 200) {
@@ -31,6 +34,13 @@ describe('jira', () => {
     const failure = jira.listAssigned(JIRA_KEYS, fakeFetch({}, 401));
     await expect(failure).rejects.toThrow(/401/);
     await expect(failure).rejects.not.toThrow(/token"/);
+  });
+
+  it('says which provider rejected the token, and only on a 401', async () => {
+    await expect(jira.listAssigned(JIRA_KEYS, fakeFetch({}, 401))).rejects.toMatchObject({ name: 'KeyRejectedError', service: 'jira' });
+    await expect(github.listAssigned({ GITHUB_TOKEN: 't' }, fakeFetch({}, 401))).rejects.toMatchObject({ service: 'github' });
+    await expect(gitlab.listAssigned({ GITLAB_TOKEN: 't' }, fakeFetch({}, 401))).rejects.toMatchObject({ service: 'gitlab' });
+    await expect(github.listAssigned({ GITHUB_TOKEN: 't' }, fakeFetch({}, 403))).rejects.not.toBeInstanceOf(KeyRejectedError);
   });
 });
 
@@ -89,5 +99,42 @@ describe('planSync', () => {
   it('does nothing when an issue is unchanged', () => {
     expect(planSync([existing], [issue('ACME-1', 'Old title')])).toEqual({ create: [], refresh: [] });
     expect(planSync([{ ...existing, customTitle: true }], [issue('ACME-1', 'New title')]).refresh).toEqual([]);
+  });
+});
+
+describe('importing assigned work with a key that stopped working', () => {
+  const setup = (values: Record<string, string>) => {
+    const home = makeHome('hatstand-sync-');
+    home.store.createCompany('Acme', '#112233');
+    const keys = memorySecrets({ acme: values });
+    const sync = (status: number) => syncTrackers(home.store, 'acme', keys.read('acme'), fakeFetch({ items: [] }, status), keys);
+    const check = (name: string) => keys.list('acme').find((key) => key.name === name)?.check?.result;
+    return { home, sync, check };
+  };
+
+  it('marks the key as rejected on a 401, and still reports the error', async () => {
+    const { home, sync, check } = setup({ GITHUB_TOKEN: 't', ACME_API_TOKEN: 'x' });
+    const report = await sync(401);
+    expect(report.errors).toEqual(['GitHub: GitHub answered 401. Check the token and its permissions.']);
+    expect(check('GITHUB_TOKEN')).toBe('rejected');
+    expect(check('ACME_API_TOKEN')).toBeUndefined();
+    home.remove();
+  });
+
+  it('marks GH_TOKEN when that is the key GitHub got', async () => {
+    const { home, sync, check } = setup({ GH_TOKEN: 't' });
+    await sync(401);
+    expect(check('GH_TOKEN')).toBe('rejected');
+    home.remove();
+  });
+
+  it('marks nothing on another failure, and removes the mark once the import works', async () => {
+    const { home, sync, check } = setup({ GITHUB_TOKEN: 't' });
+    await sync(500);
+    expect(check('GITHUB_TOKEN')).toBeUndefined();
+    await sync(401);
+    await sync(200);
+    expect(check('GITHUB_TOKEN')).toBeUndefined();
+    home.remove();
   });
 });

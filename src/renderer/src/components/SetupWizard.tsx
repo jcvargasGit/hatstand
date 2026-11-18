@@ -82,9 +82,9 @@ const STEP_TEXT: Record<SetupStepId, { title: string; why: string; used?: string
     example: 'Keep this outside your repositories, so it cannot be committed by accident.',
   },
   keys: {
-    title: 'Keys and tools',
-    why: 'Each client has its own tokens for Jira, GitHub, GitLab and other tools. They are encrypted with your system keychain and reach agents only in this client’s sessions, so accounts never mix. You can import them from an env file.',
-    example: 'With tracker keys, Hatstand can bring in the work assigned to you.',
+    title: 'Keys and secrets',
+    why: 'Each client has its own tokens for Jira, GitHub, GitLab and other tools. They are encrypted with your system keychain and reach agents only in this client’s sessions, so accounts never mix. Each key shows what it is used for and whether it still works.',
+    example: 'Values are never shown again. To change a key, replace it. Sessions already running keep the old value until they restart.',
   },
   protection: {
     title: 'Protect commits',
@@ -213,7 +213,7 @@ function SetupSteps({
     ),
     keys: (
       <>
-        <SecretsSection companyId={company.id} />
+        <SecretsSection companyId={company.id} gitSource={company.gitSource} />
         <AssignedWork companyId={company.id} onChanged={onChanged} />
       </>
     ),
@@ -222,7 +222,7 @@ function SetupSteps({
     review: <ReadinessCard readiness={readiness} onOpenItem={(item) => setStep(stepForItem(steps, item))} />,
   };
 
-  const stepDone = isStepDone(current.itemIds, readiness);
+  const stepDone = isStepDone(current, readiness);
   const defaultFolder = { repositories: folders?.defaultRoot, knowledge: folders?.knowledge, 'llm-config': folders?.llmConfig }[current.id as string];
   const acceptsFolder = !stepDone && Boolean(defaultFolder);
   const needsWork = current.itemIds.length > 0 && !stepDone && !acceptsFolder;
@@ -254,7 +254,7 @@ function SetupSteps({
                   onClick={() => setStep(index)}
                 >
                   <span className="wizard-number">
-                    {isStepDone(item.itemIds, readiness) ? <Check size={14} /> : index + 1}
+                    {isStepDone(item, readiness) ? <Check size={14} /> : index + 1}
                   </span>
                   {item.label}
                 </button>

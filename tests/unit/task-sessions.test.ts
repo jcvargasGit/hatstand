@@ -554,6 +554,7 @@ describe('removing a client', () => {
     const web = repo('web');
     const company = store.saveCompany({ ...store.createCompany('Acme', '#112233'), projects: [api, web], archivedAt: '2026-01-01' });
     writeFileSync(paths.secretsFile('acme'), 'encrypted');
+    writeFileSync(paths.keyDetailsFile('acme'), 'keys: {}\n');
     writeFileSync(join(paths.knowledgeDir('acme'), 'map.md'), 'client knowledge');
     mkdirSync(paths.guardDir, { recursive: true });
     writeFileSync(paths.guardFingerprints('acme'), '{}');
@@ -581,6 +582,7 @@ describe('removing a client', () => {
     expect(report.keptFilesIn).toBe(kept);
     expect(readFileSync(join(kept, 'knowledge', 'map.md'), 'utf8')).toBe('client knowledge');
     expect(existsSync(join(kept, 'secrets.enc'))).toBe(false);
+    expect(existsSync(join(kept, 'keys.yaml'))).toBe(false);
     expect(existsSync(paths.company('acme'))).toBe(false);
     expect(store.listCompanies()).toEqual([]);
     expect(store.listSessions()).toEqual([]);

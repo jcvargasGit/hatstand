@@ -139,6 +139,8 @@ describe('GitHub pull requests', () => {
     const fetcher: Fetcher = async () => json({}, 401);
     const read = readPull({ host: 'github.com', path: 'acme/api' }, 'b', { provider: 'github', token: 'tok-secret' }, { projectId: 'a', repo: 'a' }, fetcher);
     await expect(read).rejects.toThrow('rejected this client');
+    await expect(read).rejects.toThrow('Keys and secrets');
+    await expect(read).rejects.toMatchObject({ name: 'KeyRejectedError', service: 'github' });
     await expect(read).rejects.not.toThrow('tok-secret');
   });
 

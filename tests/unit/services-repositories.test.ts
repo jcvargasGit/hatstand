@@ -73,6 +73,24 @@ describe('connecting GitHub or GitLab', () => {
     expect(stateChanges()).toBe(0);
   });
 
+  it('marks the saved token as rejected when GitHub rejects it, and removes the mark when it works again', async () => {
+    const secrets = memorySecrets({ acme: { GITHUB_TOKEN: 'ghp_old' } });
+    const state = () => secrets.list('acme')[0]?.check?.result;
+    const rejecting = setup(fakeGitHub(['api']), secrets);
+    await expect(rejecting.repositories.connectGitSource('acme', GITHUB)).rejects.toThrow('GitHub rejected this token.');
+    expect(state()).toBe('rejected');
+    expect(rejecting.stateChanges()).toBe(1);
+
+    await setup(fakeGitHub(['api'], 'ghp_old'), secrets).repositories.connectGitSource('acme', GITHUB);
+    expect(state()).toBeUndefined();
+  });
+
+  it('does not blame the saved token for a pasted one that GitHub rejects', async () => {
+    const secrets = memorySecrets({ acme: { GITHUB_TOKEN: 'ghp_good' } });
+    await expect(setup(fakeGitHub(['api']), secrets).repositories.connectGitSource('acme', GITHUB, 'ghp_typo')).rejects.toThrow('GitHub rejected this token.');
+    expect(secrets.list('acme')[0]?.check).toBeUndefined();
+  });
+
   it('refuses a source it cannot use', async () => {
     const { repositories } = setup(fakeGitHub(['api']));
     await expect(repositories.connectGitSource('acme', { provider: 'github', owner: ' ' }, 'ghp_good')).rejects.toThrow('Write the organization, group or user.');

@@ -1,6 +1,7 @@
 import type { RemoteRepo } from '../shared/api';
 import { gitOrigin } from '../shared/git-source';
 import type { GitSource } from '../shared/schemas';
+import { KeyRejectedError } from './key-rejected';
 
 export type Fetcher = typeof fetch;
 
@@ -23,8 +24,12 @@ type RawGitLabRepo = {
   archived?: boolean;
 };
 
-function hostError(name: string, status: number, owner: string): Error {
-  if (status === 401) return new Error(`${name} rejected this token. Create a new one and paste it here.`);
+type HostName = 'GitHub' | 'GitLab';
+
+function hostError(name: HostName, status: number, owner: string): Error {
+  if (status === 401) {
+    return new KeyRejectedError(`${name} rejected this token. Create a new one and paste it here.`, name === 'GitHub' ? 'github' : 'gitlab');
+  }
   if (status === 403) {
     return new Error(
       `${name} refused access. Check the token's permissions. If the company uses single sign-on, authorize the token for it.`,
@@ -38,7 +43,7 @@ async function readPages<T>(
   url: (page: number) => string,
   headers: Record<string, string>,
   fetcher: Fetcher,
-  name: string,
+  name: HostName,
   owner: string,
 ): Promise<T[]> {
   const items: T[] = [];

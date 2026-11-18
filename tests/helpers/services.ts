@@ -1,6 +1,7 @@
 // A ServiceContext for the services in src/main/services, built without Electron.
 import { vi } from 'vitest';
 import type { HatstandEvents } from '../../src/shared/api';
+import type { KeyCheck } from '../../src/shared/schemas';
 import type { ServiceContext, ServiceDeps } from '../../src/main/services';
 import type { CodeCopies } from '../../src/main/services/code-copies';
 import type { TestHome } from './home';
@@ -10,9 +11,24 @@ export type Emitted = { event: keyof HatstandEvents; payload: unknown };
 /** Secrets kept in memory, instead of sealed with the system keychain. */
 export function memorySecrets(initial: Record<string, Record<string, string>> = {}): ServiceContext['secrets'] {
   const byClient = new Map(Object.entries(initial).map(([companyId, values]) => [companyId, { ...values }]));
+  const checks = new Map<string, KeyCheck>();
+  const notes = new Map<string, string>();
+  const id = (companyId: string, name: string) => `${companyId}/${name}`;
+  const names = (companyId: string) => Object.keys(byClient.get(companyId) ?? {}).sort();
   return {
+    list: (companyId) =>
+      names(companyId).map((name) => ({ name, check: checks.get(id(companyId, name)), note: notes.get(id(companyId, name)) })),
+    recordCheck: (companyId, name, outcome) => {
+      const last = checks.get(id(companyId, name));
+      checks.set(id(companyId, name), { at: 'now', ...outcome });
+      return last?.result !== outcome.result || last.expiresAt !== outcome.expiresAt;
+    },
+    clearRejection: (companyId, name) => checks.get(id(companyId, name))?.result === 'rejected' && checks.delete(id(companyId, name)),
+    setNote: (companyId, name, note) => {
+      notes.set(id(companyId, name), note);
+    },
     read: (companyId) => ({ ...byClient.get(companyId) }),
-    names: (companyId) => Object.keys(byClient.get(companyId) ?? {}).sort(),
+    names,
     merge: (companyId, values) => {
       byClient.set(companyId, { ...byClient.get(companyId), ...values });
     },

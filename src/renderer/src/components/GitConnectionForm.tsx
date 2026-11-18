@@ -2,19 +2,14 @@ import { ExternalLink, PlugZap } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import type { RemoteRepo } from '../../../shared/api';
 import { tokenPageUrl } from '../../../shared/git-source';
+import { keyServicePermissions } from '../../../shared/known-keys';
 import type { Company, GitSource } from '../../../shared/schemas';
 import { useAction } from '../hooks/useAction';
 import { api } from '../lib/api';
 
-const PROVIDER_TEXT: Record<GitSource['provider'], { owner: string; permissions: string }> = {
-  github: {
-    owner: 'Organization or user',
-    permissions: 'The token needs the repo and read:org permissions.',
-  },
-  gitlab: {
-    owner: 'Group or user',
-    permissions: 'The token needs the read_api and write_repository permissions.',
-  },
+const OWNER_LABEL: Record<GitSource['provider'], string> = {
+  github: 'Organization or user',
+  gitlab: 'Group or user',
 };
 
 function tokenLink(source: Pick<GitSource, 'provider' | 'host'>): string | null {
@@ -37,7 +32,6 @@ export function GitConnectionForm({ company, onConnected }: GitConnectionFormPro
   const [owner, setOwner] = useState(saved?.owner ?? '');
   const [token, setToken] = useState('');
   const { error, busy, run } = useAction();
-  const text = PROVIDER_TEXT[provider];
   const link = tokenLink({ provider, host });
 
   const submit = (event: FormEvent) => {
@@ -64,7 +58,7 @@ export function GitConnectionForm({ company, onConnected }: GitConnectionFormPro
         </label>
       )}
       <label className="stacked-field">
-        {text.owner}
+        {OWNER_LABEL[provider]}
         <input value={owner} onChange={(event) => setOwner(event.target.value)} />
       </label>
       <label className="stacked-field">
@@ -78,7 +72,7 @@ export function GitConnectionForm({ company, onConnected }: GitConnectionFormPro
         />
       </label>
       <p className="hint">
-        {text.permissions} It is encrypted with your system keychain and used only for this client.{' '}
+        {keyServicePermissions(provider)} It is encrypted with your system keychain and used only for this client.{' '}
         {link && (
           <a href={link} target="_blank" rel="noreferrer">
             Create a token <ExternalLink size={12} />

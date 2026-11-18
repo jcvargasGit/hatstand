@@ -1001,7 +1001,7 @@ describe('archiving and removing a client', () => {
   };
 
   it('archives first, and only an archived client can be removed', async () => {
-    invoke.mockImplementation(async (method: string) => (method === 'listSecretNames' ? [] : undefined));
+    invoke.mockImplementation(async (method: string) => (method === 'listKeys' ? [] : undefined));
     settings([company]);
     expect(screen.queryByRole('region', { name: 'Archived clients' })).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: 'Archive Acme' }));

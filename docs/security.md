@@ -22,9 +22,11 @@ Keys are saved in `secrets.enc`, encrypted with Electron's `safeStorage`:
 - **macOS:** the Keychain. macOS asks once for access when you save your first key.
 - **Linux:** GNOME Keyring, KWallet or another store that Electron supports. If there is none, Electron would fall back to a fixed password, so Hatstand refuses to save keys and tells you why. See [Getting started](getting-started.md#linux).
 
+Next to it, `keys.yaml` keeps what Hatstand knows about each key that is not secret: its name, when it was saved, your note, and what the provider answered the last time it was checked, with the expiry date if it gave one. It never holds a value, and it is not encrypted, so do not write a secret in a note. The interface never receives a value either.
+
 ## What leaves your computer
 
-Hatstand has no telemetry. It connects to the services you set up: GitHub, GitLab and Jira, with each client's keys. A GitLab token only goes to that client's GitLab address. It also downloads a client's photo when you give it a link. The agents you run talk to their own providers under their own terms.
+Hatstand has no telemetry. It connects to the services you set up: GitHub, GitLab and Jira, with each client's keys. A GitLab token only goes to that client's GitLab address. Checking a key sends it to its own provider and nowhere else, when you save it, replace it or choose Check. It also downloads a client's photo when you give it a link. The agents you run talk to their own providers under their own terms.
 
 ## Limits
 

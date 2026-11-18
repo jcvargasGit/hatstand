@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import type { Snapshot } from '../../../shared/api';
 import { clientReadiness, type ClientReadiness } from '../../../shared/readiness';
-import type { Company } from '../../../shared/schemas';
+import type { Company, KeyInfo } from '../../../shared/schemas';
 import { api } from '../lib/api';
 
 export function useClientReadiness(snapshot: Snapshot, company: Company): ClientReadiness & { loaded: boolean } {
-  const [secretNames, setSecretNames] = useState<string[]>([]);
+  const [keys, setKeys] = useState<KeyInfo[]>([]);
   const [loaded, setLoaded] = useState(false);
   const companyId = company.id;
 
@@ -13,11 +13,11 @@ export function useClientReadiness(snapshot: Snapshot, company: Company): Client
     let active = true;
     const load = () =>
       void api
-        .listSecretNames(companyId)
+        .listKeys(companyId)
         .catch(() => [])
-        .then((names) => {
+        .then((found) => {
           if (!active) return;
-          setSecretNames(names);
+          setKeys(found);
           setLoaded(true);
         });
     load();
@@ -30,7 +30,8 @@ export function useClientReadiness(snapshot: Snapshot, company: Company): Client
 
   const readiness = clientReadiness({
     company,
-    secretNames,
+    secretNames: keys.map((key) => key.name),
+    keys,
     hasLocalKnowledge: snapshot.localKnowledge.includes(companyId),
     hasLocalPlugin: snapshot.localPlugin.includes(companyId),
     hasStarterInstructions: snapshot.starterInstructions.includes(companyId),

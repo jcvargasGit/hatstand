@@ -9,7 +9,7 @@ export const SETUP_STEPS = [
   { id: 'planning', label: 'Planning', itemIds: [] },
   { id: 'llm-config', label: 'LLM config', itemIds: ['llm-config'] },
   { id: 'knowledge', label: 'Knowledge', itemIds: ['knowledge'] },
-  { id: 'keys', label: 'Keys and tools', itemIds: ['tracker'] },
+  { id: 'keys', label: 'Keys and secrets', itemIds: ['tracker'] },
   { id: 'links', label: 'Links', itemIds: ['links'] },
   { id: 'identity', label: 'Commit identity', itemIds: ['identity'] },
   { id: 'protection', label: 'Protection', itemIds: ['protection'] },
@@ -25,7 +25,11 @@ const CODE_STEPS: readonly SetupStepId[] = ['repositories', 'identity', 'protect
 const ITEM_STEPS: Record<string, SetupStepId> = {
   subdomains: 'areas',
   photo: 'name',
+  'key-health': 'keys',
 };
+
+/** Items that appear only when something went wrong. While one is open, its step is not done. */
+const PROBLEM_ITEMS = ['key-health'];
 
 export function setupSteps(company: Company): readonly SetupStep[] {
   if (company.hasCode) return SETUP_STEPS;
@@ -43,6 +47,7 @@ export function firstOpenStep(steps: readonly SetupStep[], readiness: ClientRead
   return open ? stepForItem(steps, open) : steps.length - 1;
 }
 
-export function isStepDone(stepItemIds: readonly string[], readiness: ClientReadiness): boolean {
-  return stepItemIds.length > 0 && stepItemIds.every((id) => readiness.items.find((item) => item.id === id)?.done);
+export function isStepDone(step: Pick<SetupStep, 'id' | 'itemIds'>, readiness: ClientReadiness): boolean {
+  const hasProblem = readiness.items.some((item) => !item.done && PROBLEM_ITEMS.includes(item.id) && ITEM_STEPS[item.id] === step.id);
+  return !hasProblem && step.itemIds.length > 0 && step.itemIds.every((id) => readiness.items.find((item) => item.id === id)?.done);
 }

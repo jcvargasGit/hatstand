@@ -28,6 +28,7 @@ Everything about your clients stays in `~/.hatstand`, outside any repository. Ha
   companies/<client>/
     company.yaml
     secrets.enc      encrypted with your system keychain
+    keys.yaml        what Hatstand knows about each key, never its value
     photo            saved copy of the client's photo
     instructions.md  starter file, for clients started from scratch
     knowledge/       created for every client
@@ -70,6 +71,28 @@ If a client keeps specs, tickets, RFCs and decisions in its own repository, choo
 Agents are told not to commit or push there unless you ask. This is an instruction, not a block. The repository has no commit protection, because what it holds may need to be committed. Choose it from **Planning**, or with **Use for planning** in the list of repositories. Either way it moves out of Repositories, and **Move back to Repositories** undoes that. The folder must be a git repository or a folder inside one.
 
 If the client has no such repository, plans stay in a private default folder with no git. To keep them in git, **Create repository** makes one, by default next to the client's code. It has a `README.md`, `specs/`, `decisions/` and `templates/`, and one commit made with the git email of that folder. If that folder has no email, Hatstand stops and tells you. The repository has no remote, so it stays on this computer, with no backup, until you add one and push.
+
+### Keys and secrets
+
+The **Keys and secrets** step of a client lists its keys by service. Each key says what Hatstand uses it for:
+
+| Key | Used for |
+| --- | --- |
+| `GITHUB_TOKEN` | Brings in the issues assigned to you, lists and downloads repositories, signs git in during sessions, and reads pull requests for review. `GH_TOKEN` is used when this one is missing. |
+| `GITLAB_TOKEN` | The same, on GitLab. `GITLAB_URL` is the address of your GitLab, and Hatstand saves it when you connect GitLab. |
+| `JIRA_SITE`, `JIRA_EMAIL`, `JIRA_API_TOKEN` | Bring in the Jira issues assigned to you. Jira needs the three. |
+| Any other key | Agents read it as an environment variable in this client's sessions. You can write a note saying what it is for. |
+
+A value is never shown again once it is saved. To change a key, such as a token that expired, choose **Replace** on its row and paste the new value. The name stays, and nothing has to be deleted first. Each token has a link to the page where you create a new one, and says which permissions it needs. Sessions already running keep the old value until they restart.
+
+**Check** asks the provider whether a token still works. Hatstand also checks a token when you save or replace it. A key then shows one of these:
+
+- **Valid**, with the date it expires when the provider reports one. GitHub and GitLab do. Jira does not, so a Jira token never shows a date.
+- **Expires in** a number of days, from 14 days before.
+- **Expired**, after that date.
+- **Rejected**, when the provider refused it. Hatstand also marks a key as rejected when it is refused while importing assigned work, listing repositories or reading pull requests.
+
+While a key is rejected, expired or about to expire, the Review step and the setup card of the client ask you to replace it.
 
 ### Who commits
 

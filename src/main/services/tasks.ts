@@ -35,7 +35,7 @@ export type TaskServiceDeps = {
   suggester: Pick<DescriptionSuggester, 'suggest' | 'cancel' | 'instructionsFor'>;
 };
 
-export function createTaskService({ store, paths, secrets, emit }: ServiceContext, { sessions, copies, suggester }: TaskServiceDeps): TaskService {
+export function createTaskService({ store, paths, secrets, emit, fetch }: ServiceContext, { sessions, copies, suggester }: TaskServiceDeps): TaskService {
   return {
     createTask: async (input) => createTaskWithGuide({ store, paths }, input),
     makeTask: async (taskId, setup) => {
@@ -74,7 +74,11 @@ export function createTaskService({ store, paths, secrets, emit }: ServiceContex
       await copies.removeCopies(taskId, true);
       emit('state-changed', null);
     },
-    syncTrackers: async (companyId) => syncTrackers(store, companyId, secrets.read(companyId)),
+    syncTrackers: async (companyId) => {
+      const report = await syncTrackers(store, companyId, secrets.read(companyId), fetch, secrets);
+      emit('state-changed', null);
+      return report;
+    },
     suggestDescription: async (request) => suggester.suggest(request),
     cancelDescriptionSuggestion: async (key) => suggester.cancel(key),
     descriptionInstructions: async (companyId, subdomainId) => suggester.instructionsFor(companyId, subdomainId),

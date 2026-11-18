@@ -1,4 +1,5 @@
-import type { Company } from './schemas';
+import { hasKeyProblem, keyProblemAdvice, keyStateLabel } from './key-status';
+import type { Company, KeyInfo } from './schemas';
 import { workRepositories } from './work-repos';
 
 export type ReadinessLevel = 'required' | 'recommended' | 'optional';
@@ -21,6 +22,9 @@ export type ClientReadiness = {
 export type ReadinessInput = {
   company: Company;
   secretNames: string[];
+  /** What Hatstand knows about each key, to say when one stopped working. */
+  keys?: KeyInfo[];
+  now?: Date;
   hasLocalKnowledge: boolean;
   hasLocalPlugin: boolean;
   hasStarterInstructions: boolean;
@@ -39,6 +43,23 @@ function hasTracker(names: string[]): boolean {
   return jira || has('GITHUB_TOKEN') || has('GH_TOKEN') || has('GITLAB_TOKEN');
 }
 
+/** One item for the keys that stopped working or are about to. No item while every key is fine. */
+function keyHealthItems(keys: KeyInfo[], now: Date): ReadinessItem[] {
+  const [first, ...others] = keys.filter((key) => hasKeyProblem(key, now));
+  if (!first) return [];
+  const rest = others.length > 0 ? ` Also: ${others.map((key) => key.name).join(', ')}.` : '';
+  return [
+    {
+      id: 'key-health',
+      label: `Replace ${first.name}`,
+      hint: `${keyStateLabel(first, now)}. ${keyProblemAdvice(first, now)}${rest}`,
+      level: 'recommended',
+      section: 'section-keys',
+      done: false,
+    },
+  ];
+}
+
 function isProtected(company: Company): boolean {
   const repos = workRepositories(company);
   return repos.length > 0 && repos.every((project) => company.protectedPaths.includes(project.path));
@@ -47,6 +68,8 @@ function isProtected(company: Company): boolean {
 export function clientReadiness({
   company,
   secretNames,
+  keys = [],
+  now = new Date(),
   hasLocalKnowledge,
   hasLocalPlugin,
   hasStarterInstructions,
@@ -84,11 +107,12 @@ export function clientReadiness({
     {
       id: 'tracker',
       label: 'Connect Jira, GitHub or GitLab',
-      hint: 'Add JIRA_SITE, JIRA_EMAIL and JIRA_API_TOKEN, or GITHUB_TOKEN, or GITLAB_TOKEN, to import your assigned work.',
+      hint: 'Under Keys and secrets, add the Jira keys, or GITHUB_TOKEN, or GITLAB_TOKEN, to import your assigned work.',
       level: 'recommended',
       section: 'section-keys',
       done: hasTracker(secretNames),
     },
+    ...keyHealthItems(keys, now),
     ...(workRepositories(company).length > 0
       ? [
           {

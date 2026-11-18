@@ -228,7 +228,7 @@ try {
   await shot(page, '8c-file-editor');
   await page.getByRole('button', { name: 'Continue' }).click();
 
-  await page.getByRole('heading', { name: 'Keys and tools' }).waitFor();
+  await page.getByRole('heading', { name: 'Keys and secrets' }).waitFor();
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.getByRole('heading', { name: 'Links of this client' }).waitFor();
   await page.getByRole('button', { name: 'Skip for now' }).click();
