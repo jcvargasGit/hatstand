@@ -305,4 +305,91 @@ describe('downloading repositories', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Connect and list repositories' }));
     expect(await screen.findByText(/rejected this token/)).toBeTruthy();
   });
+
+  const connected: Company = { ...empty, origin: 'scratch', gitSource: { provider: 'github', owner: 'acme' } };
+  const openRepositories = async (company: Company) => {
+    await renderWizard(company);
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
+  };
+
+  it('uses the token of the client keys instead of asking for one', async () => {
+    answer({ listSecretNames: ['GITHUB_TOKEN'], connectGitSource: repos });
+    await openRepositories({ ...empty, origin: 'scratch' });
+
+    expect(await screen.findByText(/Using the GITHUB_TOKEN saved in this client/)).toBeTruthy();
+    expect(screen.queryByLabelText('Access token')).toBeNull();
+    await userEvent.type(screen.getByLabelText('Organization or user'), 'acme');
+    await userEvent.click(screen.getByRole('button', { name: 'Connect and list repositories' }));
+    expect(invoke).toHaveBeenCalledWith('connectGitSource', 'acme', expect.objectContaining({ owner: 'acme' }), undefined);
+    await screen.findByText('api');
+  });
+
+  it('asks for a token when the saved one is for another host', async () => {
+    answer({ listSecretNames: ['GITHUB_TOKEN'] });
+    await openRepositories({ ...empty, origin: 'scratch' });
+    await screen.findByText(/Using the GITHUB_TOKEN/);
+    await userEvent.selectOptions(screen.getByLabelText('Where is the code hosted?'), 'gitlab');
+    expect(screen.getByLabelText('Access token')).toBeTruthy();
+    expect(screen.queryByText(/Using the/)).toBeNull();
+  });
+
+  it('lets a saved token be replaced', async () => {
+    answer({ listSecretNames: ['GITHUB_TOKEN'], connectGitSource: repos });
+    await openRepositories({ ...empty, origin: 'scratch' });
+    await userEvent.click(await screen.findByRole('button', { name: 'Replace token' }));
+    await userEvent.type(screen.getByLabelText('Organization or user'), 'acme');
+    await userEvent.type(screen.getByLabelText('Access token'), 'new-token');
+    await userEvent.click(screen.getByRole('button', { name: 'Connect and list repositories' }));
+    expect(invoke).toHaveBeenCalledWith('connectGitSource', 'acme', expect.objectContaining({ owner: 'acme' }), 'new-token');
+  });
+
+  it('lists the repositories at once when the connection and the token are saved', async () => {
+    answer({ listSecretNames: ['GITHUB_TOKEN'], connectGitSource: repos });
+    await openRepositories(connected);
+    await screen.findByText('api');
+    expect(screen.queryByRole('button', { name: 'Connect and list repositories' })).toBeNull();
+    expect(invoke.mock.calls.filter(([method]) => method === 'connectGitSource')).toEqual([['connectGitSource', 'acme', connected.gitSource]]);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Change connection' }));
+    expect((screen.getByLabelText('Organization or user') as HTMLInputElement).value).toBe('acme');
+  });
+
+  it('shows the form and the reason when the saved connection cannot list', async () => {
+    invoke.mockImplementation(async (method: string) => {
+      if (method === 'listSecretNames') return ['GITHUB_TOKEN'];
+      if (method === 'connectGitSource') throw new Error('GitHub rejected this token.');
+      return method === 'checkAgent' ? { installed: true, signedIn: true } : [];
+    });
+    await openRepositories(connected);
+    expect(await screen.findByText(/rejected this token/)).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Replace token' })).toBeTruthy();
+  });
+
+  it('asks for a token when a saved connection has none', async () => {
+    answer({ connectGitSource: repos });
+    await openRepositories(connected);
+    expect(await screen.findByLabelText('Access token')).toBeTruthy();
+    expect(invoke.mock.calls.some(([method]) => method === 'connectGitSource')).toBe(false);
+  });
+
+  it('downloads one repository from its link', async () => {
+    answer({ downloadRepoByLink: { path: 'api', state: 'cloned' } });
+    await openRepositories({ ...empty, origin: 'scratch' });
+    const button = screen.getByRole('button', { name: 'Download from link' }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    await userEvent.type(screen.getByLabelText('Repository link'), 'https://github.com/acme/api');
+    await userEvent.click(button);
+    expect(invoke).toHaveBeenCalledWith('downloadRepoByLink', 'acme', 'https://github.com/acme/api', '~/projects/acme');
+    expect(await screen.findByText('Downloaded api to ~/projects/acme.')).toBeTruthy();
+    expect((screen.getByLabelText('Repository link') as HTMLInputElement).value).toBe('');
+  });
+
+  it('keeps the link and shows why its download failed', async () => {
+    answer({ downloadRepoByLink: { path: 'api', state: 'failed', error: 'Repository not found.' } });
+    await openRepositories({ ...empty, origin: 'scratch' });
+    await userEvent.type(screen.getByLabelText('Repository link'), 'https://github.com/acme/api');
+    await userEvent.click(screen.getByRole('button', { name: 'Download from link' }));
+    expect(await screen.findByText('Repository not found.')).toBeTruthy();
+    expect((screen.getByLabelText('Repository link') as HTMLInputElement).value).toBe('https://github.com/acme/api');
+  });
 });

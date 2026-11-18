@@ -64,6 +64,12 @@ An area can own whole repositories, folders inside a repository, or both. Under 
 
 The session opens at the top of the repository, and the agent is told to focus on the folders of the task's area. The repository keeps a single commit check.
 
+### Downloading repositories
+
+The Repositories step of a client lists the repositories of its GitHub or GitLab organization and downloads the ones you choose. The token is the client's `GITHUB_TOKEN` or `GITLAB_TOKEN` under **Keys**. When it is already saved, Hatstand uses it and lists the repositories without asking again, and **Replace token** saves a new one.
+
+**Download one repository from its link** takes the address of a single repository, such as `https://github.com/company/repository`, and downloads it to the folder you choose, the client folder by default. The link must be on the client's GitHub or GitLab. A public repository needs no token.
+
 ### Planning repository
 
 If a client keeps specs, tickets, RFCs and decisions in its own repository, choose it under **Planning**. You say which folder holds each kind of thing, and the map is saved with the client, outside git. Every session can reach that repository and is told to save lasting work there. Task notes stay your private draft.

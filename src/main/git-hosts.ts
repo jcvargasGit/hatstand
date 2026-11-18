@@ -1,5 +1,5 @@
 import type { RemoteRepo } from '../shared/api';
-import { gitOrigin } from '../shared/git-source';
+import { gitOrigin, isSafePathSegment } from '../shared/git-source';
 import type { GitSource } from '../shared/schemas';
 import { KeyRejectedError } from './key-rejected';
 
@@ -7,7 +7,6 @@ export type Fetcher = typeof fetch;
 
 const PAGE_SIZE = 100;
 const MAX_PAGES = 100;
-const SAFE_SEGMENT = /^[A-Za-z0-9_][A-Za-z0-9._-]*$/;
 
 type RawGitHubRepo = {
   name: string;
@@ -61,7 +60,7 @@ export function safeRelativePath(fullPath: string, owner: string): string {
   const prefix = `${owner.toLowerCase()}/`;
   const relative = fullPath.toLowerCase().startsWith(prefix) ? fullPath.slice(prefix.length) : fullPath;
   const segments = relative.split('/');
-  if (!segments.every((segment) => SAFE_SEGMENT.test(segment) && !segment.includes('..'))) {
+  if (!segments.every(isSafePathSegment)) {
     throw new Error(`The repository name ${fullPath} is not safe to use as a folder.`);
   }
   return segments.join('/');

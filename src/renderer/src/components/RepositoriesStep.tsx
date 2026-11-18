@@ -6,6 +6,7 @@ import { PathPicker } from './PathPicker';
 import { ProjectTable } from './ProjectTable';
 import { RepoDownload } from './RepoDownload';
 import { RepoFolderImport } from './RepoFolderImport';
+import { RepoLinkDownload } from './RepoLinkDownload';
 
 type RepositoriesStepProps = {
   company: Company;
@@ -37,7 +38,14 @@ export function RepositoriesStep({ company, defaultFolder, onSave, onChanged }: 
           </span>
         </label>
       </fieldset>
-      {mode === 'download' ? <RepoDownload company={company} /> : <RepoFolderImport company={company} onSave={onSave} />}
+      {mode === 'download' ? (
+        <>
+          <RepoDownload company={company} />
+          <RepoLinkDownload company={company} />
+        </>
+      ) : (
+        <RepoFolderImport company={company} onSave={onSave} />
+      )}
       <ProjectTable company={company} onSave={onSave} onChanged={onChanged} />
       <div className="field-block">
         <h3>Client folder</h3>

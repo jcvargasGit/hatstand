@@ -190,6 +190,7 @@ export type HatstandApi = {
   createCompany(name: string, color: string, origin?: Company['origin']): Promise<Company>;
   connectGitSource(companyId: string, source: GitSource, token?: string): Promise<RemoteRepo[]>;
   downloadRepos(companyId: string, baseDir: string, repoPaths: string[]): Promise<CloneProgress[]>;
+  downloadRepoByLink(companyId: string, link: string, baseDir: string): Promise<CloneProgress>;
   checkAgent(accountId: string): Promise<AgentStatus>;
   startAgentSignIn(accountId: string): Promise<string>;
   saveCompany(company: Company): Promise<Company>;
