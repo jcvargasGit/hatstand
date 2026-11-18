@@ -14,7 +14,7 @@ import { dataPaths } from '../../src/main/paths';
 import { Store, writePrivateFile } from '../../src/main/store';
 import { removeClient } from '../../src/main/client-removal';
 import { installPreCommitHook } from '../../src/main/guard/install';
-import { defaultClientFolder, reposOutside, resolveWorkingDir } from '../../src/main/task-folders';
+import { defaultClientFolder, reposOutside, resolveWorkingDir, splitSessionFolders } from '../../src/main/task-folders';
 import type { Company, Task } from '../../src/shared/schemas';
 
 let dir: string;
@@ -166,6 +166,14 @@ describe('where a session opens', () => {
     const similar = { id: '2', name: '2', path: '/code-old/b' };
     expect(reposOutside('/code', [inside, similar])).toEqual(['/code-old/b']);
     expect(reposOutside('/code', [{ ...inside, path: '/code' }])).toEqual([]);
+  });
+
+  it('tells the folders Hatstand created from the folders of the person', () => {
+    const folders = ['/home/companies/acme/knowledge', '/code/api', '/home-old/notes', '/home/worktrees/acme/t', '/home'];
+    expect(splitSessionFolders('/home', folders)).toEqual({
+      ownDirs: ['/home/companies/acme/knowledge', '/home/worktrees/acme/t'],
+      addDirs: ['/code/api', '/home-old/notes', '/home'],
+    });
   });
 });
 

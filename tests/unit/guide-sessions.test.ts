@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
@@ -99,6 +99,21 @@ describe('the first session of a task', () => {
     expect(written[0]).toContain('Review the task');
     expect(written.at(-1)).toBe('\r');
     expect(store.listSessions().find((item) => item.id === session.id)?.draft).toBe(false);
+  });
+
+  it('gives Claude Code its own folders through settings and a repository elsewhere through --add-dir', async () => {
+    const api = join(dir, 'api');
+    const web = join(dir, 'web');
+    const repositories = [api, web];
+    repositories.forEach((folder) => mkdirSync(folder));
+    store.saveCompany({ ...store.readCompany('acme'), rootDir: undefined, projects: repositories.map((path) => ({ id: path, name: path, path })) } as never);
+    const session = await sessions.start(create({ projectIds: repositories }));
+    const added = lastSpawn.args.filter((_arg, index) => lastSpawn.args[index - 1] === '--add-dir');
+    const { permissions } = JSON.parse(readFileSync(paths.settingsFile(session.id), 'utf8'));
+    expect(permissions.additionalDirectories).toEqual(expect.arrayContaining([paths.knowledgeDir('acme'), paths.tasksDir('acme')]));
+    expect(added.filter((folder) => folder.startsWith(paths.home))).toEqual([]);
+    expect([...added, session.cwd]).toEqual(expect.arrayContaining([api, web]));
+    expect(added.length).toBeGreaterThan(0);
   });
 
   it('sends the first step of its guide', async () => {
@@ -387,7 +402,7 @@ describe('the agent saying a step is finished', () => {
 
 describe('GitHub Copilot', () => {
   it('runs the step command without asking, and keeps the reports on a new prompt', () => {
-    const { args } = githubCopilot.buildLaunch({ account: { type: 'github-copilot' }, company: { name: 'A', context: { pluginDirs: [] } }, task: { title: 'T' }, sessionId: 's', sessionDir: '/s', notesFile: '/n', resume: false, promptFile: '/p', settingsFile: '/f', addDirs: [] } as never);
+    const { args } = githubCopilot.buildLaunch({ account: { type: 'github-copilot' }, company: { name: 'A', context: { pluginDirs: [] } }, task: { title: 'T' }, sessionId: 's', sessionDir: '/s', notesFile: '/n', resume: false, promptFile: '/p', settingsFile: '/f', ownDirs: [], addDirs: [] } as never);
     expect(args).toContain('--allow-tool=shell(hatstand-step-done:*)');
     const stepFile = join(dir, 'step');
     const statusFile = join(dir, 'status');

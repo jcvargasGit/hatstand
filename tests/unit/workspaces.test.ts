@@ -227,7 +227,7 @@ describe('wheel speed in the terminal', () => {
 
 describe('GitHub Copilot sessions', () => {
   const account: Account = { id: 'c', name: 'Work', type: 'github-copilot', label: 'company' };
-  const input = { account, company: mono(), task: task(), sessionId: 's', sessionDir: '/run/s', notesFile: '/notes/t.md', resume: false, promptFile: '/p', settingsFile: '/f', addDirs: ['/k'] };
+  const input = { account, company: mono(), task: task(), sessionId: 's', sessionDir: '/run/s', notesFile: '/notes/t.md', resume: false, promptFile: '/p', settingsFile: '/f', ownDirs: ['/home/knowledge'], addDirs: ['/k'] };
   const hooks = () => z.object({ hooks: z.record(z.string(), z.array(z.object({ bash: z.string() }))) }).parse(JSON.parse(githubCopilot.buildStatusSettings())).hooks;
   const runHook = (bash: string, stdin: object) => {
     const statusFile = join(dir, 'status');
@@ -240,7 +240,7 @@ describe('GitHub Copilot sessions', () => {
     const fresh = githubCopilot.buildLaunch(input);
     expect(fresh.command).toBe('copilot');
     expect(fresh.args.slice(0, 2)).toEqual(['--session-id', 's']);
-    expect(fresh.args).toEqual(expect.arrayContaining(['--plugin-dir', '/run/s/plugin', '--add-dir', '/k']));
+    expect(fresh.args).toEqual(expect.arrayContaining(['--plugin-dir', '/run/s/plugin', '--add-dir', '/home/knowledge', '--add-dir', '/k']));
     expect(fresh.args).toContain('--allow-tool=write(/notes/t.md)');
     expect(fresh.env.COPILOT_CUSTOM_INSTRUCTIONS_DIRS).toBe('/run/s/instructions');
     expect(fresh.env.COPILOT_HOME).toBeUndefined();

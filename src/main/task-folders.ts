@@ -57,6 +57,14 @@ export function reposOutside(cwd: string, repositories: Pick<Project, 'path'>[])
   return repositories.map((repo) => repo.path).filter((path) => path !== cwd && !path.startsWith(`${cwd}${sep}`));
 }
 
+export type SessionFolders = { ownDirs: string[]; addDirs: string[] };
+
+/** Folders inside the data home were created by Hatstand, so the agent gets them without asking. The others are the person's, and the agent may ask about them. */
+export function splitSessionFolders(dataHome: string, folders: string[]): SessionFolders {
+  const isOwn = (folder: string) => folder.startsWith(`${dataHome}${sep}`);
+  return { ownDirs: folders.filter(isOwn), addDirs: folders.filter((folder) => !isOwn(folder)) };
+}
+
 export const taskArea = (company: Company, task: Pick<Task, 'subdomainId'>): Subdomain | undefined => company.subdomains.find((area) => area.id === task.subdomainId);
 
 /** Where a document about a task's topic is kept: the folder of its area, or the client's knowledge when it has no area. Both are client knowledge. */

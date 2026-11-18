@@ -21,7 +21,7 @@ import { readClientInstructions } from './starter-files';
 import { accountsForClient } from '../shared/accounts';
 import { activeKnowledgeDir, activePlanning } from './active-folders';
 import { backlogPromptInput } from './backlog-plan';
-import { activeWorktrees, companyWithCode, reposOutside, sessionFolder, taskArea, workingDirFor, taskFocus, taskFolderPaths, taskKnowledgeFolder, taskRepositories } from './task-folders';
+import { activeWorktrees, companyWithCode, reposOutside, sessionFolder, splitSessionFolders, taskArea, workingDirFor, taskFocus, taskFolderPaths, taskKnowledgeFolder, taskRepositories } from './task-folders';
 import { areaFolder as areaFolderName } from '../shared/areas';
 import { writePrivateFile, type Store } from './store';
 import { SUMMARY_PROMPT } from './agents/summary-refresh';
@@ -155,7 +155,6 @@ export class SessionManager {
 
     if (!existsSync(notesFile)) this.store.writeNotes(task, '');
     const reports = this.states.prepareSession(session);
-    writePrivateFile(settingsFile, adapter.buildStatusSettings());
     writePrivateFile(
       promptFile,
       buildSystemPrompt({
@@ -179,6 +178,14 @@ export class SessionManager {
     const steps = this.guides.prepareSession(session.id);
     const pluginDir = company.context.pluginDir ?? (this.store.hasLocalPlugin(company.id) ? this.paths.pluginDir(company.id) : undefined);
     const sessionDir = this.paths.sessionDir(session.id);
+    const folders = splitSessionFolders(this.paths.home, [
+      ...knowledgeDirs,
+      ...(pluginDir ? [pluginDir] : []),
+      ...reposOutside(session.cwd, [...repositories, planning]),
+      this.paths.tasksDir(company.id),
+      ...(copies.copiesFolder ? [copies.copiesFolder] : []),
+    ]);
+    writePrivateFile(settingsFile, adapter.buildStatusSettings(folders.ownDirs));
     adapter.prepareSession?.({ sessionDir, promptFile, settingsFile });
     const launch = adapter.buildLaunch({
       account,
@@ -190,7 +197,7 @@ export class SessionManager {
       resume,
       promptFile,
       settingsFile,
-      addDirs: [...knowledgeDirs, ...(pluginDir ? [pluginDir] : []), ...reposOutside(session.cwd, [...repositories, planning]), this.paths.tasksDir(company.id), ...(copies.copiesFolder ? [copies.copiesFolder] : [])],
+      ...folders,
     });
     const env = this.env.build({
       company,

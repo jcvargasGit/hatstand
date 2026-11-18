@@ -7,7 +7,7 @@ To report a problem, see [SECURITY.md](../SECURITY.md).
 ## How client data stays out of git
 
 1. **Location.** Client data lives outside your repositories.
-2. **No files in the repository.** Context reaches Claude Code through launch flags (`--add-dir`, `--plugin-dir`, `--append-system-prompt-file`).
+2. **No files in the repository.** Context reaches Claude Code through launch flags (`--add-dir`, `--plugin-dir`, `--append-system-prompt-file`, `--settings`). The settings file of a session is in Hatstand's data folder, and it lists the folders Hatstand created for the client, so Claude Code does not ask whether to trust them. Your repositories are never listed there: Claude Code still asks about those.
 3. **Commit check.** A pre-commit hook compares staged additions with hashes of every client's keys, knowledge, skills and instructions.
 4. **No bypass by agents.** A Claude Code hook rejects `--no-verify` and `git commit -n`.
 
