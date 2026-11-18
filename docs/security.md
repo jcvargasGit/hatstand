@@ -43,4 +43,4 @@ Hatstand has no telemetry. It connects to the services you set up: GitHub, GitLa
 
 ## Git access
 
-Downloaded repositories keep no token on disk. In a client's sessions, git uses that client's token for its GitHub or GitLab host. Outside Hatstand, such as in your own terminal, git uses whatever login you have there, so a private repository may ask you to sign in.
+Downloaded repositories keep no token on disk. A repository downloaded from a link must be on the client's GitHub or GitLab host, so the token never goes to another site. In a client's sessions, git uses that client's token for its GitHub or GitLab host. Outside Hatstand, such as in your own terminal, git uses whatever login you have there, so a private repository may ask you to sign in.

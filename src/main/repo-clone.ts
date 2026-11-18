@@ -12,7 +12,7 @@ export type CloneOptions = {
   repos: RemoteRepo[];
   baseDir: string;
   provider: GitSource['provider'];
-  token: string;
+  token?: string;
   path: string;
   onProgress: (progress: CloneProgress, target: string) => void;
 };
@@ -30,7 +30,7 @@ function withoutGitSuffix(url: string): string {
   return url.replace(/\/$/, '').replace(/\.git$/, '');
 }
 
-export function cleanGitError(message: string, token: string): string {
+export function cleanGitError(message: string, token?: string): string {
   const safe = token ? message.split(token).join('***') : message;
   const lines = safe.split('\n').map((line) => line.trim()).filter(Boolean);
   return lines.at(-1) ?? 'Git could not download this repository.';
@@ -43,7 +43,7 @@ async function cloneOne(repo: RemoteRepo, target: string, options: CloneOptions)
     GIT_TERMINAL_PROMPT: '0',
     GIT_CONFIG_NOSYSTEM: '1',
     GIT_CONFIG_GLOBAL: '/dev/null',
-    [CLONE_TOKEN_VARIABLE]: options.token,
+    ...(options.token ? { [CLONE_TOKEN_VARIABLE]: options.token } : {}),
   };
   if (existsSync(join(target, '.git'))) {
     const origin = await runGit(['remote', 'get-url', 'origin'], env, target);
@@ -53,8 +53,8 @@ async function cloneOne(repo: RemoteRepo, target: string, options: CloneOptions)
     return 'existing';
   }
   mkdirSync(dirname(target), { recursive: true });
-  const helper = credentialHelper(options.provider, CLONE_TOKEN_VARIABLE);
-  await runGit(['-c', `credential.helper=${helper}`, 'clone', '--quiet', '--', repo.cloneUrl, target], env);
+  const credentials = options.token ? ['-c', `credential.helper=${credentialHelper(options.provider, CLONE_TOKEN_VARIABLE)}`] : [];
+  await runGit([...credentials, 'clone', '--quiet', '--', repo.cloneUrl, target], env);
   return 'cloned';
 }
 
