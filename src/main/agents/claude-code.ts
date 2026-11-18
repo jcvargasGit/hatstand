@@ -1,6 +1,7 @@
 import type { SessionState } from '../../shared/schemas';
 import { STEP_DONE_COMMAND } from '../step-done-tool';
 import { CHECK_PLAN_COMMAND } from '../check-plan-tool';
+import { CLAUDE_WRITE_COMMAND, CLAUDE_WRITE_TOOLS } from './file-writes';
 import { ACTIVITY_FILE_ENV, STATUS_FILE_ENV, WAITING_AT_PROMPT, type AgentAdapter } from './types';
 
 export const BLOCK_HOOK_BYPASS_COMMAND = `if grep -Eq -- '--no-verify|git[^|;&]*commit[^|;&]* -[a-zA-Z]*n' ; then echo 'Hatstand blocks skipping git hooks, because they keep client data out of commits.' >&2; exit 2; fi`;
@@ -51,7 +52,10 @@ export const claudeCode: AgentAdapter = {
           { matcher: '*', ...statusHook('working') },
           { matcher: 'Agent|Task', ...activityHook },
         ],
-        PostToolUse: [{ matcher: '*', ...statusHook('working') }],
+        PostToolUse: [
+          { matcher: '*', ...statusHook('working') },
+          { matcher: CLAUDE_WRITE_TOOLS, hooks: [{ type: 'command', command: CLAUDE_WRITE_COMMAND }] },
+        ],
         SubagentStart: [activityHook],
         SubagentStop: [activityHook],
         Notification: [

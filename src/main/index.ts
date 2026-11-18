@@ -194,6 +194,7 @@ async function bootstrap(): Promise<void> {
     openClientFileInEditor: async (companyId, path) => openFile(targets.clientFile(companyId, path)),
     openTaskNotesInEditor: async (taskId) => openFile(targets.taskNotes(taskId)),
     openTaskOutputInEditor: async (taskId, name) => openFile(targets.taskOutput(taskId, name)),
+    openTaskChangedFile: async (taskId, path) => openTarget(targets.taskChangedFile(taskId, path)),
     openAreaInEditor: async (companyId, areaId) => {
       await openFolder(targets.areaFolder(companyId, areaId));
     },

@@ -525,6 +525,7 @@ export class Store {
     rmSync(this.paths.notesFile(task.companyId, taskId), { force: true });
     rmSync(this.paths.feedbackFile(task.companyId, taskId), { force: true });
     rmSync(this.paths.planFile(task.companyId, taskId), { force: true });
+    rmSync(this.paths.taskChangesFile(taskId), { force: true });
     this.listTaskOutputs(task).forEach((output) => rmSync(this.taskOutputFile(task, output.name), { force: true }));
     rmSync(this.paths.taskFile(task.companyId, taskId), { force: true });
   }
@@ -543,6 +544,7 @@ export class Store {
       this.paths.promptFile(session.id),
       this.paths.settingsFile(session.id),
       this.paths.activityFile(session.id),
+      this.paths.turnSnapshotFile(session.id),
     ]) {
       rmSync(file, { force: true });
     }

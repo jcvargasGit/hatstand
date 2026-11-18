@@ -458,3 +458,14 @@ export const releaseStateSchema = z.object({
   pid: z.number(),
 });
 export type ReleaseState = z.infer<typeof releaseStateSchema>;
+
+export const outsideChangeSchema = z.object({
+  path: z.string(),
+  status: z.enum(['added', 'modified', 'deleted', 'repository']),
+});
+export const outsideChangesSchema = z.object({
+  folders: z.array(z.object({ folder: z.string(), changes: z.array(outsideChangeSchema) })),
+  truncated: z.boolean(),
+});
+export type OutsideChange = z.infer<typeof outsideChangeSchema>;
+export type OutsideChanges = z.infer<typeof outsideChangesSchema>;

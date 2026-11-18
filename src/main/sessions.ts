@@ -30,6 +30,7 @@ import { workRepositories } from '../shared/work-repos';
 import { TaskCopies } from './session-copies';
 import { SessionGuides } from './session-guide';
 import { SessionEnv, type FingerprintRefresher } from './session-env';
+import { SessionChanges } from './session-changes';
 import { answerPlanChecks, preparePlanChecks } from './session-plan-checks';
 import { requireSession, SessionStates, type TrackedSession } from './session-state';
 
@@ -75,6 +76,7 @@ export class SessionManager {
   private readonly copies: TaskCopies;
   private readonly guides: SessionGuides;
   private readonly env: SessionEnv;
+  private readonly changes: SessionChanges;
 
   constructor(
     private readonly paths: DataPaths,
@@ -85,12 +87,23 @@ export class SessionManager {
     protection: FingerprintRefresher,
   ) {
     mkdirSync(paths.runDir, { recursive: true, mode: 0o700 });
-    this.states = new SessionStates(paths, store, events, (sessionId) => this.live.get(sessionId));
+    this.changes = new SessionChanges(paths, store);
+    const stateEvents = {
+      onChange: () => events.onChange(),
+      onNeedsInput: (session: Session) => events.onNeedsInput(session),
+      onStateChange: (session: Session, previous: Session['state']) => this.changes.stateChanged(session, previous),
+    };
+    this.states = new SessionStates(paths, store, stateEvents, (sessionId) => this.live.get(sessionId));
     this.copies = new TaskCopies(paths, store, secrets, shellPath, events);
     this.env = new SessionEnv(paths, store, secrets, shellPath, protection);
     this.guides = new SessionGuides(paths, store, events, {
       offerToRunningSession: (taskId, prompt, busyMessage) => this.offerToRunningSession(taskId, prompt, busyMessage),
     });
+  }
+
+  /** Resolves when what the sessions of a task changed outside git is recorded. */
+  outsideChangesSettled(taskId: string): Promise<void> {
+    return this.changes.settled(taskId);
   }
 
   async createCopy(taskId: string, repo: Project): Promise<TaskWorktree> {
@@ -180,6 +193,8 @@ export class SessionManager {
     const pluginDir = company.context.pluginDir ?? (this.store.hasLocalPlugin(company.id) ? this.paths.pluginDir(company.id) : undefined);
     const sessionDir = this.paths.sessionDir(session.id);
     adapter.prepareSession?.({ sessionDir, promptFile, settingsFile });
+    const addDirs = [...knowledgeDirs, ...(pluginDir ? [pluginDir] : []), ...reposOutside(session.cwd, [...repositories, planning]), this.paths.tasksDir(company.id), ...(copies.copiesFolder ? [copies.copiesFolder] : [])];
+    this.changes.prepareSession(session, addDirs);
     const launch = adapter.buildLaunch({
       account,
       company: { ...company, context: { ...company.context, pluginDir } },
@@ -190,7 +205,7 @@ export class SessionManager {
       resume,
       promptFile,
       settingsFile,
-      addDirs: [...knowledgeDirs, ...(pluginDir ? [pluginDir] : []), ...reposOutside(session.cwd, [...repositories, planning]), this.paths.tasksDir(company.id), ...(copies.copiesFolder ? [copies.copiesFolder] : [])],
+      addDirs,
     });
     const env = this.env.build({
       company,

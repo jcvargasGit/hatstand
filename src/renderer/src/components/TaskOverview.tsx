@@ -210,7 +210,7 @@ export function TaskOverview({ item, review, notes, account, session, canStart, 
       </section>
       )}
 
-      {hasCode && (
+      {!task.backlogPlan && (
         <section className="overview-card overview-wide" aria-label="Changes">
           <TaskChanges task={task} refreshKey={session?.state ?? 'none'} />
         </section>

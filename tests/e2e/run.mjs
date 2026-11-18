@@ -7,7 +7,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-const SUITES = ['smoke', 'onboarding', 'workspaces', 'productivity', 'review', 'clients'];
+const SUITES = ['smoke', 'onboarding', 'workspaces', 'productivity', 'review', 'outside-changes', 'clients'];
 const here = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 

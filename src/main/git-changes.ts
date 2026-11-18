@@ -3,7 +3,7 @@ import { lstat, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import type { FileChange, RepoChanges } from '../shared/api';
-import type { Company, Task, TaskWorktree } from '../shared/schemas';
+import type { Company, Project, Task, TaskWorktree } from '../shared/schemas';
 import { activeWorktrees, companyWithCode, taskRepositories } from './task-folders';
 import { workRepositories } from '../shared/work-repos';
 
@@ -83,15 +83,18 @@ async function splitByAgentStart(repo: string, changes: FileChange[], agentStart
   return { changes: changes.filter((_, index) => !older[index]), before: changes.filter((_, index) => older[index]) };
 }
 
-export async function taskRepoChanges(realCompany: Company, task: Task, path: string, agentStartedAt: string | null): Promise<RepoChanges[]> {
+/** The repositories Changes reports for a task: its copies, or in the shared folder the ones it works on. */
+export function reportedRepos(realCompany: Company, task: Task): Project[] {
   const company = companyWithCode(realCompany, task);
   const worktrees = activeWorktrees(realCompany, task);
   const selected = taskRepositories(company, task);
-  const repos = task.isolated
-    ? company.projects.filter((project) => worktrees.some((worktree) => worktree.projectId === project.id))
-    : selected.length > 0
-      ? selected
-      : workRepositories(company);
+  if (task.isolated) return company.projects.filter((project) => worktrees.some((worktree) => worktree.projectId === project.id));
+  return selected.length > 0 ? selected : workRepositories(company);
+}
+
+export async function taskRepoChanges(realCompany: Company, task: Task, path: string, agentStartedAt: string | null): Promise<RepoChanges[]> {
+  const worktrees = activeWorktrees(realCompany, task);
+  const repos = reportedRepos(realCompany, task);
   const reports = await Promise.all(
     repos.map(async (repo): Promise<RepoChanges> => {
       const base = worktreeBase(worktrees.find((worktree) => worktree.projectId === repo.id));
@@ -137,7 +140,11 @@ export async function fileDiff(repo: string, file: string, path: string): Promis
     const unstaged = await git(repo, path, ['diff', '--no-ext-diff', '--no-textconv', '--', file]);
     return shortened([staged, unstaged].filter(Boolean).join('\n')) || 'No line changes to show.';
   }
-  const absolute = join(repo, file);
+  return newFileText(join(repo, file));
+}
+
+/** A new file as added lines, the way a diff shows it. A binary file or a very large one is not read. */
+export async function newFileText(absolute: string): Promise<string> {
   if ((await stat(absolute)).size > MAX_UNTRACKED_BYTES) return 'This new file is over 1 MB. Open it in your editor instead.';
   const content = await readFile(absolute, 'utf8');
   if (content.includes('\0')) return 'This new file is binary.';

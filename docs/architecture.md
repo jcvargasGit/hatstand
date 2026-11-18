@@ -46,6 +46,15 @@ Claude Code hooks, passed with `--settings`, write the state to the file in `HAT
 
 Polling must stay cheap, because every running session does it every second. A tick that finds nothing new reads no session file, and a change reads only the file of that session (`Store.readSession`), never all of them.
 
+## Changes outside git
+
+Changes reads repositories with git (`git-changes.ts`). What an agent writes anywhere else comes from two sources, joined in one file per task (`outside-changes.ts`, `run/changes/<taskId>.json`):
+
+- **Tool writes.** A `PostToolUse` hook of each adapter adds one line per file to the activity file of the session, with the path and never the content (`agents/file-writes.ts`). They are read when Changes is asked for, so they show while the agent works.
+- **Snapshots.** `session-changes.ts` takes a snapshot of the folders the session can write to when the agent starts a turn, and compares it when the turn ends (`folder-snapshot.ts`). This finds files written with shell commands, and new repositories.
+
+A snapshot skips the repositories of the client, heavy folders, and the files Hatstand writes itself, and stops at a file limit. A path inside a repository that git already reports for the task is never listed again. The page can only open or read a path that is in the record of that task.
+
 ## Task finished
 
 The agent reports `done` in the `## Status` section of the task notes. That is a claim and it never closes the task.

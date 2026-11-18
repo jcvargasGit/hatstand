@@ -19,6 +19,8 @@ export type TrackedSession = { startedAt: number; turnCheck: TurnCheck | null; s
 export type StateEvents = {
   onChange(): void;
   onNeedsInput(session: Session): void;
+  /** Every saved change of state, with the state before it. */
+  onStateChange?(session: Session, previous: SessionState): void;
 };
 
 /** Reads the one file of the session. Polling calls this, so it never reads every session. */
@@ -82,6 +84,7 @@ export class SessionStates {
     if (session.state === state) return;
     const updated = { ...session, state, updatedAt: new Date().toISOString() };
     this.store.saveSession(updated);
+    this.events.onStateChange?.(updated, session.state);
     if (state === 'idle' || state === 'background' || state === 'stopped') this.store.applyAgentStatus(session.taskId);
     this.events.onChange();
     if (state === 'needs-input') this.events.onNeedsInput(updated);
