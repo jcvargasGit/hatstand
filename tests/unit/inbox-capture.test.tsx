@@ -61,6 +61,42 @@ describe('writing in the backlog', () => {
     expect(invoke).toHaveBeenCalledWith('addIdeas', 'c', [{ title: 'One', description: '' }]);
   });
 
+  it('adds everything as one task when asked, and shows how it will look first', async () => {
+    const { box } = renderCapture();
+    const text = '# Fix the login\n- Reproduce it\n# Review';
+    fireEvent.change(box, { target: { value: text } });
+    expect(screen.getByRole('button', { name: 'Add 2 tasks' })).toBeTruthy();
+    const single = screen.getByRole<HTMLInputElement>('checkbox', { name: /Create a single task/ });
+    await userEvent.click(single);
+    expect(invoke).not.toHaveBeenCalled();
+    expect(screen.getByRole('status').textContent).toBe('This adds 1 task to the backlog.');
+    const preview = within(screen.getByRole('list', { name: 'Tasks to add' })).getAllByRole('listitem');
+    expect(preview).toHaveLength(1);
+    expect(preview[0]?.textContent).toContain('Fix the login');
+    expect(preview[0]?.textContent).toContain('- Reproduce it');
+    expect(screen.queryByRole('button', { name: 'Keep as one task' })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Add to backlog' }));
+    expect(invoke).toHaveBeenCalledWith('addIdeas', 'c', [{ title: 'Fix the login', description: text }]);
+    expect(single.checked).toBe(false);
+  });
+
+  it('shows a single task with only a title before adding it', async () => {
+    const { box } = renderCapture();
+    fireEvent.change(box, { target: { value: 'Fix the login' } });
+    expect(screen.queryByRole('list', { name: 'Tasks to add' })).toBeNull();
+    await userEvent.click(screen.getByRole('checkbox', { name: /Create a single task/ }));
+    expect(screen.getByRole('list', { name: 'Tasks to add' }).textContent).toContain('Fix the login');
+  });
+
+  it('adds a single task with the keyboard too', async () => {
+    const { box } = renderCapture();
+    fireEvent.change(box, { target: { value: '- One\n- Two' } });
+    await userEvent.click(screen.getByRole('checkbox', { name: /Create a single task/ }));
+    box.focus();
+    await userEvent.keyboard('{Meta>}{Enter}{/Meta}');
+    expect(invoke).toHaveBeenCalledWith('addIdeas', 'c', [{ title: 'One', description: '- One\n- Two' }]);
+  });
+
   it('continues a list on Enter and indents it with Tab', async () => {
     const { box } = renderCapture();
     await userEvent.type(box, '- One{Enter}');

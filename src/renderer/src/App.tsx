@@ -31,7 +31,7 @@ export type View =
   | { kind: 'hub'; companyId: string }
   | { kind: 'area'; companyId: string; areaId: string }
   | { kind: 'settings' }
-  | { kind: 'new-task'; companyId: string | null; areaId?: string; ideaId?: string }
+  | { kind: 'new-task'; companyId: string | null; areaId?: string; ideaId?: string; playbookId?: string }
   | { kind: 'new-client' };
 
 const SECTION_VIEWS = new Set<View['kind']>(['today', 'setup', 'documents', 'closed', 'inbox', 'hub', 'area', 'new-task']);
@@ -237,9 +237,9 @@ export function App() {
       )}
       {view.kind === 'new-task' && (
         <NewTaskPage
-          key={`${view.companyId ?? 'any'}-${view.areaId ?? ''}-${view.ideaId ?? ''}`}
+          key={`${view.companyId ?? 'any'}-${view.areaId ?? ''}-${view.ideaId ?? ''}-${view.playbookId ?? 'suggested'}`}
           snapshot={active}
-          initialDraft={newTaskIdea ? draftFromIdea(newTaskIdea, active) : startDraft(active, view.companyId ?? active.companies[0]?.id ?? '', view.areaId)}
+          initialDraft={newTaskIdea ? draftFromIdea(newTaskIdea, active) : startDraft(active, view.companyId ?? active.companies[0]?.id ?? '', view.areaId, view.playbookId)}
           onMoveToWindow={async (draft) => {
             await api.openNewTaskWindow(draft);
             leaveNewTask();

@@ -12,6 +12,8 @@ In the terminal, **Shift+Enter** adds a new line, **⌘←** and **⌘→** move
 
 Drag clients in the sidebar to put them in the order you want, or press Alt with the up and down arrows on a client's name.
 
+Drag the right edge of the sidebar to make it wider or narrower. With the keyboard, move to the edge with Tab and use the left and right arrows. Double-click the edge for the usual width. Hatstand remembers the width.
+
 **Documents** in each client shows its planning repository, knowledge, skills and guides, with a preview, and opens them in your editor to change them. Files in the planning repository reach git only when they are committed. Knowledge and skills stay outside git.
 
 A task's details list the uncommitted changes in its repositories, so you can read a diff without leaving Hatstand.
@@ -137,7 +139,7 @@ Clicking a task opens one of three views, and a task with a running session open
 
 - **Overview** (⌘1): what you need at a glance. It shows where the task is and which guide step it is on, the last thing the agent did, the checklist, the session, the documents the agent saved for you, the repositories it changed with their files, and the pull requests. Each copy of the code has a button that opens it in your editor, named after it, such as **Open in Cursor**.
 - **Task settings** (⌘2): what the task is set up with, in the same form as a new task: description, type, guide and its current step, area, agent, priority, repositories and code mode. Each change is saved at once. Each repository has a button that opens it in your editor. A task with its own copy of a repository offers two: the copy, and the original repository. Nothing appears in both Overview and Task settings.
-- **Terminal** (⌘3): the agent, using all the space. ⌘B hides the sidebar too, and **Full screen** (⌘Enter) gives the whole window to the terminal. Beside it, **agent work** shows the agent's summary, the repositories of the task with a button that opens each in your editor, the files the agent changed in each repository, the files it created, with its documents, and your own note. Each file is a link that opens it in your editor. The list updates by itself while the session runs. **Hide agent work** gives its space back to the terminal.
+- **Terminal** (⌘3): the agent, using all the space. ⌘B hides the sidebar too, and **Full screen** (⌘Enter) gives the whole window to the terminal. Beside it, **agent work** shows the agent's summary, the repositories of the task with a button that opens each in your editor, the files the agent changed in each repository, the files it created, with its documents, and your own note. The note is written in Markdown, with a toolbar for the formatting and a **Markdown** button that shows the source. Each file is a link that opens it in your editor. The list updates by itself while the session runs. **Hide agent work** gives its space back to the terminal.
 
 **Documents** can open everything of a client in your editor: repositories, planning, knowledge, skills and guides in one window. It uses the first one installed of VS Code, Cursor, Windsurf, Zed, Sublime Text and IntelliJ IDEA. The workspace file lives in `~/.hatstand`, out of every repository.
 
@@ -147,7 +149,7 @@ Clicking a task opens one of three views, and a task with a running session open
 
 **Create and start session** opens the agent and sends its first prompt, so it starts working at once. Claude Code does not ask about the folders Hatstand created for the client, such as its knowledge, areas and tasks. It can still ask whether you trust a repository the first time it works there, and about each repository of the task outside the session folder. The prompt is sent after you answer. Hatstand never presses Enter while the agent asks you something else, and a step that needs your approval always waits for you. To have the first prompt wait for Enter, turn off **Send the first prompt of a task without waiting for Enter** in **Settings**.
 
-The sidebar lists the tasks of each client under the guide they follow. Tasks with no guide are under **Not classified**.
+The sidebar lists the tasks of each client under the guide they follow. Tasks with no guide are under **Not classified**. The **+** beside the name of a guide opens New task with that guide chosen, and the one beside **Not classified** opens it with no guide.
 
 **Needs you** in the sidebar lists what is waiting for you in the same tree: client, in the order of your clients, then guide, then tasks. Click its title to hide or show the list; Hatstand remembers your choice and keeps the total in view.
 
@@ -239,7 +241,7 @@ The **Closed tasks** tab of a client lists its finished tasks by work period, ne
 
 ### Backlog
 
-The **Backlog** of each client (⌘I) keeps work you have not defined yet, out of your tasks. Paste a list or a table and each row becomes an item, or keep it as one. Sidebar and Today remind you how many are waiting for review. **Make it a task** opens the task form with the title and description of the item already filled in. Saving it moves that same item to your tasks. **Send back to backlog**, in an open task, does the opposite: the task leaves your tasks and waits at the end of the backlog, with its notes and session history.
+The **Backlog** of each client (⌘I) keeps work you have not defined yet, out of your tasks. Paste a list or a table and each row becomes an item. Check **Create a single task** to keep everything you wrote as one item: the first line is its title and all the text is its description, and the backlog shows how it will look before you add it. Sidebar and Today remind you how many are waiting for review. **Make it a task** opens the task form with the title and description of the item already filled in. Saving it moves that same item to your tasks. **Send back to backlog**, in an open task, does the opposite: the task leaves your tasks and waits at the end of the backlog, with its notes and session history.
 
 Each line you write or paste is a task. A line that starts with two spaces and a dash becomes a checklist item of the task above, so a list with sublists stays together. The backlog says how many tasks it will add before you add them. Items wait in a table: change their order by dragging or with the arrows, give them a priority, and sort by priority when you want to. Click a row to see and edit its details in a sidebar, which covers the table when the window is narrow. The checklist and priority stay when you make it a task, and the agent reads the checklist.
 

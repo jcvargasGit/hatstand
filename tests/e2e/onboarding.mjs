@@ -468,7 +468,7 @@ try {
   await guideBar.getByRole('button', { name: 'Send to agent' }).waitFor();
   const guideTree = page.getByRole('region', { name: 'Zenith Labs tasks' });
   await guideTree.getByText('PR review, step 2 of 4').waitFor();
-  await guideTree.getByTitle('Review a pull request').waitFor();
+  await guideTree.getByTitle('Review a pull request', { exact: true }).waitFor();
 
   writeFileSync(
     guideLaunch.env.HATSTAND_ACTIVITY_FILE,

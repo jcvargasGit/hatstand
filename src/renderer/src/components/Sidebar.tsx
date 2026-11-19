@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight, FileText, House, Inbox, Layers, ListChecks, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings, Sun } from 'lucide-react';
-import { useCallback, useState, type ReactNode } from 'react';
+import { useCallback, useState, type CSSProperties, type ReactNode } from 'react';
 import type { Snapshot } from '../../../shared/api';
 import type { Company } from '../../../shared/schemas';
 import type { View } from '../App';
@@ -12,6 +12,7 @@ import type { MenuPoint } from '../lib/task-flag';
 import { clientTree, ideaCount, waitingByClient, waitingCount, type TodayItem } from '../lib/today';
 import { ClientAvatar } from './ClientAvatar';
 import { ReleaseControl } from './ReleaseControl';
+import { SidebarResizer } from './SidebarResizer';
 import { ClientTreeBranch } from './ClientTreeBranch';
 import { TaskFlagMenu } from './TaskFlagMenu';
 import { TaskTree } from './TaskTree';
@@ -70,6 +71,7 @@ export function Sidebar({ snapshot, view, selectedTaskId, layout, onNavigate, on
   const toggleIn = (list: string[], id: string) => (list.includes(id) ? list.filter((item) => item !== id) : [...list, id]);
   const toggleGuide = (key: string) => setClosedGuides((closed) => toggleIn(closed, key));
   const openClient = (company: Company) => onNavigate({ kind: 'today', companyId: company.id });
+  const newTaskWithGuide = (company: Company) => (playbookId: string) => onNavigate({ kind: 'new-task', companyId: company.id, playbookId });
   const awake = useStayAwake().status?.active;
   const [dragging, setDragging] = useState<string | null>(null);
   const clientIds = snapshot.companies.map((company) => company.id);
@@ -127,7 +129,8 @@ export function Sidebar({ snapshot, view, selectedTaskId, layout, onNavigate, on
   }
 
   return (
-    <nav className="sidebar" aria-label="Main">
+    <nav className="sidebar" aria-label="Main" style={{ '--sidebar-width': `${layout.width}px` } as CSSProperties}>
+      <SidebarResizer width={layout.width} onResize={layout.setWidth} onReset={layout.resetWidth} />
       <div className="sidebar-top">
         <label className="sidebar-search">
           <Search size={15} />
@@ -186,7 +189,7 @@ export function Sidebar({ snapshot, view, selectedTaskId, layout, onNavigate, on
                   onOpen={() => openClient(company)}
                 >
                   <div className="tree-task-list">
-                    <TaskTree label={`${company.name} needs you`} items={items} selectedTaskId={selectedTaskId} closed={closedGuides} onToggle={toggleGuide} onSelect={onSelectTask} onMenu={openFlagMenu} />
+                    <TaskTree label={`${company.name} needs you`} items={items} selectedTaskId={selectedTaskId} closed={closedGuides} onToggle={toggleGuide} onSelect={onSelectTask} onMenu={openFlagMenu} onAddTask={newTaskWithGuide(company)} />
                   </div>
                 </ClientTreeBranch>
               ))}
@@ -281,7 +284,7 @@ export function Sidebar({ snapshot, view, selectedTaskId, layout, onNavigate, on
                 </>
               )}
               <div className={searching ? undefined : 'tree-task-list'}>
-              <TaskTree label={`${company.name} open tasks`} items={active} selectedTaskId={selectedTaskId} closed={closedGuides} forceOpen={searching} onToggle={toggleGuide} onSelect={onSelectTask} onMenu={openFlagMenu} />
+              <TaskTree label={`${company.name} open tasks`} items={active} selectedTaskId={selectedTaskId} closed={closedGuides} forceOpen={searching} onToggle={toggleGuide} onSelect={onSelectTask} onMenu={openFlagMenu} onAddTask={newTaskWithGuide(company)} />
               {finished.length > 0 && (
                 <>
                   <button

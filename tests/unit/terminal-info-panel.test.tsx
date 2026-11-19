@@ -63,6 +63,14 @@ describe('the note in the panel beside the terminal', () => {
     expect((await screen.findByLabelText<HTMLTextAreaElement>('Task note')).value).toBe('saved note');
   });
 
+  it('has the formatting toolbar, with the switch to the Markdown source', async () => {
+    renderPanel();
+    await screen.findByLabelText('Task note');
+    const toolbar = screen.getByRole('toolbar', { name: 'Formatting' });
+    expect(within(toolbar).getByRole('button', { name: 'Bold' })).toBeTruthy();
+    expect(within(toolbar).getByRole('button', { name: 'Markdown' }).getAttribute('aria-pressed')).toBe('false');
+  });
+
   it('saves after a pause in the typing, once', async () => {
     renderPanel();
     const editor = await screen.findByLabelText('Task note');

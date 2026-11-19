@@ -415,10 +415,13 @@ describe('Sidebar', () => {
     collapsed: false,
     closedClients: [],
     needsYouHidden: false,
+    width: 276,
     toggleCollapsed: vi.fn(),
     toggleClient: vi.fn(),
     openClient: vi.fn(),
     toggleNeedsYou: vi.fn(),
+    setWidth: vi.fn(),
+    resetWidth: vi.fn(),
     ...overrides,
   });
   const onChanged = vi.fn(async () => {});
@@ -440,6 +443,28 @@ describe('Sidebar', () => {
     );
     return { onNavigate, onSelectTask };
   };
+
+  it('starts a task with the guide of a group from its plus button', async () => {
+    const rfc: TaskGuide = { playbookId: 'rfc', name: 'Write an RFC', current: 0, promptPending: false, done: [], steps: [{ name: 'a', prompt: 'x' }] };
+    const { onNavigate } = renderSidebar([task({ id: 'a', title: 'First', guide: rfc }), task({ id: 'b', title: 'Second' })]);
+    await userEvent.click(screen.getByRole('button', { name: 'New task with Write an RFC, in Acme open tasks' }));
+    expect(onNavigate).toHaveBeenLastCalledWith({ kind: 'new-task', companyId: 'acme', playbookId: 'rfc' });
+    await userEvent.click(screen.getByRole('button', { name: 'New task with no guide, in Acme open tasks' }));
+    expect(onNavigate).toHaveBeenLastCalledWith({ kind: 'new-task', companyId: 'acme', playbookId: '' });
+  });
+
+  it('is as wide as the person left it, and its edge changes that width', () => {
+    const value = layout({ width: 340 });
+    renderSidebar([task()], value);
+    expect(screen.getByRole('navigation', { name: 'Main' }).style.getPropertyValue('--sidebar-width')).toBe('340px');
+    fireEvent.keyDown(screen.getByRole('separator', { name: 'Resize sidebar' }), { key: 'ArrowRight' });
+    expect(value.setWidth).toHaveBeenCalledWith(356);
+  });
+
+  it('has no edge to drag while it is collapsed', () => {
+    renderSidebar([task()], layout({ collapsed: true }));
+    expect(screen.queryByRole('separator')).toBeNull();
+  });
 
   describe('the type of a task', () => {
     const guide = (playbookId: string, name: string): TaskGuide => ({ playbookId, name, current: 1, promptPending: false, done: [], steps: [{ name: 'a', prompt: 'x' }, { name: 'b', prompt: 'y' }] });
@@ -568,7 +593,7 @@ describe('Sidebar', () => {
           onChanged={onChanged}
         />,
       );
-      const guidesOf = (region: HTMLElement) => [...region.querySelectorAll<HTMLElement>('.task-tree-guide')].map((group) => [group.querySelector('.task-tree-guide-name span')?.textContent, within(group).getAllByRole('button').length - 1]);
+      const guidesOf = (region: HTMLElement) => [...region.querySelectorAll<HTMLElement>('.task-tree-guide')].map((group) => [group.querySelector('.task-tree-guide-name span')?.textContent, group.querySelectorAll('.tree-task').length]);
       const waiting = within(screen.getByRole('region', { name: 'Needs you' })).getByRole('region', { name: 'Acme waiting for you' });
       expect(guidesOf(waiting)).toEqual([['Write an RFC', 1], ['Not classified', 1]]);
       expect(guidesOf(screen.getByRole('region', { name: 'Acme tasks' }))).toEqual([['Write an RFC', 2], ['Not classified', 1]]);

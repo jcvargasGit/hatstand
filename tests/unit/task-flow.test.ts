@@ -106,6 +106,11 @@ describe('the sidebar tree', () => {
     expect(groupByGuide([])).toEqual([]);
   });
 
+  it('says which guide each group follows, and none for the tasks with no guide', () => {
+    const groups = groupByGuide([item('a'), item('b', 'Write an RFC')]);
+    expect(groups.map((group) => group.playbookId)).toEqual(['Write an RFC', '']);
+  });
+
   it('keeps two guides with the same name apart, because the guide is what groups them', () => {
     const first = item('a', 'Write an RFC');
     const other = { ...item('b', 'Write an RFC'), task: { ...item('b', 'Write an RFC').task, guide: { ...guide(), playbookId: 'client-rfc', name: 'Write an RFC' } } };

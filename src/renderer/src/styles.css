@@ -10,6 +10,7 @@
   --warn: #946000;
   --success: #1a7f45;
   --client: #8c9af2;
+  --link: #2b50c8;
   --ink-on-client: #14171f;
   --terminal: #14181f;
   font-family: 'Figtree Variable', system-ui, sans-serif;
@@ -30,6 +31,7 @@
     --danger: #ff9d8f;
     --warn: #f0c36d;
     --success: #62c98c;
+    --link: #9db4ff;
   }
 }
 
@@ -74,7 +76,7 @@ h3 {
 }
 
 a {
-  color: color-mix(in srgb, var(--client) 65%, var(--text));
+  color: var(--link);
 }
 
 button,
@@ -224,7 +226,8 @@ code {
 }
 
 .sidebar {
-  flex: 0 0 276px;
+  position: relative;
+  flex: 0 0 min(var(--sidebar-width, 276px), 45vw);
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
@@ -239,6 +242,24 @@ code {
   flex-basis: 56px;
   align-items: center;
   overflow-y: auto;
+}
+
+.sidebar-resizer {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  bottom: 0;
+  z-index: 2;
+  width: 6px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.sidebar-resizer:hover,
+.sidebar-resizer:focus-visible,
+.sidebar-resizer.is-dragging {
+  background: color-mix(in srgb, var(--client) 55%, transparent);
+  outline: none;
 }
 
 .sidebar-top {
@@ -2259,7 +2280,7 @@ button.danger {
 
 @media (max-width: 900px) {
   .sidebar:not(.is-collapsed) {
-    flex-basis: 224px;
+    flex-basis: min(var(--sidebar-width, 276px), 224px);
   }
 }
 
@@ -4880,10 +4901,6 @@ html input[type='radio'] {
   font-weight: 700;
 }
 
-.markdown-editor [class*='cm-md-h'] span {
-  text-decoration: none;
-}
-
 .cm-md-strong {
   font-weight: 700;
 }
@@ -4909,7 +4926,7 @@ html input[type='radio'] {
 }
 
 .cm-md-link {
-  color: var(--client);
+  color: var(--link);
   text-decoration: underline;
 }
 
@@ -4994,6 +5011,11 @@ html input[type='radio'] {
 .markdown-editor .cm-md-source .cm-content {
   font-family: 'JetBrains Mono Variable', monospace;
   font-size: 0.9em;
+}
+
+.markdown-editor .cm-md-source [class*='cm-md-'] {
+  font-family: inherit;
+  font-size: inherit;
 }
 
 .idea-details-field {
@@ -5194,20 +5216,40 @@ html input[type='radio'] {
   flex-direction: column;
 }
 
+.task-tree-guide + .task-tree-guide {
+  margin-top: 0.35rem;
+}
+
+.task-tree-guide-line {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
 .task-tree-guide-name {
+  flex: 1;
   justify-content: flex-start;
   gap: 0.25rem;
-  width: 100%;
-  min-height: 22px;
+  min-width: 0;
+  min-height: 24px;
   border: 0;
   padding: 0.05rem 0.4rem;
   background: transparent;
-  color: var(--muted);
-  font-size: 0.74rem;
-  font-weight: 600;
-  letter-spacing: 0.01em;
+  color: var(--text);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
   text-align: left;
   text-transform: uppercase;
+}
+
+.task-tree-guide-tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  margin-left: 0.85rem;
+  padding-left: 0.25rem;
+  border-left: 1px solid var(--line);
 }
 
 .task-tree-guide-name span:first-of-type {
@@ -5217,12 +5259,39 @@ html input[type='radio'] {
 }
 
 .task-tree-guide-name:hover {
-  color: var(--text);
+  background: color-mix(in srgb, var(--text) 7%, transparent);
 }
 
 .task-tree-count {
   margin-left: auto;
+  color: var(--muted);
   font-weight: 500;
+  letter-spacing: 0;
+}
+
+.terminal-note-editor {
+  flex: 1;
+  min-height: 0;
+  border-color: var(--line);
+  font-size: 0.86rem;
+}
+
+.terminal-note-editor:focus-within {
+  border-color: var(--client);
+}
+
+.terminal-note-editor .markdown-field-editor {
+  flex: 1;
+  min-height: 0;
+}
+
+.inbox-capture .inbox-single {
+  display: flex;
+  justify-self: start;
+}
+
+.inbox-preview .inbox-preview-whole {
+  white-space: pre-wrap;
 }
 
 /* One form for a new task, a backlog item and the settings of a task: the text on the left, the settings on the right. */

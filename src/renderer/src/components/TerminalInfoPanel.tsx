@@ -10,7 +10,7 @@ import { useTaskOutputs } from '../hooks/useTaskOutputs';
 import { hasWork, repoWork } from '../lib/agent-work';
 import { api } from '../lib/api';
 import { AgentWork } from './AgentWork';
-import { MarkdownEditor } from './MarkdownEditor';
+import { MarkdownComposer } from './MarkdownComposer';
 import { MarkdownView } from './MarkdownView';
 
 const UPDATE_TIMEOUT_MS = 120_000;
@@ -110,7 +110,7 @@ export function TerminalInfoPanel({ task, company, session, notes, onLeave }: Te
         </h3>
         {note.error && <p className="error">{note.error}</p>}
         {noteOpen && note.initialNote !== null && (
-          <MarkdownEditor initialValue={note.initialNote} label="Task note" placeholderText="Where you stopped reading, in Markdown" onChange={note.change} onBlur={note.flush} onLeave={onLeave} />
+          <MarkdownComposer className="terminal-note-editor" initialValue={note.initialNote} label="Task note" placeholderText="Where you stopped reading, in Markdown" onChange={note.change} onBlur={note.flush} onLeave={onLeave} />
         )}
       </section>
     </aside>

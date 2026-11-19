@@ -37,9 +37,10 @@ export function NewTaskPage({ snapshot, initialDraft, onDraftChange, onMoveToWin
   const company = snapshot.companies.find((item) => item.id === draft.companyId);
   const canStart = company !== undefined && hasWorkspace(company);
   const isIdea = draft.ideaId !== undefined;
+  const guideStillThere = draft.playbookId === '' || playbooks.some((playbook) => playbook.id === draft.playbookId);
   const current: TaskChoices = {
     ...draft,
-    playbookId: draft.guideChosen ? draft.playbookId : suggestedGuide(snapshot, company, playbooks),
+    playbookId: draft.guideChosen && guideStillThere ? draft.playbookId : suggestedGuide(snapshot, company, playbooks),
     areaId: draft.areaChosen ? draft.areaId : suggestedArea(company, draft.projectIds),
   };
 
