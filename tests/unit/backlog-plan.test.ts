@@ -301,6 +301,7 @@ describe('a planning task for the backlog', () => {
           resume: false,
           promptFile: '/p',
           settingsFile: '/s',
+          ownDirs: [],
           addDirs: [],
         }).args;
       expect(launch(task)).toContain('--allow-tool=shell(hatstand-check-plan:*)');

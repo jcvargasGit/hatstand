@@ -71,6 +71,7 @@ export function dataPaths(home: string) {
     company,
     companyFile: (companyId: string) => join(company(companyId), 'company.yaml'),
     secretsFile: (companyId: string) => join(company(companyId), 'secrets.enc'),
+    keyDetailsFile: (companyId: string) => join(company(companyId), 'keys.yaml'),
     photoFile: (companyId: string) => join(company(companyId), 'photo'),
     instructionsFile: (companyId: string) => join(company(companyId), 'instructions.md'),
     knowledgeDir: (companyId: string) => join(company(companyId), 'knowledge'),

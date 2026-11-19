@@ -1,10 +1,11 @@
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
+import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { Compartment, Prec, type Extension } from '@codemirror/state';
 import { EditorView, keymap, placeholder } from '@codemirror/view';
 import { minimalSetup } from 'codemirror';
 import { useEffect, useRef, type RefObject } from 'react';
 import { applyMarkdownFormat } from '../lib/markdown-commands';
-import { markdownLivePreview } from '../lib/markdown-live-preview';
+import { markdownLivePreview, markdownSourceStyles } from '../lib/markdown-live-preview';
 
 export type MarkdownEditorMode = 'rich' | 'markdown';
 
@@ -20,7 +21,14 @@ type MarkdownEditorProps = {
   onLeave: () => void;
 };
 
-const modeExtension = (mode: MarkdownEditorMode): Extension => (mode === 'rich' ? markdownLivePreview : EditorView.editorAttributes.of({ class: 'cm-md-source' }));
+const modeExtension = (mode: MarkdownEditorMode): Extension => (mode === 'rich' ? markdownLivePreview : [markdownSourceStyles, EditorView.editorAttributes.of({ class: 'cm-md-source' })]);
+
+/**
+ * CodeMirror falls back to a highlight style with fixed colors made for a light theme, which cannot be read
+ * on a dark one. Registering a style of our own, even an empty one, turns that fallback off, so the text
+ * takes its colors from the classes of the live preview.
+ */
+const noFixedColors = syntaxHighlighting(HighlightStyle.define([]));
 
 const formatKeys = keymap.of([
   { key: 'Mod-b', run: (view) => applyMarkdownFormat(view, 'bold') },
@@ -42,6 +50,7 @@ export function MarkdownEditor({ initialValue, label, placeholderText, mode = 'r
       doc: initialValue,
       extensions: [
         minimalSetup,
+        noFixedColors,
         markdown({ base: markdownLanguage }),
         modeSlot.current.of(modeExtension(mode)),
         EditorView.lineWrapping,

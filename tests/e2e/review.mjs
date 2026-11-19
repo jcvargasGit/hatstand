@@ -470,6 +470,34 @@ try {
   assert.ok(!(await invoke('readSessionBuffer', sharedSession.id)).includes('Leído'), 'The note never reaches the terminal.');
   assert.ok(!readFileSync(sharedNotes, 'utf8').includes('Leído'), 'The note stays out of the notes of the agent.');
 
+  // A link in the note can be read on a light and on a dark background, and the note has its formatting toolbar.
+  await page.locator('.terminal-notes').getByRole('toolbar', { name: 'Formatting' }).waitFor();
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('https://example.com/docs');
+  const noteLink = page.locator('.terminal-notes .cm-md-link', { hasText: 'example.com' });
+  await noteLink.waitFor();
+  const linkContrast = () =>
+    noteLink.evaluate((link) => {
+      const channels = (color) => color.match(/[\d.]+/g).slice(0, 3).map(Number);
+      const luminance = (color) => {
+        const [red, green, blue] = channels(color).map((value) => (value / 255 <= 0.03928 ? value / 255 / 12.92 : ((value / 255 + 0.055) / 1.055) ** 2.4));
+        return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+      };
+      const inner = [...link.querySelectorAll('*')].at(-1) ?? link;
+      const text = getComputedStyle(inner).color;
+      const [lighter, darker] = [luminance(text), luminance(getComputedStyle(link.closest('.terminal-notes')).backgroundColor)].sort((a, b) => b - a);
+      return { text, ratio: (lighter + 0.05) / (darker + 0.05) };
+    });
+  for (const colorScheme of ['dark', 'light']) {
+    await page.emulateMedia({ colorScheme });
+    const { text, ratio } = await linkContrast();
+    assert.notEqual(text, 'rgb(34, 17, 153)', `A link in the note does not get the fixed blue of the editor on a ${colorScheme} background.`);
+    assert.ok(ratio >= 4.5, `A link in the note can be read on a ${colorScheme} background: ${text}, contrast ${ratio.toFixed(2)}.`);
+    await shot(`terminal-note-link-${colorScheme}`);
+  }
+  await page.emulateMedia({ colorScheme: null });
+
   await page.keyboard.press(shortcut('Enter'));
   await noteEditor.waitFor();
   await page.getByText('El RFC está listo.').waitFor();

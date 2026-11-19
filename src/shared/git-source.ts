@@ -1,12 +1,21 @@
 import type { GitSource } from './schemas';
 
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
+const SAFE_SEGMENT = /^[A-Za-z0-9_][A-Za-z0-9._-]*$/;
+const SSH_LINK = /^(?:ssh:\/\/)?git@([^:/]+)[:/](.+)$/;
+const NOT_A_REPOSITORY = 'This is not the link of a repository. It looks like https://github.com/company/repository.';
+
+export type GitHost = Pick<GitSource, 'provider' | 'host'>;
+
+export const GITHUB_HOST: GitHost = { provider: 'github' };
+
+export const isSafePathSegment = (segment: string): boolean => SAFE_SEGMENT.test(segment) && !segment.includes('..');
 
 export function gitTokenName(provider: GitSource['provider']): 'GITHUB_TOKEN' | 'GITLAB_TOKEN' {
   return provider === 'github' ? 'GITHUB_TOKEN' : 'GITLAB_TOKEN';
 }
 
-export function gitOrigin(source: Pick<GitSource, 'provider' | 'host'>): string {
+export function gitOrigin(source: GitHost): string {
   if (source.provider === 'github') return 'https://github.com';
   const raw = source.host?.trim() || 'https://gitlab.com';
   const url = new URL(raw.includes('://') ? raw : `https://${raw}`);
@@ -16,9 +25,42 @@ export function gitOrigin(source: Pick<GitSource, 'provider' | 'host'>): string 
   return url.origin;
 }
 
-export function tokenPageUrl(source: Pick<GitSource, 'provider' | 'host'>): string {
+export function tokenPageUrl(source: GitHost): string {
   if (source.provider === 'github') {
     return 'https://github.com/settings/tokens/new?description=Hatstand&scopes=repo,read:org';
   }
   return `${gitOrigin(source)}/-/user_settings/personal_access_tokens?name=Hatstand&scopes=read_api,write_repository`;
+}
+
+function linkUrl(link: string): URL {
+  const trimmed = link.trim();
+  const ssh = SSH_LINK.exec(trimmed);
+  const address = ssh ? `https://${ssh[1]}/${ssh[2]}` : trimmed.includes('://') ? trimmed : `https://${trimmed}`;
+  try {
+    return new URL(address);
+  } catch {
+    throw new Error(NOT_A_REPOSITORY);
+  }
+}
+
+function repoSegments(pathname: string, provider: GitSource['provider']): string[] {
+  const segments = pathname.split('/').filter(Boolean);
+  if (provider === 'github') return segments.slice(0, 2);
+  const marker = segments.indexOf('-');
+  return marker === -1 ? segments : segments.slice(0, marker);
+}
+
+export function parseRepoLink(link: string, host: GitHost): { cloneUrl: string; name: string } {
+  const origin = gitOrigin(host);
+  const url = linkUrl(link);
+  if (url.username || url.password) throw new Error('Remove the user and password from the link. Hatstand uses the token saved for this client.');
+  if (url.origin !== origin) {
+    throw new Error(`This client downloads from ${origin}, and this link is on another site, so Hatstand did not use it.`);
+  }
+  const segments = repoSegments(url.pathname, host.provider).map((segment, index, all) =>
+    index === all.length - 1 ? segment.replace(/\.git$/, '') : segment,
+  );
+  const name = segments.at(-1);
+  if (!name || segments.length < 2 || !segments.every(isSafePathSegment)) throw new Error(NOT_A_REPOSITORY);
+  return { cloneUrl: `${origin}/${segments.join('/')}.git`, name };
 }

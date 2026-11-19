@@ -7,7 +7,7 @@ To report a problem, see [SECURITY.md](../SECURITY.md).
 ## How client data stays out of git
 
 1. **Location.** Client data lives outside your repositories.
-2. **No files in the repository.** Context reaches Claude Code through launch flags (`--add-dir`, `--plugin-dir`, `--append-system-prompt-file`).
+2. **No files in the repository.** Context reaches Claude Code through launch flags (`--add-dir`, `--plugin-dir`, `--append-system-prompt-file`, `--settings`). The settings file of a session is in Hatstand's data folder, and it lists the folders Hatstand created for the client, so Claude Code does not ask whether to trust them. Your repositories are never listed there: Claude Code still asks about those.
 3. **Commit check.** A pre-commit hook compares staged additions with hashes of every client's keys, knowledge, skills and instructions.
 4. **No bypass by agents.** A Claude Code hook rejects `--no-verify` and `git commit -n`.
 
@@ -22,9 +22,11 @@ Keys are saved in `secrets.enc`, encrypted with Electron's `safeStorage`:
 - **macOS:** the Keychain. macOS asks once for access when you save your first key.
 - **Linux:** GNOME Keyring, KWallet or another store that Electron supports. If there is none, Electron would fall back to a fixed password, so Hatstand refuses to save keys and tells you why. See [Getting started](getting-started.md#linux).
 
+Next to it, `keys.yaml` keeps what Hatstand knows about each key that is not secret: its name, when it was saved, your note, and what the provider answered the last time it was checked, with the expiry date if it gave one. It never holds a value, and it is not encrypted, so do not write a secret in a note. The interface never receives a value either.
+
 ## What leaves your computer
 
-Hatstand has no telemetry. It connects to the services you set up: GitHub, GitLab and Jira, with each client's keys. A GitLab token only goes to that client's GitLab address. It also downloads a client's photo when you give it a link. The agents you run talk to their own providers under their own terms.
+Hatstand has no telemetry. It connects to the services you set up: GitHub, GitLab and Jira, with each client's keys. A GitLab token only goes to that client's GitLab address. Checking a key sends it to its own provider and nowhere else, when you save it, replace it or choose Check. It also downloads a client's photo when you give it a link. The agents you run talk to their own providers under their own terms.
 
 ## Limits
 
@@ -41,4 +43,4 @@ Hatstand has no telemetry. It connects to the services you set up: GitHub, GitLa
 
 ## Git access
 
-Downloaded repositories keep no token on disk. In a client's sessions, git uses that client's token for its GitHub or GitLab host. Outside Hatstand, such as in your own terminal, git uses whatever login you have there, so a private repository may ask you to sign in.
+Downloaded repositories keep no token on disk. A repository downloaded from a link must be on the client's GitHub or GitLab host, so the token never goes to another site. In a client's sessions, git uses that client's token for its GitHub or GitLab host. Outside Hatstand, such as in your own terminal, git uses whatever login you have there, so a private repository may ask you to sign in.

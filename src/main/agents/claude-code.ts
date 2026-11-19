@@ -41,9 +41,10 @@ export const claudeCode: AgentAdapter = {
     };
   },
 
-  buildStatusSettings() {
+  buildStatusSettings(ownDirs = []) {
     return JSON.stringify({
-      permissions: { allow: [`Bash(${STEP_DONE_COMMAND}:*)`, `Bash(${CHECK_PLAN_COMMAND}:*)`] },
+      // Claude Code asks about every --add-dir folder on each start, and not about the folders listed here.
+      permissions: { allow: [`Bash(${STEP_DONE_COMMAND}:*)`, `Bash(${CHECK_PLAN_COMMAND}:*)`], additionalDirectories: ownDirs },
       hooks: {
         SessionStart: [activityHook],
         UserPromptSubmit: [statusHook('working')],

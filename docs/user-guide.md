@@ -12,6 +12,8 @@ In the terminal, **Shift+Enter** adds a new line, **⌘←** and **⌘→** move
 
 Drag clients in the sidebar to put them in the order you want, or press Alt with the up and down arrows on a client's name.
 
+Drag the right edge of the sidebar to make it wider or narrower. With the keyboard, move to the edge with Tab and use the left and right arrows. Double-click the edge for the usual width. Hatstand remembers the width.
+
 **Documents** in each client shows its planning repository, knowledge, skills and guides, with a preview, and opens them in your editor to change them. Files in the planning repository reach git only when they are committed. Knowledge and skills stay outside git.
 
 A task's details list the uncommitted changes in its repositories, so you can read a diff without leaving Hatstand.
@@ -28,6 +30,7 @@ Everything about your clients stays in `~/.hatstand`, outside any repository. Ha
   companies/<client>/
     company.yaml
     secrets.enc      encrypted with your system keychain
+    keys.yaml        what Hatstand knows about each key, never its value
     photo            saved copy of the client's photo
     instructions.md  starter file, for clients started from scratch
     knowledge/       created for every client
@@ -63,6 +66,12 @@ An area can own whole repositories, folders inside a repository, or both. Under 
 
 The session opens at the top of the repository, and the agent is told to focus on the folders of the task's area. The repository keeps a single commit check.
 
+### Downloading repositories
+
+The Repositories step of a client lists the repositories of its GitHub or GitLab organization and downloads the ones you choose. The token is the client's `GITHUB_TOKEN` or `GITLAB_TOKEN` under **Keys**. When it is already saved, Hatstand uses it and lists the repositories without asking again, and **Replace token** saves a new one.
+
+**Download one repository from its link** takes the address of a single repository, such as `https://github.com/company/repository`, and downloads it to the folder you choose, the client folder by default. The link must be on the client's GitHub or GitLab. A public repository needs no token.
+
 ### Planning repository
 
 If a client keeps specs, tickets, RFCs and decisions in its own repository, choose it under **Planning**. You say which folder holds each kind of thing, and the map is saved with the client, outside git. Every session can reach that repository and is told to save lasting work there. Task notes stay your private draft.
@@ -70,6 +79,28 @@ If a client keeps specs, tickets, RFCs and decisions in its own repository, choo
 Agents are told not to commit or push there unless you ask. This is an instruction, not a block. The repository has no commit protection, because what it holds may need to be committed. Choose it from **Planning**, or with **Use for planning** in the list of repositories. Either way it moves out of Repositories, and **Move back to Repositories** undoes that. The folder must be a git repository or a folder inside one.
 
 If the client has no such repository, plans stay in a private default folder with no git. To keep them in git, **Create repository** makes one, by default next to the client's code. It has a `README.md`, `specs/`, `decisions/` and `templates/`, and one commit made with the git email of that folder. If that folder has no email, Hatstand stops and tells you. The repository has no remote, so it stays on this computer, with no backup, until you add one and push.
+
+### Keys and secrets
+
+The **Keys and secrets** step of a client lists its keys by service. Each key says what Hatstand uses it for:
+
+| Key | Used for |
+| --- | --- |
+| `GITHUB_TOKEN` | Brings in the issues assigned to you, lists and downloads repositories, signs git in during sessions, and reads pull requests for review. `GH_TOKEN` is used when this one is missing. |
+| `GITLAB_TOKEN` | The same, on GitLab. `GITLAB_URL` is the address of your GitLab, and Hatstand saves it when you connect GitLab. |
+| `JIRA_SITE`, `JIRA_EMAIL`, `JIRA_API_TOKEN` | Bring in the Jira issues assigned to you. Jira needs the three. |
+| Any other key | Agents read it as an environment variable in this client's sessions. You can write a note saying what it is for. |
+
+A value is never shown again once it is saved. To change a key, such as a token that expired, choose **Replace** on its row and paste the new value. The name stays, and nothing has to be deleted first. Each token has a link to the page where you create a new one, and says which permissions it needs. Sessions already running keep the old value until they restart.
+
+**Check** asks the provider whether a token still works. Hatstand also checks a token when you save or replace it. A key then shows one of these:
+
+- **Valid**, with the date it expires when the provider reports one. GitHub and GitLab do. Jira does not, so a Jira token never shows a date.
+- **Expires in** a number of days, from 14 days before.
+- **Expired**, after that date.
+- **Rejected**, when the provider refused it. Hatstand also marks a key as rejected when it is refused while importing assigned work, listing repositories or reading pull requests.
+
+While a key is rejected, expired or about to expire, the Review step and the setup card of the client ask you to replace it.
 
 ### Who commits
 
@@ -108,7 +139,7 @@ Clicking a task opens one of three views, and a task with a running session open
 
 - **Overview** (⌘1): what you need at a glance. It shows where the task is and which guide step it is on, the last thing the agent did, the checklist, the session, the documents the agent saved for you, the repositories it changed with their files, and the pull requests. Each copy of the code has a button that opens it in your editor, named after it, such as **Open in Cursor**.
 - **Task settings** (⌘2): what the task is set up with, in the same form as a new task: description, type, guide and its current step, area, agent, priority, repositories and code mode. Each change is saved at once. Each repository has a button that opens it in your editor. A task with its own copy of a repository offers two: the copy, and the original repository. Nothing appears in both Overview and Task settings.
-- **Terminal** (⌘3): the agent, using all the space. ⌘B hides the sidebar too, and **Full screen** (⌘Enter) gives the whole window to the terminal. Beside it, **agent work** shows the agent's summary, the repositories of the task with a button that opens each in your editor, the files the agent changed in each repository, the files it created, with its documents, and your own note. Each file is a link that opens it in your editor. The list updates by itself while the session runs. **Hide agent work** gives its space back to the terminal.
+- **Terminal** (⌘3): the agent, using all the space. ⌘B hides the sidebar too, and **Full screen** (⌘Enter) gives the whole window to the terminal. Beside it, **agent work** shows the agent's summary, the repositories of the task with a button that opens each in your editor, the files the agent changed in each repository, the files it created, with its documents, and your own note. The note is written in Markdown, with a toolbar for the formatting and a **Markdown** button that shows the source. Each file is a link that opens it in your editor. The list updates by itself while the session runs. **Hide agent work** gives its space back to the terminal.
 
 **Documents** can open everything of a client in your editor: repositories, planning, knowledge, skills and guides in one window. It uses the first one installed of VS Code, Cursor, Windsurf, Zed, Sublime Text and IntelliJ IDEA. The workspace file lives in `~/.hatstand`, out of every repository.
 
@@ -116,9 +147,9 @@ Clicking a task opens one of three views, and a task with a running session open
 
 **Open in new window** moves the form to a window of its own, with everything you wrote and chose, so you can keep using Hatstand while you write. Creating the task there shows it, selected, in the main window.
 
-**Create and start session** opens the agent and sends its first prompt, so it starts working at once. This also happens after you answer the agent's question about trusting the folder. Hatstand never presses Enter while the agent asks you something else, and a step that needs your approval always waits for you. To have the first prompt wait for Enter, turn off **Send the first prompt of a task without waiting for Enter** in **Settings**.
+**Create and start session** opens the agent and sends its first prompt, so it starts working at once. Claude Code does not ask about the folders Hatstand created for the client, such as its knowledge, areas and tasks. It can still ask whether you trust a repository the first time it works there, and about each repository of the task outside the session folder. The prompt is sent after you answer. Hatstand never presses Enter while the agent asks you something else, and a step that needs your approval always waits for you. To have the first prompt wait for Enter, turn off **Send the first prompt of a task without waiting for Enter** in **Settings**.
 
-The sidebar lists the tasks of each client under the guide they follow. Tasks with no guide are under **Not classified**.
+The sidebar lists the tasks of each client under the guide they follow. Tasks with no guide are under **Not classified**. The **+** beside the name of a guide opens New task with that guide chosen, and the one beside **Not classified** opens it with no guide.
 
 **Needs you** in the sidebar lists what is waiting for you in the same tree: client, in the order of your clients, then guide, then tasks. Click its title to hide or show the list; Hatstand remembers your choice and keeps the total in view.
 
@@ -217,7 +248,7 @@ The **Closed tasks** tab of a client lists its finished tasks by work period, ne
 
 ### Backlog
 
-The **Backlog** of each client (⌘I) keeps work you have not defined yet, out of your tasks. Paste a list or a table and each row becomes an item, or keep it as one. Sidebar and Today remind you how many are waiting for review. **Make it a task** opens the task form with the title and description of the item already filled in. Saving it moves that same item to your tasks. **Send back to backlog**, in an open task, does the opposite: the task leaves your tasks and waits at the end of the backlog, with its notes and session history.
+The **Backlog** of each client (⌘I) keeps work you have not defined yet, out of your tasks. Paste a list or a table and each row becomes an item. Check **Create a single task** to keep everything you wrote as one item: the first line is its title and all the text is its description, and the backlog shows how it will look before you add it. Sidebar and Today remind you how many are waiting for review. **Make it a task** opens the task form with the title and description of the item already filled in. Saving it moves that same item to your tasks. **Send back to backlog**, in an open task, does the opposite: the task leaves your tasks and waits at the end of the backlog, with its notes and session history.
 
 Each line you write or paste is a task. A line that starts with two spaces and a dash becomes a checklist item of the task above, so a list with sublists stays together. The backlog says how many tasks it will add before you add them. Items wait in a table: change their order by dragging or with the arrows, give them a priority, and sort by priority when you want to. Click a row to see and edit its details in a sidebar, which covers the table when the window is narrow. The checklist and priority stay when you make it a task, and the agent reads the checklist.
 

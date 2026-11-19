@@ -148,6 +148,12 @@ function luminance(color: string): number {
   return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
 }
 
+/** The contrast between two colors written as #rrggbb, from 1 (the same) to 21 (black on white). */
+export function contrast(first: string, second: string): number {
+  const [lighter = 0, darker = 0] = [luminance(first), luminance(second)].sort((a, b) => b - a);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
 export function inkOn(color: string): string {
   const background = luminance(color);
   const onDark = 1.05 / (background + 0.05);
@@ -157,7 +163,8 @@ export function inkOn(color: string): string {
 
 export const NOT_CLASSIFIED = 'Not classified';
 
-export type GuideGroup = { key: string; name: string; items: TodayItem[] };
+/** `playbookId` is empty for the tasks that follow no guide. */
+export type GuideGroup = { key: string; name: string; playbookId: string; items: TodayItem[] };
 
 /** Tasks grouped by the guide they follow, guides in alphabetical order, and tasks without a guide last, under "Not classified". Each group keeps the order it is given. */
 export function groupByGuide(items: TodayItem[]): GuideGroup[] {
@@ -165,7 +172,7 @@ export function groupByGuide(items: TodayItem[]): GuideGroup[] {
   for (const item of items) {
     const name = item.task.guide?.name ?? NOT_CLASSIFIED;
     const key = item.task.guide ? `guide:${item.task.guide.playbookId}` : 'none';
-    const group = groups.get(key) ?? { key, name, items: [] };
+    const group = groups.get(key) ?? { key, name, playbookId: item.task.guide?.playbookId ?? '', items: [] };
     group.items.push(item);
     groups.set(key, group);
   }

@@ -66,6 +66,7 @@ describe('listRemoteRepos', () => {
     const error = await listRemoteRepos(github, TOKEN, routes({ '/user': json({}, 401) })).catch((caught: Error) => caught);
     expect((error as Error).message).toMatch(/rejected this token/);
     expect((error as Error).message).not.toContain(TOKEN);
+    expect(error).toMatchObject({ name: 'KeyRejectedError', service: 'github' });
   });
 
   it('keeps GitLab subgroups as folders', async () => {

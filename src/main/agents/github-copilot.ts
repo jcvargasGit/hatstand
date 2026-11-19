@@ -32,7 +32,7 @@ const instructionsDir = (sessionDir: string) => join(sessionDir, 'instructions')
 export const githubCopilot: AgentAdapter = {
   hiddenSecrets: ['GITHUB_TOKEN', 'GH_TOKEN'],
 
-  buildLaunch({ account, company, task, sessionId, sessionDir, notesFile, resume, addDirs }) {
+  buildLaunch({ account, company, task, sessionId, sessionDir, notesFile, resume, ownDirs, addDirs }) {
     const identity = resume ? ['--resume', sessionId] : ['--session-id', sessionId, '--name', `${company.name}: ${task.title}`];
     return {
       command: 'copilot',
@@ -47,7 +47,7 @@ export const githubCopilot: AgentAdapter = {
         ...(company.skipPermissions ? ['--allow-all'] : []),
         ...(company.context.mcpConfigFile ? ['--additional-mcp-config', `@${company.context.mcpConfigFile}`] : []),
         ...(company.context.pluginDir ? ['--plugin-dir', company.context.pluginDir] : []),
-        ...addDirs.flatMap((dir) => ['--add-dir', dir]),
+        ...[...ownDirs, ...addDirs].flatMap((dir) => ['--add-dir', dir]),
       ],
       env: {
         COPILOT_CUSTOM_INSTRUCTIONS_DIRS: instructionsDir(sessionDir),

@@ -10,6 +10,9 @@ export type AgentLaunchInput = {
   resume: boolean;
   promptFile: string;
   settingsFile: string;
+  /** Folders Hatstand created in its data home. */
+  ownDirs: string[];
+  /** Folders of the person outside the data home, such as other repositories. */
   addDirs: string[];
 };
 
@@ -28,7 +31,7 @@ export type AgentSessionFiles = {
 export type AgentAdapter = {
   hiddenSecrets?: string[];
   buildLaunch(input: AgentLaunchInput): AgentLaunch;
-  buildStatusSettings(): string;
+  buildStatusSettings(ownDirs?: string[]): string;
   prepareSession?(files: AgentSessionFiles): void;
 };
 

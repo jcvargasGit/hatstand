@@ -3,7 +3,7 @@ import type { ReleaseState } from './schemas';
 import type { BacklogPlan, BacklogPlanInput } from './backlog-plan';
 import type { DescriptionSuggestion, SuggestionRequest } from './description-suggestion';
 import type { NewTaskDraft } from './new-task-draft';
-import type { Account, AccountsFile, Company, GitSource, Idea, NewTask, OutsideChanges, Playbook, Session, StayAwakeMode, SubagentRun, Task, TaskPatch, TaskReview, TaskSetup, TodayLayout, Subdomain, GitIdentityInput } from './schemas';
+import type { Account, AccountsFile, Company, GitSource, Idea, KeyInfo, NewTask, OutsideChanges, Playbook, Session, StayAwakeMode, SubagentRun, Task, TaskPatch, TaskReview, TaskSetup, TodayLayout, Subdomain, GitIdentityInput } from './schemas';
 
 export type Snapshot = {
   companies: Company[];
@@ -190,6 +190,7 @@ export type HatstandApi = {
   createCompany(name: string, color: string, origin?: Company['origin']): Promise<Company>;
   connectGitSource(companyId: string, source: GitSource, token?: string): Promise<RemoteRepo[]>;
   downloadRepos(companyId: string, baseDir: string, repoPaths: string[]): Promise<CloneProgress[]>;
+  downloadRepoByLink(companyId: string, link: string, baseDir: string): Promise<CloneProgress>;
   checkAgent(accountId: string): Promise<AgentStatus>;
   startAgentSignIn(accountId: string): Promise<string>;
   saveCompany(company: Company): Promise<Company>;
@@ -231,6 +232,11 @@ export type HatstandApi = {
   readTaskOutput(taskId: string, name: string): Promise<string>;
   openTaskOutputInEditor(taskId: string, name: string): Promise<string>;
   listSecretNames(companyId: string): Promise<string[]>;
+  /** The keys of a client with what Hatstand knows about each one. Never their values. */
+  listKeys(companyId: string): Promise<KeyInfo[]>;
+  /** Asks the provider of a key whether it still works, and when it expires if the provider says. */
+  checkKey(companyId: string, name: string): Promise<void>;
+  setKeyNote(companyId: string, name: string, note: string): Promise<void>;
   setSecret(companyId: string, name: string, value: string): Promise<void>;
   deleteSecret(companyId: string, name: string): Promise<void>;
   importEnvFile(companyId: string): Promise<number>;

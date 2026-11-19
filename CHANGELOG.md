@@ -14,6 +14,10 @@ Notable changes to Hatstand are recorded here. The format follows [Keep a Change
 - **Agent work**, beside the terminal: the repositories of the task, the files the agent changed and created, and its documents. Each one opens in your editor, and the list updates while the session runs.
 - A button for each repository of a task that opens it in your editor, named after it. A task with its own copy offers the copy and the original repository.
 - The guide **Investigate a topic**, for an open investigation that ends with a Markdown file in the folder of the task's area.
+- Drag the right edge of the sidebar to change its width, or use the arrow keys on it. Double-click it for the usual width.
+- A **+** beside each guide in the sidebar opens New task with that guide chosen.
+- **Create a single task**, in the backlog, keeps everything you wrote as one item and shows how it will look first. It replaces **Keep as one task**.
+- The note beside the terminal has the formatting toolbar and the **Markdown** button of the other Markdown fields.
 
 ### Changed
 
@@ -23,6 +27,8 @@ Notable changes to Hatstand are recorded here. The format follows [Keep a Change
 - The **Details** tab of a task is now **Task settings**, and nothing appears in both Overview and Task settings. The shortcut is the same.
 - The sidebar groups the tasks of each client by guide, also under **Needs you**. Tasks with no guide are under **Not classified**.
 - The guides you use most come first when you choose one.
+- The name of a guide in the sidebar stands out from its tasks, which are indented under it.
+- Links have one color for the light theme and one for the dark theme, instead of the color of the client.
 - A guide step the agent finished shows ✓, also when it finished several or a later one. The finished steps are kept with the task.
 - On Linux, Hatstand refuses to save keys when there is no secret store, instead of protecting them with a fixed password.
 
@@ -31,3 +37,4 @@ Notable changes to Hatstand are recorded here. The format follows [Keep a Change
 - The terminal could show output twice when it arrived while the terminal was loading.
 - Shift+Enter added a line in the terminal and also moved the task to Working, as if you had answered the agent.
 - With Ctrl+Shift, the shortcuts with a number or a comma did nothing.
+- A link in a Markdown editor was dark blue, which could not be read on a dark background.

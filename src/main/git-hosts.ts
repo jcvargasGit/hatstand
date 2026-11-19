@@ -1,12 +1,12 @@
 import type { RemoteRepo } from '../shared/api';
-import { gitOrigin } from '../shared/git-source';
+import { gitOrigin, isSafePathSegment } from '../shared/git-source';
 import type { GitSource } from '../shared/schemas';
+import { KeyRejectedError } from './key-rejected';
 
 export type Fetcher = typeof fetch;
 
 const PAGE_SIZE = 100;
 const MAX_PAGES = 100;
-const SAFE_SEGMENT = /^[A-Za-z0-9_][A-Za-z0-9._-]*$/;
 
 type RawGitHubRepo = {
   name: string;
@@ -23,8 +23,12 @@ type RawGitLabRepo = {
   archived?: boolean;
 };
 
-function hostError(name: string, status: number, owner: string): Error {
-  if (status === 401) return new Error(`${name} rejected this token. Create a new one and paste it here.`);
+type HostName = 'GitHub' | 'GitLab';
+
+function hostError(name: HostName, status: number, owner: string): Error {
+  if (status === 401) {
+    return new KeyRejectedError(`${name} rejected this token. Create a new one and paste it here.`, name === 'GitHub' ? 'github' : 'gitlab');
+  }
   if (status === 403) {
     return new Error(
       `${name} refused access. Check the token's permissions. If the company uses single sign-on, authorize the token for it.`,
@@ -38,7 +42,7 @@ async function readPages<T>(
   url: (page: number) => string,
   headers: Record<string, string>,
   fetcher: Fetcher,
-  name: string,
+  name: HostName,
   owner: string,
 ): Promise<T[]> {
   const items: T[] = [];
@@ -56,7 +60,7 @@ export function safeRelativePath(fullPath: string, owner: string): string {
   const prefix = `${owner.toLowerCase()}/`;
   const relative = fullPath.toLowerCase().startsWith(prefix) ? fullPath.slice(prefix.length) : fullPath;
   const segments = relative.split('/');
-  if (!segments.every((segment) => SAFE_SEGMENT.test(segment) && !segment.includes('..'))) {
+  if (!segments.every(isSafePathSegment)) {
     throw new Error(`The repository name ${fullPath} is not safe to use as a folder.`);
   }
   return segments.join('/');

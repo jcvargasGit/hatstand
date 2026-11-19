@@ -14,7 +14,7 @@ import { dataPaths } from '../../src/main/paths';
 import { Store, writePrivateFile } from '../../src/main/store';
 import { removeClient } from '../../src/main/client-removal';
 import { installPreCommitHook } from '../../src/main/guard/install';
-import { defaultClientFolder, reposOutside, resolveWorkingDir } from '../../src/main/task-folders';
+import { defaultClientFolder, reposOutside, resolveWorkingDir, splitSessionFolders } from '../../src/main/task-folders';
 import type { Company, Task } from '../../src/shared/schemas';
 
 let dir: string;
@@ -166,6 +166,14 @@ describe('where a session opens', () => {
     const similar = { id: '2', name: '2', path: '/code-old/b' };
     expect(reposOutside('/code', [inside, similar])).toEqual(['/code-old/b']);
     expect(reposOutside('/code', [{ ...inside, path: '/code' }])).toEqual([]);
+  });
+
+  it('tells the folders Hatstand created from the folders of the person', () => {
+    const folders = ['/home/companies/acme/knowledge', '/code/api', '/home-old/notes', '/home/worktrees/acme/t', '/home'];
+    expect(splitSessionFolders('/home', folders)).toEqual({
+      ownDirs: ['/home/companies/acme/knowledge', '/home/worktrees/acme/t'],
+      addDirs: ['/code/api', '/home-old/notes', '/home'],
+    });
   });
 });
 
@@ -554,6 +562,7 @@ describe('removing a client', () => {
     const web = repo('web');
     const company = store.saveCompany({ ...store.createCompany('Acme', '#112233'), projects: [api, web], archivedAt: '2026-01-01' });
     writeFileSync(paths.secretsFile('acme'), 'encrypted');
+    writeFileSync(paths.keyDetailsFile('acme'), 'keys: {}\n');
     writeFileSync(join(paths.knowledgeDir('acme'), 'map.md'), 'client knowledge');
     mkdirSync(paths.guardDir, { recursive: true });
     writeFileSync(paths.guardFingerprints('acme'), '{}');
@@ -581,6 +590,7 @@ describe('removing a client', () => {
     expect(report.keptFilesIn).toBe(kept);
     expect(readFileSync(join(kept, 'knowledge', 'map.md'), 'utf8')).toBe('client knowledge');
     expect(existsSync(join(kept, 'secrets.enc'))).toBe(false);
+    expect(existsSync(join(kept, 'keys.yaml'))).toBe(false);
     expect(existsSync(paths.company('acme'))).toBe(false);
     expect(store.listCompanies()).toEqual([]);
     expect(store.listSessions()).toEqual([]);

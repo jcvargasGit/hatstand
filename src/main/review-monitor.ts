@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { isReadyToMerge } from '../shared/review';
 import type { PullRequest, Task, TaskReview } from '../shared/schemas';
 import { readBranchFacts } from './branch-facts';
+import { noteRejectedKey } from './key-rejected';
 import { parseRemote, readFailureLog, readPull, reviewHost, type Fetcher, type RemoteRef, type ReviewHost } from './pull-requests';
 import type { SecretStore } from './secrets';
 import type { Store } from './store';
@@ -131,6 +132,7 @@ export class ReviewMonitor {
       next = { pulls, checkedAt, feedbackKey: feedbackKey(pulls) };
       if (previous) reviewNews(previous.pulls, pulls).forEach((message) => this.options.onNews(task, message));
     } catch (error) {
+      noteRejectedKey(this.options.secrets, task.companyId, error);
       next = { pulls: previous?.pulls ?? [], feedbackKey: previous?.feedbackKey, checkedAt, error: error instanceof Error ? error.message : 'Could not read the pull request.' };
     }
     const company = this.options.store.readCompany(task.companyId);

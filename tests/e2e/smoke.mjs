@@ -106,7 +106,7 @@ try {
   await page.getByRole('heading', { name: 'Client knowledge' }).waitFor();
   await shot(page, '2c-setup-knowledge');
   await page.getByRole('button', { name: 'Continue' }).click();
-  await page.getByRole('heading', { name: 'Keys and tools' }).waitFor();
+  await page.getByRole('heading', { name: 'Keys and secrets' }).waitFor();
   await page.getByRole('button', { name: 'Skip for now' }).click();
   await page.getByRole('heading', { name: 'Links of this client' }).waitFor();
   await page.getByRole('button', { name: 'Skip for now' }).click();
@@ -142,6 +142,9 @@ try {
 
   assert.ok(existsSync(join(home, 'companies', acme.id, 'secrets.enc')));
   assert.ok(!readFileSync(join(home, 'companies', acme.id, 'secrets.enc')).includes('acme-secret-value-123'));
+  const keyDetails = () => readFileSync(join(home, 'companies', acme.id, 'keys.yaml'), 'utf8');
+  assert.ok(keyDetails().includes('ACME_API_TOKEN'), 'what Hatstand knows about a key is kept next to it');
+  assert.ok(!keyDetails().includes('acme-secret-value-123'), 'and never its value');
 
   const report = await invoke(page, 'installGuard', acme.id);
   assert.deepEqual(report.installed, [repo]);
@@ -181,6 +184,23 @@ try {
   writeFileSync(notesFile, 'Next: reproduce the timeout.\n');
   await page.getByText('Next: reproduce the timeout.').waitFor();
   await shot(page, '2-task');
+
+  // The edge of the sidebar makes it wider, and the width is kept.
+  const sidebar = page.getByRole('navigation', { name: 'Main' });
+  const sidebarEdge = sidebar.getByRole('separator', { name: 'Resize sidebar' });
+  const widthBefore = (await sidebar.boundingBox()).width;
+  const edgeBox = await sidebarEdge.boundingBox();
+  const grabAt = { x: edgeBox.x + edgeBox.width / 2, y: edgeBox.y + edgeBox.height / 2 };
+  await page.mouse.move(grabAt.x, grabAt.y);
+  await page.mouse.down();
+  await page.mouse.move(grabAt.x + 60, grabAt.y, { steps: 4 });
+  await page.mouse.up();
+  await page.waitForFunction((before) => document.querySelector('nav.sidebar').getBoundingClientRect().width === before + 60, widthBefore);
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('hatstand.sidebar')).width), widthBefore + 60, 'the width of the sidebar is kept');
+  await shot(page, '2-sidebar-wider');
+  await sidebar.getByRole('button', { name: /^New task with / }).first().waitFor();
+  await sidebarEdge.dblclick();
+  await page.waitForFunction((before) => document.querySelector('nav.sidebar').getBoundingClientRect().width === before, widthBefore);
   const reportFile = notesFile.replace(/\.md$/, '.report.md');
   writeFileSync(reportFile, '# Findings\n\nThe timeout comes from the retry queue.\n');
   await page.getByRole('button', { name: 'Read report.md' }).click();
@@ -279,6 +299,17 @@ try {
   await page.getByRole('navigation', { name: 'Setup steps' }).getByRole('button', { name: /Keys/ }).click();
   await page.getByText('ACME_API_TOKEN').waitFor();
   assert.ok(!(await page.locator('body').innerText()).includes('acme-secret-value-123'), 'key values are never shown');
+  await page.getByText(/lists and downloads repositories/).first().waitFor();
+
+  await page.getByRole('button', { name: 'Replace ACME_API_TOKEN' }).click();
+  await page.getByLabel('New value for ACME_API_TOKEN').fill('acme-replaced-value-456');
+  await page.getByLabel('New value for ACME_API_TOKEN').press('Enter');
+  await page.getByLabel('New value for ACME_API_TOKEN').waitFor({ state: 'detached' });
+  const shown = await page.locator('body').innerText();
+  assert.ok(!shown.includes('acme-replaced-value-456') && !shown.includes('acme-secret-value-123'), 'a replaced key shows neither value');
+  assert.ok(!readFileSync(join(home, 'companies', acme.id, 'secrets.enc')).includes('acme-replaced-value-456'));
+  assert.ok(!keyDetails().includes('acme-replaced-value-456'));
+  assert.deepEqual(await invoke(page, 'listSecretNames', acme.id), ['ACME_API_TOKEN'], 'replacing a key keeps one key with that name');
   await shot(page, '5-client-settings');
 
   const hiddenKnowledge = join(root, '.claude/companies/acme/knowledge');

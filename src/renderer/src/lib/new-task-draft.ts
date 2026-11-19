@@ -6,9 +6,16 @@ import { choicesOf, newTaskChoices } from './task-form';
 
 type Clients = Pick<Snapshot, 'accounts' | 'companies'>;
 
-/** The form of a new task before anything is written. */
-export function startDraft(snapshot: Clients, companyId: string, areaId?: string): NewTaskDraft {
-  return { ...newTaskChoices(snapshot, companyId, areaId), title: '', description: '', guideChosen: false, areaChosen: Boolean(areaId) };
+/** The form of a new task before anything is written. A guide given here counts as chosen, and an empty one means no guide. */
+export function startDraft(snapshot: Clients, companyId: string, areaId?: string, playbookId?: string): NewTaskDraft {
+  return {
+    ...newTaskChoices(snapshot, companyId, areaId),
+    title: '',
+    description: '',
+    playbookId: playbookId ?? '',
+    guideChosen: playbookId !== undefined,
+    areaChosen: Boolean(areaId),
+  };
 }
 
 /** The form filled in with a backlog item, which becomes the task when the form is saved. */

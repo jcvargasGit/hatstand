@@ -77,6 +77,28 @@ describe('the guide of a new task', () => {
     expect(guide().value).toBe('rfc');
   });
 
+  it('starts on the guide it was opened with, not on the suggested one', async () => {
+    const data = snapshot(true);
+    expect(startDraft(data, 'c', undefined, 'rfc')).toMatchObject({ playbookId: 'rfc', guideChosen: true });
+    render(<NewTaskPage snapshot={data} initialDraft={startDraft(data, 'c', undefined, 'rfc')} onCreated={async () => undefined} onChanged={async () => undefined} />);
+    await screen.findByRole('option', { name: 'RFC' });
+    expect(guide().value).toBe('rfc');
+  });
+
+  it('starts with no guide when it was opened for the tasks with no guide', async () => {
+    const data = snapshot(true);
+    render(<NewTaskPage snapshot={data} initialDraft={startDraft(data, 'c', undefined, '')} onCreated={async () => undefined} onChanged={async () => undefined} />);
+    await screen.findByRole('option', { name: 'RFC' });
+    expect(guide().value).toBe('');
+  });
+
+  it('falls back to the suggested guide when the one it was opened with is gone', async () => {
+    const data = snapshot(true);
+    render(<NewTaskPage snapshot={data} initialDraft={startDraft(data, 'c', undefined, 'deleted')} onCreated={async () => undefined} onChanged={async () => undefined} />);
+    await screen.findByRole('option', { name: 'RFC' });
+    expect(guide().value).toBe('implement');
+  });
+
   it('can still be chosen by hand when the setting is off', async () => {
     renderPage(false);
     await screen.findByRole('option', { name: 'RFC' });

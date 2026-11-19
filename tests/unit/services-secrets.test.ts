@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createSecretService } from '../../src/main/services/secrets';
 import { makeHome, type TestHome } from '../helpers/home';
-import { makeServiceContext, memorySecrets } from '../helpers/services';
+import { makeServiceContext, memorySecrets, reply } from '../helpers/services';
 
 let home: TestHome;
 beforeEach(() => {
@@ -9,9 +9,9 @@ beforeEach(() => {
 });
 afterEach(() => home.remove());
 
-function setup() {
-  const secrets = memorySecrets({ acme: { API_KEY: 'k' }, globex: { OTHER: 'o' } });
-  const { ctx, stateChanges } = makeServiceContext(home, secrets);
+function setup(fetch?: typeof globalThis.fetch, acme: Record<string, string> = { API_KEY: 'k' }) {
+  const secrets = memorySecrets({ acme, globex: { OTHER: 'o' } });
+  const { ctx, stateChanges } = makeServiceContext(home, secrets, fetch);
   return { service: createSecretService(ctx), secrets, stateChanges };
 }
 
@@ -41,5 +41,42 @@ describe('the secrets of a client', () => {
     await service.deleteSecret('acme', 'API_KEY');
     expect(secrets.read('acme')).toEqual({});
     expect(stateChanges()).toBe(1);
+  });
+});
+
+describe('what Hatstand knows about the keys of a client', () => {
+  const gitHub = (status: number) => async () =>
+    new Response('{}', { status, headers: { 'GitHub-Authentication-Token-Expiration': '2026-12-01 08:00:00 UTC' } });
+
+  it('lists each key with its details, never its value', async () => {
+    const { service } = setup();
+    await service.setKeyNote('acme', 'API_KEY', 'Billing sandbox');
+    const keys = await service.listKeys('acme');
+    expect(keys).toEqual([{ name: 'API_KEY', note: 'Billing sandbox', check: undefined }]);
+    expect(JSON.stringify(keys)).not.toContain('"k"');
+  });
+
+  it('checks a key with its provider, and remembers the answer and the expiry', async () => {
+    const { service, stateChanges } = setup(gitHub(200), { GITHUB_TOKEN: 'ghp_1' });
+    await service.checkKey('acme', 'GITHUB_TOKEN');
+    expect((await service.listKeys('acme'))[0]?.check).toMatchObject({ result: 'valid', expiresAt: '2026-12-01T08:00:00.000Z' });
+    expect(stateChanges()).toBe(1);
+  });
+
+  it('remembers that the provider rejected a key', async () => {
+    const { service } = setup(gitHub(401), { GITHUB_TOKEN: 'ghp_1' });
+    await service.checkKey('acme', 'GITHUB_TOKEN');
+    expect((await service.listKeys('acme'))[0]?.check?.result).toBe('rejected');
+  });
+
+  it('remembers nothing when the provider could not be asked', async () => {
+    const { service, stateChanges } = setup(async () => reply(503), { GITHUB_TOKEN: 'ghp_1' });
+    await expect(service.checkKey('acme', 'GITHUB_TOKEN')).rejects.toThrow('GitHub answered 503');
+    expect((await service.listKeys('acme'))[0]?.check).toBeUndefined();
+    expect(stateChanges()).toBe(0);
+  });
+
+  it('never reaches the network for a key with no provider', async () => {
+    await expect(setup().service.checkKey('acme', 'API_KEY')).rejects.toThrow('no provider');
   });
 });

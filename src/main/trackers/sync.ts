@@ -1,5 +1,6 @@
 import type { TrackerSyncReport } from '../../shared/api';
 import type { Task } from '../../shared/schemas';
+import { noteAcceptedKey, noteRejectedKey, type KeyNotes } from '../key-rejected';
 import type { Store } from '../store';
 import { trackers, type Fetcher, type TrackerIssue } from './index';
 
@@ -24,6 +25,7 @@ export async function syncTrackers(
   companyId: string,
   secrets: Record<string, string>,
   fetcher: Fetcher = fetch,
+  keys?: KeyNotes,
 ): Promise<TrackerSyncReport> {
   const report: TrackerSyncReport = { added: 0, updated: 0, checked: [], errors: [] };
   for (const tracker of trackers.filter((item) => item.isConfigured(secrets))) {
@@ -39,7 +41,9 @@ export async function syncTrackers(
         store.updateTask(task.id, { title: issue.title });
         report.updated += 1;
       }
+      if (keys) noteAcceptedKey(keys, companyId, tracker.service);
     } catch (error) {
+      if (keys) noteRejectedKey(keys, companyId, error);
       report.errors.push(`${tracker.name}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }

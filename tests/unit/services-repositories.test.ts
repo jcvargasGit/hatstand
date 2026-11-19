@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRepositoryService } from '../../src/main/services/repositories';
@@ -71,6 +71,24 @@ describe('connecting GitHub or GitLab', () => {
     expect(secrets.read('acme')).toEqual({});
     expect(home.store.readCompany('acme').gitSource).toBeUndefined();
     expect(stateChanges()).toBe(0);
+  });
+
+  it('marks the saved token as rejected when GitHub rejects it, and removes the mark when it works again', async () => {
+    const secrets = memorySecrets({ acme: { GITHUB_TOKEN: 'ghp_old' } });
+    const state = () => secrets.list('acme')[0]?.check?.result;
+    const rejecting = setup(fakeGitHub(['api']), secrets);
+    await expect(rejecting.repositories.connectGitSource('acme', GITHUB)).rejects.toThrow('GitHub rejected this token.');
+    expect(state()).toBe('rejected');
+    expect(rejecting.stateChanges()).toBe(1);
+
+    await setup(fakeGitHub(['api'], 'ghp_old'), secrets).repositories.connectGitSource('acme', GITHUB);
+    expect(state()).toBeUndefined();
+  });
+
+  it('does not blame the saved token for a pasted one that GitHub rejects', async () => {
+    const secrets = memorySecrets({ acme: { GITHUB_TOKEN: 'ghp_good' } });
+    await expect(setup(fakeGitHub(['api']), secrets).repositories.connectGitSource('acme', GITHUB, 'ghp_typo')).rejects.toThrow('GitHub rejected this token.');
+    expect(secrets.list('acme')[0]?.check).toBeUndefined();
   });
 
   it('refuses a source it cannot use', async () => {
@@ -154,6 +172,80 @@ describe('downloading repositories', () => {
     const { repositories } = setup(fakeGitHub(['api'], 'ghp_other'), withToken());
     await expect(repositories.downloadRepos('acme', home.folder('code'), ['api'])).rejects.toThrow('GitHub rejected this token.');
     await expect(repositories.downloadRepos('acme', home.folder('code'), ['api'])).rejects.toThrow('GitHub rejected this token.');
+  });
+});
+
+describe('downloading one repository from its link', () => {
+  const GITLAB: GitSource = { provider: 'gitlab', owner: 'acme', host: 'gitlab.acme.dev' };
+  const withToken = () => memorySecrets({ acme: { GITHUB_TOKEN: 'ghp_good' } });
+
+  it('adds the repository to the client, with no connection and no token', async () => {
+    const { repositories, ctx, emitted, stateChanges } = setup();
+    const target = checkout(join(ctx.userHome, 'code', 'api'), 'https://github.com/acme/api.git');
+
+    expect(await repositories.downloadRepoByLink('acme', 'git@github.com:acme/api.git', '~/code')).toEqual({ path: 'api', state: 'existing' });
+    expect(home.store.readCompany('acme')).toMatchObject({ rootDir: join(ctx.userHome, 'code'), projects: [{ name: 'api', path: target }] });
+    expect(stateChanges()).toBe(1);
+    expect(emitted.filter((item) => item.event === 'clone-progress').map((item) => item.payload)).toEqual([
+      { path: 'api', state: 'cloning', companyId: 'acme' },
+      { path: 'api', state: 'existing', companyId: 'acme' },
+    ]);
+  });
+
+  it('takes a repository of another owner on the site of the client', async () => {
+    home.store.saveCompany({ ...home.store.readCompany('acme'), gitSource: GITLAB });
+    const { repositories, ctx } = setup(undefined, memorySecrets({ acme: { GITLAB_TOKEN: 'glpat' } }));
+    checkout(join(ctx.userHome, 'code', 'tools'), 'https://gitlab.acme.dev/partner/shared/tools.git');
+    const result = await repositories.downloadRepoByLink('acme', 'https://gitlab.acme.dev/partner/shared/tools', '~/code');
+    expect(result).toEqual({ path: 'tools', state: 'existing' });
+  });
+
+  it('refuses a link on another site before it prepares a folder or runs git', async () => {
+    home.store.saveCompany({ ...home.store.readCompany('acme'), gitSource: GITLAB });
+    const { repositories, ctx, emitted } = setup(undefined, memorySecrets({ acme: { GITLAB_TOKEN: 'glpat' } }));
+    await expect(repositories.downloadRepoByLink('acme', 'https://github.com/acme/api', '~/code')).rejects.toThrow('this link is on another site');
+    expect(existsSync(join(ctx.userHome, 'code'))).toBe(false);
+    expect(emitted).toEqual([]);
+  });
+
+  it('will not download into a repository or into Hatstand\'s own data folder', async () => {
+    const { repositories } = setup();
+    const repo = makeGitRepo(home.folder('code', 'mono'));
+    await expect(repositories.downloadRepoByLink('acme', 'https://github.com/acme/api', repo)).rejects.toThrow('Choose a folder outside any repository.');
+    await expect(repositories.downloadRepoByLink('acme', 'https://github.com/acme/api', join(home.paths.home, 'code'))).rejects.toThrow('Choose a folder outside Hatstand\'s own data folder.');
+  });
+
+  it('leaves a folder that holds another repository alone, and does not add it', async () => {
+    const { repositories, ctx } = setup(undefined, withToken());
+    checkout(join(ctx.userHome, 'code', 'api'), 'https://github.com/someone-else/api.git');
+    const result = await repositories.downloadRepoByLink('acme', 'https://github.com/acme/api', '~/code');
+    expect(result).toEqual({ path: 'api', state: 'failed', error: expect.stringMatching(/already holds a different repository\.$/) });
+    expect(home.store.readCompany('acme').projects).toEqual([]);
+  });
+
+  it('says where to put a token when a download without one fails', async () => {
+    const { repositories, ctx } = setup();
+    ctx.tools.path = home.folder('no-git-here');
+    const result = await repositories.downloadRepoByLink('acme', 'https://github.com/acme/private', home.folder('code'));
+    expect(result).toMatchObject({ state: 'failed', error: expect.stringContaining('If the repository is private, add GITHUB_TOKEN to this client\'s keys.') });
+  });
+
+  it('waits for the download of the list of the same client', async () => {
+    home.store.saveCompany({ ...home.store.readCompany('acme'), gitSource: GITHUB });
+    let answer = () => {};
+    const github = fakeGitHub([]);
+    const slow = vi.fn<typeof globalThis.fetch>(async (input, init) => {
+      if (String(input).endsWith('/user')) await new Promise<void>((resolve) => (answer = resolve));
+      return github(input, init);
+    });
+    const { repositories, ctx } = setup(slow, withToken());
+    checkout(join(ctx.userHome, 'code', 'api'), 'https://github.com/acme/api.git');
+    const list = repositories.downloadRepos('acme', '~/code', []);
+    await vi.waitFor(() => expect(slow).toHaveBeenCalled());
+    await expect(repositories.downloadRepoByLink('acme', 'https://github.com/acme/api', '~/code')).rejects.toThrow('This client is already downloading repositories.');
+    answer();
+    await list;
+    expect(await repositories.downloadRepoByLink('acme', 'https://github.com/acme/api', '~/code')).toMatchObject({ state: 'existing' });
   });
 });
 

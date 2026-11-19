@@ -65,6 +65,7 @@ const makeRemote = (relativePath) => {
 };
 makeRemote('zenith/gallery-api');
 makeRemote('zenith/web/portal');
+makeRemote('partner/tools');
 
 let origin = '';
 const server = createServer((request, response) => {
@@ -166,6 +167,27 @@ try {
     assert.ok(!readFileSync(file).includes(GOOD_TOKEN), `${file} must not contain the token in the clear`);
   }
 
+  assert.equal(await page.getByLabel('Folder for this repository').inputValue(), target, 'a link downloads to the client folder');
+  await page.getByLabel('Repository link').fill('https://example.com/partner/tools');
+  await page.getByRole('button', { name: 'Download from link' }).click();
+  await page.getByText('this link is on another site').waitFor();
+  await page.getByLabel('Repository link').fill(`${origin}/partner/tools/-/tree/main`);
+  await page.getByRole('button', { name: 'Download from link' }).click();
+  await page.getByText(`Downloaded tools to ${target}.`).waitFor();
+  await page.getByRole('cell', { name: 'tools', exact: true }).waitFor();
+  assert.equal(readFileSync(join(target, 'tools', 'README.md'), 'utf8'), 'partner/tools\n');
+  assert.ok(!readFileSync(join(target, 'tools', '.git', 'config')).includes(GOOD_TOKEN), 'a link leaves no token in the repository');
+  await shot(page, '6f-downloaded-link');
+
+  await page.getByRole('radio', { name: /Use a folder I already have/ }).check();
+  await page.getByRole('radio', { name: /Download from GitHub or GitLab/ }).check();
+  await page.getByText('Found 2 repositories in zenith').waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Connect and list repositories' }).count(), 0, 'a saved token lists without asking');
+  await page.getByRole('button', { name: 'Change connection' }).click();
+  await page.getByText('Using the GITLAB_TOKEN saved in this client').waitFor();
+  assert.equal(await page.getByLabel('Access token').count(), 0, 'a saved token is not asked for again');
+  await shot(page, '6f-saved-token');
+
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.getByRole('heading', { name: 'Areas of this client' }).waitFor();
   await page.getByLabel('New area name').fill('Gallery');
@@ -228,7 +250,7 @@ try {
   await shot(page, '8c-file-editor');
   await page.getByRole('button', { name: 'Continue' }).click();
 
-  await page.getByRole('heading', { name: 'Keys and tools' }).waitFor();
+  await page.getByRole('heading', { name: 'Keys and secrets' }).waitFor();
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.getByRole('heading', { name: 'Links of this client' }).waitFor();
   await page.getByRole('button', { name: 'Skip for now' }).click();
@@ -238,12 +260,12 @@ try {
   writeFileSync(portalHook, '#!/bin/sh\nexit 0\n');
   chmodSync(portalHook, 0o755);
   await page.getByRole('button', { name: 'Protect repositories' }).click();
-  await page.getByText('Protected 1 repository').waitFor();
-  await page.getByText('1 of 2 repositories protected.').waitFor();
+  await page.getByText('Protected 2 repositories').waitFor();
+  await page.getByText('2 of 3 repositories protected.').waitFor();
   await page.getByText('This repository already has a pre-commit hook.').waitFor();
   await shot(page, '7b-protection-list');
   await page.getByRole('button', { name: 'Protect and keep its hook' }).click();
-  await page.getByText('2 of 2 repositories protected.').waitFor();
+  await page.getByText('3 of 3 repositories protected.').waitFor();
   assert.equal(readFileSync(join(target, 'web', 'portal', '.git', 'hooks', 'before-hatstand', 'pre-commit'), 'utf8'), '#!/bin/sh\nexit 0\n');
   await shot(page, '7c-protection-done');
   await page.getByRole('button', { name: 'Continue' }).click();
@@ -446,7 +468,7 @@ try {
   await guideBar.getByRole('button', { name: 'Send to agent' }).waitFor();
   const guideTree = page.getByRole('region', { name: 'Zenith Labs tasks' });
   await guideTree.getByText('PR review, step 2 of 4').waitFor();
-  await guideTree.getByTitle('Review a pull request').waitFor();
+  await guideTree.getByTitle('Review a pull request', { exact: true }).waitFor();
 
   writeFileSync(
     guideLaunch.env.HATSTAND_ACTIVITY_FILE,
