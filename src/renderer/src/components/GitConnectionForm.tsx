@@ -69,6 +69,7 @@ export function GitConnectionForm({ company, listError, onConnected }: GitConnec
         {OWNER_LABEL[provider]}
         <input value={owner} onChange={(event) => setOwner(event.target.value)} />
       </label>
+      {tokenState === 'loading' && !replacing && <div className="skeleton skeleton-field stacked-field" role="status" aria-label="Looking for a saved token" />}
       {asksForToken && (
         <label className="stacked-field">
           Access token

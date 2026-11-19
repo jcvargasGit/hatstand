@@ -4,6 +4,7 @@ import type { Company } from '../../../shared/schemas';
 import { useSavedGitToken } from '../hooks/useSavedGitToken';
 import { api, errorMessage } from '../lib/api';
 import { GitConnectionForm } from './GitConnectionForm';
+import { RepoListSkeleton } from './RepoListSkeleton';
 import { RepoSelection } from './RepoSelection';
 
 export function RepoDownload({ company }: { company: Company }) {
@@ -33,6 +34,6 @@ export function RepoDownload({ company }: { company: Company }) {
       />
     );
   }
-  if (usesSavedConnection) return <p className="hint">Listing repositories</p>;
+  if (usesSavedConnection) return <RepoListSkeleton />;
   return <GitConnectionForm company={company} listError={listError} onConnected={setRepos} />;
 }

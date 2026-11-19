@@ -21,4 +21,6 @@ export type ServiceContext = {
   userHome: string;
   /** Reaches GitHub, GitLab, and photo links. A test passes a fake, so it never reaches the network. */
   fetch: typeof fetch;
+  /** Moves a folder to the trash of this computer, where the person can get it back. A test passes a fake. */
+  trash: (path: string) => Promise<void>;
 };

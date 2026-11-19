@@ -144,8 +144,35 @@ describe('downloading repositories', () => {
     const { repositories, ctx } = setup(fakeGitHub(['api']), withToken());
     checkout(join(ctx.userHome, 'code', 'api'), 'https://github.com/someone-else/api.git');
     const [result] = await repositories.downloadRepos('acme', '~/code', ['api']);
-    expect(result).toMatchObject({ state: 'failed', error: expect.stringContaining('already holds a different repository') });
+    expect(result).toMatchObject({ state: 'failed', blocker: 'other-repository', error: expect.stringContaining('already holds a different repository') });
     expect(home.store.readCompany('acme').projects).toEqual([]);
+  });
+
+  it.each(['git@github.com:acme/api.git', 'git@github-acme:acme/api.git', 'ssh://git@github.com/Acme/api'])(
+    'takes a folder downloaded from %s as the same repository',
+    async (origin) => {
+      connected();
+      const { repositories, ctx } = setup(fakeGitHub(['api']), withToken());
+      const target = checkout(join(ctx.userHome, 'code', 'api'), origin);
+      expect(await repositories.downloadRepos('acme', '~/code', ['api'])).toEqual([{ path: 'api', state: 'existing' }]);
+      expect(home.store.readCompany('acme').projects).toMatchObject([{ name: 'api', path: target }]);
+    },
+  );
+
+  it('leaves a folder that is not a repository alone, and downloads into an empty one', async () => {
+    connected();
+    const { repositories, ctx } = setup(fakeGitHub(['api', 'web']), withToken());
+    mkdirSync(join(ctx.userHome, 'code', 'api'), { recursive: true });
+    writeFileSync(join(ctx.userHome, 'code', 'api', 'notes.txt'), 'mine');
+    const [result] = await repositories.downloadRepos('acme', '~/code', ['api']);
+    expect(result).toEqual({ path: 'api', state: 'failed', blocker: 'not-a-repository', error: expect.stringMatching(/already exists and is not a repository\.$/) });
+    expect(home.store.readCompany('acme').projects).toEqual([]);
+
+    mkdirSync(join(ctx.userHome, 'code', 'web'));
+    ctx.tools.path = home.folder('no-git-here');
+    const [empty] = await repositories.downloadRepos('acme', '~/code', ['web']);
+    expect(empty).toMatchObject({ path: 'web', state: 'failed' });
+    expect(empty?.blocker).toBeUndefined();
   });
 
   it('downloads for one client at a time, and can download again once done', async () => {
@@ -219,7 +246,7 @@ describe('downloading one repository from its link', () => {
     const { repositories, ctx } = setup(undefined, withToken());
     checkout(join(ctx.userHome, 'code', 'api'), 'https://github.com/someone-else/api.git');
     const result = await repositories.downloadRepoByLink('acme', 'https://github.com/acme/api', '~/code');
-    expect(result).toEqual({ path: 'api', state: 'failed', error: expect.stringMatching(/already holds a different repository\.$/) });
+    expect(result).toEqual({ path: 'api', state: 'failed', blocker: 'other-repository', error: expect.stringMatching(/already holds a different repository\.$/) });
     expect(home.store.readCompany('acme').projects).toEqual([]);
   });
 
@@ -274,5 +301,111 @@ describe('finding repositories on this computer', () => {
     mkdirSync(join(ctx.userHome, 'docs'));
     expect(await repositories.resolvePath('~/docs', 'directory')).toBe(join(ctx.userHome, 'docs'));
     await expect(repositories.resolvePath('~/missing', 'directory')).rejects.toThrow(`${join(ctx.userHome, 'missing')} does not exist.`);
+  });
+});
+
+describe('a folder that stops a download', () => {
+  const GIT = ['-c', 'user.name=Test', '-c', 'user.email=test@example.com'];
+  const withToken = () => memorySecrets({ acme: { GITHUB_TOKEN: 'ghp_good' } });
+
+  /** A download from a link that finds another repository in its folder, with work that is only on this computer. */
+  async function blockedDownload() {
+    const parts = setup(undefined, withToken());
+    const target = checkout(join(parts.ctx.userHome, 'code', 'api'), 'https://github.com/someone-else/api.git');
+    writeFileSync(join(target, 'README.md'), 'hello');
+    execFileSync('git', ['add', '.'], { cwd: target });
+    execFileSync('git', [...GIT, 'commit', '-qm', 'first'], { cwd: target });
+    writeFileSync(join(target, 'draft.md'), 'not committed');
+    await parts.repositories.downloadRepoByLink('acme', 'https://github.com/acme/api', '~/code');
+    return { ...parts, target };
+  }
+
+  it('says what is in it, and what is only on this computer', async () => {
+    const { repositories, target } = await blockedDownload();
+    expect(await repositories.inspectBlockedFolder('acme', '~/code', 'api')).toEqual({
+      target,
+      blocker: 'other-repository',
+      origin: 'https://github.com/someone-else/api.git',
+      entries: 0,
+      uncommitted: 1,
+      unpushed: 1,
+    });
+  });
+
+  it('counts what is in a folder that is not a repository', async () => {
+    const { repositories, ctx } = setup(undefined, withToken());
+    const target = join(ctx.userHome, 'code', 'api');
+    mkdirSync(join(target, 'src'), { recursive: true });
+    writeFileSync(join(target, 'notes.txt'), 'mine');
+    await repositories.downloadRepoByLink('acme', 'https://github.com/acme/api', '~/code');
+    expect(await repositories.inspectBlockedFolder('acme', '~/code', 'api')).toEqual({ target, blocker: 'not-a-repository', entries: 2, uncommitted: 0, unpushed: 0 });
+  });
+
+  it('moves it to the trash once its name is typed, and nothing else', async () => {
+    const { repositories, ctx, target } = await blockedDownload();
+    mkdirSync(join(ctx.userHome, 'code', 'web'));
+    await repositories.trashBlockedFolder('acme', '~/code', 'api', ' api ');
+    expect(existsSync(target)).toBe(false);
+    expect(existsSync(join(home.folder('trash'), '0-api', 'draft.md'))).toBe(true);
+    expect(existsSync(join(ctx.userHome, 'code', 'web'))).toBe(true);
+    await expect(repositories.trashBlockedFolder('acme', '~/code', 'api', 'api')).rejects.toThrow('Download this repository again');
+  });
+
+  it('keeps the folder when the name typed is not the one of the repository', async () => {
+    const { repositories, target } = await blockedDownload();
+    await expect(repositories.trashBlockedFolder('acme', '~/code', 'api', 'API')).rejects.toThrow('Type api to confirm.');
+    await expect(repositories.trashBlockedFolder('acme', '~/code', 'api', '')).rejects.toThrow('Type api to confirm.');
+    expect(existsSync(target)).toBe(true);
+  });
+
+  it('only touches a folder that a download of this client found taken', async () => {
+    const { repositories, ctx } = await blockedDownload();
+    const other = checkout(join(ctx.userHome, 'code', 'web'), 'https://github.com/someone-else/web.git');
+    const outside = makeGitRepo(join(ctx.userHome, 'elsewhere'));
+    await expect(repositories.trashBlockedFolder('acme', '~/code', 'web', 'web')).rejects.toThrow('Download this repository again');
+    await expect(repositories.trashBlockedFolder('acme', '~/code', '../elsewhere', 'elsewhere')).rejects.toThrow('Download this repository again');
+    await expect(repositories.trashBlockedFolder('acme', '~', 'api', 'api')).rejects.toThrow('Download this repository again');
+    await expect(repositories.inspectBlockedFolder('acme', '~/code', 'web')).rejects.toThrow('Download this repository again');
+    home.store.createCompany('Other', '#445566');
+    await expect(repositories.trashBlockedFolder('other', '~/code', 'api', 'api')).rejects.toThrow('Download this repository again');
+    expect([other, outside].every((folder) => existsSync(folder))).toBe(true);
+  });
+
+  it('keeps a folder that became the repository asked for', async () => {
+    const { repositories, target } = await blockedDownload();
+    execFileSync('git', ['remote', 'set-url', 'origin', 'git@github.com:acme/api.git'], { cwd: target });
+    await expect(repositories.trashBlockedFolder('acme', '~/code', 'api', 'api')).rejects.toThrow('no longer stops the download');
+    expect(existsSync(target)).toBe(true);
+  });
+
+  it('keeps a folder that a client works in, or that holds one', async () => {
+    const { repositories, target } = await blockedDownload();
+    home.store.createCompany('Other', '#445566');
+    home.store.saveCompany({ ...home.store.readCompany('other'), projects: [{ id: 'api', name: 'api', path: target }] });
+    await expect(repositories.trashBlockedFolder('acme', '~/code', 'api', 'api')).rejects.toThrow('Other uses');
+    home.store.saveCompany({ ...home.store.readCompany('other'), projects: [{ id: 'inner', name: 'inner', path: join(target, 'packages', 'inner') }] });
+    await expect(repositories.trashBlockedFolder('acme', '~/code', 'api', 'api')).rejects.toThrow('Other uses');
+    expect(existsSync(target)).toBe(true);
+  });
+
+  it('says so when the trash fails, and keeps the folder', async () => {
+    const { ctx, target } = await blockedDownload();
+    const withoutTrash = createRepositoryService({
+      ...ctx,
+      trash: async () => {
+        throw new Error('No trash on this computer.');
+      },
+    });
+    await withoutTrash.downloadRepoByLink('acme', 'https://github.com/acme/api', '~/code');
+    await expect(withoutTrash.trashBlockedFolder('acme', '~/code', 'api', 'api')).rejects.toThrow('nothing was deleted. No trash on this computer.');
+    expect(existsSync(target)).toBe(true);
+  });
+
+  it('downloads again once the folder is in the trash', async () => {
+    const { repositories, ctx } = await blockedDownload();
+    await repositories.trashBlockedFolder('acme', '~/code', 'api', 'api');
+    ctx.tools.path = home.folder('no-git-here');
+    const result = await repositories.downloadRepoByLink('acme', 'https://github.com/acme/api', '~/code');
+    expect(result.blocker).toBeUndefined();
   });
 });
