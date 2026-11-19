@@ -21,11 +21,12 @@ function activeLines(state: EditorState): Set<number> {
   return lines;
 }
 
-export function markdownParts(state: EditorState, editing = true): MarkdownPart[] {
+/** The parts of a document to style. With `hideMarks` off nothing is hidden, which is how the Markdown source is shown. */
+export function markdownParts(state: EditorState, editing = true, hideMarks = true): MarkdownPart[] {
   const parts: MarkdownPart[] = [];
   const active = editing ? activeLines(state) : new Set<number>();
   const hide = (from: number, to: number) => {
-    if (from < to && !active.has(state.doc.lineAt(from).number)) parts.push({ type: 'hide', from, to });
+    if (hideMarks && from < to && !active.has(state.doc.lineAt(from).number)) parts.push({ type: 'hide', from, to });
   };
 
   syntaxTree(state).iterate({
@@ -65,19 +66,25 @@ function toDecoration(part: MarkdownPart): Range<Decoration> {
   return Decoration.mark({ class: part.className ?? '' }).range(part.from, part.to);
 }
 
-const decorationsOf = (view: EditorView): DecorationSet => Decoration.set(markdownParts(view.state, view.hasFocus).map(toDecoration), true);
+const decorationsOf = (view: EditorView, hideMarks: boolean): DecorationSet => Decoration.set(markdownParts(view.state, view.hasFocus, hideMarks).map(toDecoration), true);
 
-export const markdownLivePreview = ViewPlugin.fromClass(
-  class {
-    decorations: DecorationSet;
+const stylingPlugin = (hideMarks: boolean) =>
+  ViewPlugin.fromClass(
+    class {
+      decorations: DecorationSet;
 
-    constructor(view: EditorView) {
-      this.decorations = decorationsOf(view);
-    }
+      constructor(view: EditorView) {
+        this.decorations = decorationsOf(view, hideMarks);
+      }
 
-    update(update: ViewUpdate) {
-      if (update.docChanged || update.selectionSet || update.focusChanged || syntaxTree(update.startState) !== syntaxTree(update.state)) this.decorations = decorationsOf(update.view);
-    }
-  },
-  { decorations: (plugin) => plugin.decorations },
-);
+      update(update: ViewUpdate) {
+        if (update.docChanged || update.selectionSet || update.focusChanged || syntaxTree(update.startState) !== syntaxTree(update.state)) this.decorations = decorationsOf(update.view, hideMarks);
+      }
+    },
+    { decorations: (plugin) => plugin.decorations },
+  );
+
+export const markdownLivePreview = stylingPlugin(true);
+
+/** The Markdown source with every mark in view, styled with the same classes as the live preview. */
+export const markdownSourceStyles = stylingPlugin(false);

@@ -20,14 +20,15 @@ const EXAMPLE = '# Fix the login page\n- Reproduce the error';
 export function InboxCapture({ companies, companyId, onChanged }: InboxCaptureProps) {
   const [target, setTarget] = useState(companyId ?? companies[0]?.id ?? '');
   const [text, setText] = useState('');
+  const [single, setSingle] = useState(false);
   const form = useRef<HTMLFormElement>(null);
   const editor = useRef<HTMLTextAreaElement>(null);
   const pendingSelection = useRef<TextEdit | null>(null);
   const { error, busy, run } = useAction();
-  const ideas = splitPaste(text);
   const asOne = pasteAsOne(text);
+  const ideas = single ? (asOne ? [asOne] : []) : splitPaste(text);
   const checklistCount = ideas.reduce((total, idea) => total + (idea.checklist?.length ?? 0), 0);
-  const hasMoreThanATitle = ideas.length > 1 || checklistCount > 0 || Boolean(ideas[0]?.description);
+  const showPreview = single ? ideas.length > 0 : ideas.length > 1 || checklistCount > 0 || Boolean(ideas[0]?.description);
 
   useLayoutEffect(() => {
     if (!pendingSelection.current) return;
@@ -39,6 +40,7 @@ export function InboxCapture({ companies, companyId, onChanged }: InboxCapturePr
     run(async () => {
       await api.addIdeas(target, items);
       setText('');
+      setSingle(false);
       await onChanged();
     });
 
@@ -88,7 +90,14 @@ export function InboxCapture({ companies, companyId, onChanged }: InboxCapturePr
         <textarea ref={editor} autoFocus rows={text ? 5 : 2} value={text} placeholder={EXAMPLE} onChange={(event) => setText(event.target.value)} onKeyDown={onEditorKey} />
       </label>
       <p className="hint">Start a task with # or a dash. A list under a # title, or an indented list, becomes its checklist. A new line alone adds details, not a task. Tab indents a list line.</p>
-      {hasMoreThanATitle && <InboxPreview ideas={ideas} />}
+      <label className="check inbox-single">
+        <input type="checkbox" checked={single} onChange={(event) => setSingle(event.target.checked)} />
+        <span>
+          Create a single task
+          <small>The first line is the title, and everything you wrote is the description.</small>
+        </span>
+      </label>
+      {showPreview && <InboxPreview ideas={ideas} whole={single} />}
       {ideas.length > 0 && (
         <p className="inbox-count" role="status">
           This adds {plural(ideas.length, 'task', 'tasks')} to the backlog{checklistCount > 0 ? `, with ${plural(checklistCount, 'checklist item', 'checklist items')}` : ''}.
@@ -99,11 +108,6 @@ export function InboxCapture({ companies, companyId, onChanged }: InboxCapturePr
           <Plus size={15} />
           {ideas.length > 1 ? `Add ${ideas.length} tasks` : 'Add to backlog'}
         </button>
-        {(ideas.length > 1 || checklistCount > 0) && asOne && (
-          <button type="button" className="quiet" disabled={busy} onClick={() => void add([asOne])}>
-            Keep as one task
-          </button>
-        )}
       </div>
       {error && <p className="error">{error}</p>}
     </form>

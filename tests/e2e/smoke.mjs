@@ -184,6 +184,23 @@ try {
   writeFileSync(notesFile, 'Next: reproduce the timeout.\n');
   await page.getByText('Next: reproduce the timeout.').waitFor();
   await shot(page, '2-task');
+
+  // The edge of the sidebar makes it wider, and the width is kept.
+  const sidebar = page.getByRole('navigation', { name: 'Main' });
+  const sidebarEdge = sidebar.getByRole('separator', { name: 'Resize sidebar' });
+  const widthBefore = (await sidebar.boundingBox()).width;
+  const edgeBox = await sidebarEdge.boundingBox();
+  const grabAt = { x: edgeBox.x + edgeBox.width / 2, y: edgeBox.y + edgeBox.height / 2 };
+  await page.mouse.move(grabAt.x, grabAt.y);
+  await page.mouse.down();
+  await page.mouse.move(grabAt.x + 60, grabAt.y, { steps: 4 });
+  await page.mouse.up();
+  await page.waitForFunction((before) => document.querySelector('nav.sidebar').getBoundingClientRect().width === before + 60, widthBefore);
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('hatstand.sidebar')).width), widthBefore + 60, 'the width of the sidebar is kept');
+  await shot(page, '2-sidebar-wider');
+  await sidebar.getByRole('button', { name: /^New task with / }).first().waitFor();
+  await sidebarEdge.dblclick();
+  await page.waitForFunction((before) => document.querySelector('nav.sidebar').getBoundingClientRect().width === before, widthBefore);
   const reportFile = notesFile.replace(/\.md$/, '.report.md');
   writeFileSync(reportFile, '# Findings\n\nThe timeout comes from the retry queue.\n');
   await page.getByRole('button', { name: 'Read report.md' }).click();

@@ -52,6 +52,19 @@ describe('Markdown live preview', () => {
     expect(hiddenText(state)).toEqual([]);
   });
 
+  it('styles the Markdown source without hiding anything', () => {
+    const state = stateOf('# Title\n\n**bold** [docs](https://example.com)\n\nnext');
+    const parts = markdownParts(state, false, false);
+    expect(parts.filter((part) => part.type === 'hide')).toEqual([]);
+    expect(parts.map((part) => part.className)).toEqual(expect.arrayContaining(['cm-md-h1', 'cm-md-strong', 'cm-md-link']));
+  });
+
+  it('marks a pasted address as a link', () => {
+    const state = stateOf('See https://example.com/page\n\nnext');
+    const links = markdownParts(state).filter((part) => part.className === 'cm-md-link');
+    expect(links.map((part) => state.sliceDoc(part.from, 'to' in part ? part.to : part.from))).toEqual(['https://example.com/page']);
+  });
+
   it('leaves images and plain brackets as text', () => {
     const state = stateOf('![alt](a.png) [todo]\n\nnext');
     expect(hiddenText(state)).toEqual([]);

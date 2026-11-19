@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { isCommandKey } from '../lib/shortcuts';
+import { clampSidebarWidth, SIDEBAR_DEFAULT_WIDTH } from '../lib/sidebar-width';
 
 const STORAGE_KEY = 'hatstand.sidebar';
 
-type Stored = { collapsed: boolean; closedClients: string[]; needsYouHidden: boolean };
+type Stored = { collapsed: boolean; closedClients: string[]; needsYouHidden: boolean; width: number };
 
 function readStored(): Stored {
   try {
@@ -13,9 +14,10 @@ function readStored(): Stored {
       collapsed: value.collapsed === true,
       closedClients: Array.isArray(value.closedClients) ? value.closedClients.filter((id) => typeof id === 'string') : [],
       needsYouHidden: value.needsYouHidden === true,
+      width: clampSidebarWidth(value.width),
     };
   } catch {
-    return { collapsed: false, closedClients: [], needsYouHidden: false };
+    return { collapsed: false, closedClients: [], needsYouHidden: false, width: SIDEBAR_DEFAULT_WIDTH };
   }
 }
 
@@ -24,6 +26,8 @@ export type SidebarLayout = Stored & {
   toggleClient: (companyId: string) => void;
   openClient: (companyId: string) => void;
   toggleNeedsYou: () => void;
+  setWidth: (width: number) => void;
+  resetWidth: () => void;
 };
 
 export function useSidebarLayout(): SidebarLayout {
@@ -61,5 +65,7 @@ export function useSidebarLayout(): SidebarLayout {
     openClient: (companyId) =>
       setState((current) => ({ ...current, closedClients: current.closedClients.filter((id) => id !== companyId) })),
     toggleNeedsYou: () => setState((current) => ({ ...current, needsYouHidden: !current.needsYouHidden })),
+    setWidth: (width) => setState((current) => ({ ...current, width: clampSidebarWidth(width) })),
+    resetWidth: () => setState((current) => ({ ...current, width: SIDEBAR_DEFAULT_WIDTH })),
   };
 }
