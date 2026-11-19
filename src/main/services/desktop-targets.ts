@@ -4,6 +4,7 @@ import { areaFolder } from '../../shared/areas';
 import { activeFolder, activePluginDir } from '../active-folders';
 import { allowedFile } from '../client-files';
 import { editorTarget, type EditorTarget } from '../editor-target';
+import { recordedChange } from '../outside-changes';
 import { activeWorktrees, sessionFolder, workingDirFor } from '../task-folders';
 import type { ServiceContext } from './context';
 
@@ -24,6 +25,8 @@ export type DesktopTargets = {
   /** The notes file of a task, created when the task has none yet. */
   taskNotes(taskId: string): string;
   taskOutput(taskId: string, name: string): string;
+  /** A file the task changed outside git, or the folder of a repository it created. A path that was not recorded is refused. */
+  taskChangedFile(taskId: string, path: string): EditorTarget;
 };
 
 export function createDesktopTargets({ store, paths }: Pick<ServiceContext, 'store' | 'paths'>): DesktopTargets {
@@ -67,6 +70,12 @@ export function createDesktopTargets({ store, paths }: Pick<ServiceContext, 'sto
       return file;
     },
     taskOutput: (taskId, name) => store.taskOutputFile(store.findTask(taskId), name),
+    taskChangedFile: (taskId, path) => {
+      const task = store.findTask(taskId);
+      const change = recordedChange(paths, store.readCompany(task.companyId), task, path);
+      if (change.status === 'deleted') throw new Error('This file was deleted, so there is nothing to open.');
+      return { kind: change.status === 'repository' ? 'folder' : 'file', path: change.path };
+    },
   };
 }
 

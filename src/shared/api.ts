@@ -3,7 +3,7 @@ import type { ReleaseState } from './schemas';
 import type { BacklogPlan, BacklogPlanInput } from './backlog-plan';
 import type { DescriptionSuggestion, SuggestionRequest } from './description-suggestion';
 import type { NewTaskDraft } from './new-task-draft';
-import type { Account, AccountsFile, Company, GitSource, Idea, KeyInfo, NewTask, Playbook, Session, StayAwakeMode, SubagentRun, Task, TaskPatch, TaskReview, TaskSetup, TodayLayout, Subdomain, GitIdentityInput } from './schemas';
+import type { Account, AccountsFile, Company, GitSource, Idea, KeyInfo, NewTask, OutsideChanges, Playbook, Session, StayAwakeMode, SubagentRun, Task, TaskPatch, TaskReview, TaskSetup, TodayLayout, Subdomain, GitIdentityInput } from './schemas';
 
 export type Snapshot = {
   companies: Company[];
@@ -282,6 +282,12 @@ export type HatstandApi = {
   planningStatus(companyId: string): Promise<RepoChanges | null>;
   taskChanges(taskId: string): Promise<RepoChanges[]>;
   taskFileDiff(taskId: string, projectId: string, file: string): Promise<string>;
+  /** The files the agent of a task wrote outside the repositories that Changes already reports, such as folders without git. */
+  taskOutsideChanges(taskId: string): Promise<OutsideChanges>;
+  /** What to show for one of those files: its content when it is a new text file. */
+  taskOutsideFile(taskId: string, path: string): Promise<string>;
+  /** Opens one of those files in the editor. A path Hatstand did not record for the task is refused. */
+  openTaskChangedFile(taskId: string, path: string): Promise<string>;
   /** Opens a folder of the client, a file inside one, or a document of one of its tasks. */
   openInEditor(companyId: string, path: string): Promise<void>;
   detectEditor(): Promise<string | null>;

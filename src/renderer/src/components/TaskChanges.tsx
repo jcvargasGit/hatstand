@@ -2,16 +2,19 @@ import { ExternalLink, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
 import type { FileChange, RepoChanges } from '../../../shared/api';
 import type { Task } from '../../../shared/schemas';
+import { useOutsideChanges } from '../hooks/useOutsideChanges';
 import { useTaskChanges } from '../hooks/useTaskChanges';
 import { api } from '../lib/api';
 import { plural } from '../lib/text';
+import { OutsideChangesList } from './OutsideChangesList';
 
 type TaskChangesProps = {
   task: Task;
   refreshKey: string;
 };
 
-type OpenDiff = { projectId: string; change: FileChange; text: string };
+/** The file whose changes are shown. `projectId` is null for a file outside git. */
+type OpenDiff = { projectId: string | null; path: string; text: string };
 
 const lineClass = (line: string) => {
   if (line.startsWith('+') && !line.startsWith('+++')) return 'diff-added';
@@ -27,8 +30,15 @@ export function changeSummary(repo: Pick<RepoChanges, 'changes' | 'committed' | 
   return parts.filter(Boolean).join(', ');
 }
 
+export function changesHint(repos: number, outsideFiles: number): string {
+  if (repos === 0 && outsideFiles === 0) return 'This task has not changed any file yet.';
+  const parts = [repos > 0 ? `In ${plural(repos, 'repository', 'repositories')}` : null, outsideFiles > 0 ? `${plural(outsideFiles, 'file', 'files')} outside git` : null];
+  return parts.filter(Boolean).join(', ');
+}
+
 export function TaskChanges({ task, refreshKey }: TaskChangesProps) {
   const { reports, repos, reload, error, busy, run } = useTaskChanges(task.id, refreshKey);
+  const outside = useOutsideChanges(task.id, refreshKey);
   const [open, setOpen] = useState<OpenDiff | null>(null);
   const [showOlder, setShowOlder] = useState(false);
   const olderFiles = reports.reduce((count, repo) => count + repo.before.length, 0);
@@ -42,9 +52,9 @@ export function TaskChanges({ task, refreshKey }: TaskChangesProps) {
             <li key={change.path}>
               <button
                 className="client-file"
-                aria-current={open?.projectId === repo.projectId && open.change.path === change.path ? 'true' : undefined}
+                aria-current={open?.projectId === repo.projectId && open.path === change.path ? 'true' : undefined}
                 title={change.path}
-                onClick={() => void run(async () => setOpen({ projectId: repo.projectId, change, text: await api.taskFileDiff(task.id, repo.projectId, change.path) }))}
+                onClick={() => void run(async () => setOpen({ projectId: repo.projectId, path: change.path, text: await api.taskFileDiff(task.id, repo.projectId, change.path) }))}
               >
                 <span>{change.path}</span>
                 <small>{change.status}</small>
@@ -59,8 +69,8 @@ export function TaskChanges({ task, refreshKey }: TaskChangesProps) {
     <div className="task-changes">
       <div className="task-changes-head">
         <h3>Changes</h3>
-        <span className="hint">{repos.length === 0 ? 'This task has not changed any repository yet.' : `In ${plural(repos.length, 'repository', 'repositories')}`}</span>
-        <button className="quiet" disabled={busy} aria-label="Refresh changes" title="Refresh changes" onClick={() => void reload()}>
+        <span className="hint">{changesHint(repos.length, outside.count)}</span>
+        <button className="quiet" disabled={busy} aria-label="Refresh changes" title="Refresh changes" onClick={() => void Promise.all([reload(), outside.reload()])}>
           <RefreshCw size={14} />
         </button>
       </div>
@@ -90,8 +100,17 @@ export function TaskChanges({ task, refreshKey }: TaskChangesProps) {
           {repo.truncated && <p className="hint">Showing the first files only. Open the repository in your editor to see them all.</p>}
         </div>
       ))}
+      {outside.count > 0 && (
+        <OutsideChangesList
+          changes={outside.changes}
+          count={outside.count}
+          shownPath={open?.projectId === null ? open.path : null}
+          onShow={(change) => void run(async () => setOpen({ projectId: null, path: change.path, text: await api.taskOutsideFile(task.id, change.path) }))}
+          onOpen={(change) => void run(async () => void (await api.openTaskChangedFile(task.id, change.path)))}
+        />
+      )}
       {open && (
-        <pre className="diff" aria-label={`Changes in ${open.change.path}`}>
+        <pre className="diff" aria-label={`Changes in ${open.path}`}>
           {open.text.split('\n').map((line, index) => (
             <span key={index} className={lineClass(line)}>
               {line}

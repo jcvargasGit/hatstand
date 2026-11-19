@@ -43,6 +43,7 @@ export const DESKTOP_METHODS = [
   'openTaskNotesInEditor',
   'openTaskOutputInEditor',
   'openAreaInEditor',
+  'openTaskChangedFile',
 ] as const satisfies readonly (keyof HatstandApi)[];
 
 export type DesktopMethod = (typeof DESKTOP_METHODS)[number];
@@ -70,6 +71,7 @@ export type ServiceDeps = PreferenceServiceDeps & {
     | 'moveGuideStep'
     | 'hasLiveSession'
     | 'hasLiveClientSession'
+    | 'outsideChangesSettled'
   >;
   signIn: Pick<AgentSignIn, 'start' | 'has' | 'write' | 'resize' | 'readBuffer' | 'readOutput'>;
   checkAgent: typeof checkAgent;
@@ -111,7 +113,7 @@ export function serviceParts(ctx: ServiceContext, deps: ServiceDeps) {
     guard: createGuardService(ctx, { protection }),
     secrets: createSecretService(ctx),
     clientFiles: createClientFileService(ctx, { protection }),
-    changes: createChangeService(ctx),
+    changes: createChangeService(ctx, { sessions }),
     gitIdentity: createGitIdentityService(ctx),
     preferences: createPreferenceService(ctx, deps),
     newTaskDrafts: createNewTaskDraftService(ctx, deps),

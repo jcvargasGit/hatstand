@@ -22,7 +22,7 @@ beforeEach(() => {
 });
 afterEach(() => home.remove());
 
-const changes = () => createChangeService(makeServiceContext(home).ctx);
+const changes = () => createChangeService(makeServiceContext(home).ctx, { sessions: { outsideChangesSettled: async () => {} } });
 
 describe('the changes in the planning repository', () => {
   it('are none while there is no planning repository, or it is not one', async () => {

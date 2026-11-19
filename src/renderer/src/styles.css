@@ -2797,6 +2797,39 @@ details.field-block > form {
   margin: 0;
 }
 
+.outside-change {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.outside-change .client-file {
+  flex: 1;
+  justify-content: space-between;
+  min-width: 0;
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 500;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.outside-change .client-file[aria-current='true'] {
+  border-color: var(--client);
+}
+
+.outside-change .client-file small {
+  flex-shrink: 0;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.task-changes-repo h4 {
+  overflow-wrap: anywhere;
+}
+
 .task-changes-head h3 {
   margin: 0;
   font-size: 0.93rem;

@@ -93,6 +93,7 @@ export function fakeServiceDeps(overrides: Partial<ServiceDeps> = {}): ServiceDe
       moveGuideStep: vi.fn(),
       hasLiveSession: vi.fn(() => false),
       hasLiveClientSession: vi.fn(() => false),
+      outsideChangesSettled: vi.fn(async () => {}),
     },
     signIn: {
       start: vi.fn(() => 'sign-in'),

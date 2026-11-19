@@ -110,6 +110,8 @@ export function dataPaths(home: string) {
     copyRequestsDir: (sessionId: string) => join(home, 'run', `${sessionId}.requests`),
     settingsFile: (sessionId: string) => join(home, 'run', `${sessionId}.settings.json`),
     activityFile: (sessionId: string) => join(home, 'run', `${sessionId}.activity.jsonl`),
+    taskChangesFile: (taskId: string) => join(home, 'run', 'changes', `${taskId}.json`),
+    turnSnapshotFile: (sessionId: string) => join(home, 'run', 'changes', `${sessionId}.turn.json`),
     guardDir: join(home, 'guard'),
     guardScript: join(home, 'guard', 'guard.cjs'),
     guardFingerprints: (companyId: string) => join(home, 'guard', `${companyId}.json`),

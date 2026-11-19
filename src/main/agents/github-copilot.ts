@@ -4,6 +4,7 @@ import type { SessionState } from '../../shared/schemas';
 import { STEP_DONE_COMMAND } from '../step-done-tool';
 import { CHECK_PLAN_COMMAND } from '../check-plan-tool';
 import { writePrivateFile } from '../store';
+import { COPILOT_WRITE_COMMAND } from './file-writes';
 import { STATUS_FILE_ENV, type AgentAdapter } from './types';
 
 const HOOK_TIMEOUT_SEC = 10;
@@ -61,7 +62,7 @@ export const githubCopilot: AgentAdapter = {
       hooks: {
         userPromptSubmitted: [command(`cat > /dev/null; ${report('working')}`)],
         preToolUse: [blockSkippingHooks, beforeTool],
-        postToolUse: [statusCommand('working')],
+        postToolUse: [statusCommand('working'), command(COPILOT_WRITE_COMMAND)],
         notification: [onNotification],
         agentStop: [statusCommand('idle')],
       },

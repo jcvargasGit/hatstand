@@ -208,7 +208,7 @@ The repositories you select in a task tell the agent where the work lives. It re
 
 When the agent needs to change a repository, it runs `hatstand-edit-repo "<name>"`. Hatstand then creates a git worktree in `~/.hatstand/worktrees/<client>/<task>`, on a new branch named `hatstand/<task>`. It starts from the remote's main branch, and it has no upstream, so a plain `git push` cannot reach main by accident. Two tasks in the same repository cannot change each other's files, and your own checkout stays as you left it.
 
-A planning repository, or a repository that is a knowledge or skills folder, is for control and not for work: it is not offered for tasks, it gets no copy, it never appears as changed, and it has no commit protection, because what is in it may need to be committed. Choosing a registered repository as the planning repository moves it there.
+A planning repository, or a repository that is a knowledge or skills folder, is for control and not for work: it is not offered for tasks, it gets no copy, it never appears as a changed repository, and it has no commit protection, because what is in it may need to be committed. Choosing a registered repository as the planning repository moves it there.
 
 Only repositories with a copy appear as changed. In review, the task lists them with what changed, and **Open in VS Code** opens all the task's copies in one window.
 
@@ -217,6 +217,13 @@ Only repositories with a copy appear as changed. In review, the task lists them 
 - Commit protection also applies inside copies.
 - **Remove copy**, in the task details, deletes the folder and keeps the branch. Hatstand refuses if a file is not committed.
 - Choose **Shared folder** in the task details to work in the client's folder, as tasks created before this did. Changes then lists what changed since the agent first worked on the task, and hides older files until you ask for them.
+
+**Changes** also lists what the agent wrote outside those repositories, in a group called **Outside git**: planning, knowledge and area files, the notes and documents of the task, and a repository the agent created. Each file shows its full path and whether it was added, modified or deleted.
+
+- Click a file to see it: a new text file shows its content. A modified file shows no diff, because no earlier copy is kept outside git. The button next to it opens the file in your editor.
+- A file the agent writes with its own tools appears at once. A file written with a shell command appears when the agent ends its turn.
+- Hatstand follows the folders the session can write to. It skips heavy folders such as `node_modules` and build output, and stops at 5,000 files, so in a very large folder some files can be missing. Changes says so when that happens.
+- In the folders that tasks share, such as knowledge, a file that you or another task changed during the agent's turn is listed too.
 
 ### Board
 
