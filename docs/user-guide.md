@@ -145,7 +145,7 @@ Clicking a task opens one of three views, and a task with a running session open
 
 **Open in new window** moves the form to a window of its own, with everything you wrote and chose, so you can keep using Hatstand while you write. Creating the task there shows it, selected, in the main window.
 
-**Create and start session** opens the agent and sends its first prompt, so it starts working at once. This also happens after you answer the agent's question about trusting the folder. Hatstand never presses Enter while the agent asks you something else, and a step that needs your approval always waits for you. To have the first prompt wait for Enter, turn off **Send the first prompt of a task without waiting for Enter** in **Settings**.
+**Create and start session** opens the agent and sends its first prompt, so it starts working at once. Claude Code does not ask about the folders Hatstand created for the client, such as its knowledge, areas and tasks. It can still ask whether you trust a repository the first time it works there, and about each repository of the task outside the session folder. The prompt is sent after you answer. Hatstand never presses Enter while the agent asks you something else, and a step that needs your approval always waits for you. To have the first prompt wait for Enter, turn off **Send the first prompt of a task without waiting for Enter** in **Settings**.
 
 The sidebar lists the tasks of each client under the guide they follow. Tasks with no guide are under **Not classified**.
 

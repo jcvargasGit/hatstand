@@ -37,7 +37,8 @@ const input: AgentLaunchInput = {
   resume: false,
   promptFile: '/run/prompt.md',
   settingsFile: '/run/settings.json',
-  addDirs: ['/knowledge'],
+  ownDirs: ['/home/companies/acme/knowledge'],
+  addDirs: ['/code/other'],
 };
 
 describe('claudeCode.buildLaunch', () => {
@@ -47,8 +48,20 @@ describe('claudeCode.buildLaunch', () => {
 
   it('passes client context through flags', () => {
     const { args } = claudeCode.buildLaunch(input);
-    expect(args).toEqual(expect.arrayContaining(['--plugin-dir', '/skills', '--add-dir', '/knowledge']));
+    expect(args).toEqual(expect.arrayContaining(['--plugin-dir', '/skills', '--add-dir', '/code/other']));
     expect(args).toEqual(expect.arrayContaining(['--session-id', 'session-1']));
+  });
+
+  it('keeps the folders Hatstand created out of --add-dir, so Claude Code does not ask about them', () => {
+    const { args } = claudeCode.buildLaunch(input);
+    expect(args.filter((arg, index) => args[index - 1] === '--add-dir')).toEqual(['/code/other']);
+    expect(args).not.toContain('/home/companies/acme/knowledge');
+  });
+
+  it('gives the folders Hatstand created through the session settings', () => {
+    const { permissions } = JSON.parse(claudeCode.buildStatusSettings(input.ownDirs));
+    expect(permissions.additionalDirectories).toEqual(['/home/companies/acme/knowledge']);
+    expect(JSON.parse(claudeCode.buildStatusSettings()).permissions.additionalDirectories).toEqual([]);
   });
 
   it('asks for permission unless the client opted out', () => {
