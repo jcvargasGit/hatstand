@@ -5547,3 +5547,174 @@ html input[type='radio'] {
     min-height: 200px;
   }
 }
+
+/* Repositories of a client: one bordered group per intention, so adding, the list and the folder read apart. */
+.repo-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+}
+
+.repo-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.95rem 1.05rem 1.1rem;
+}
+
+.repo-group > header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  width: 100%;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.6rem;
+}
+
+.repo-group h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+}
+
+.repo-group-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1rem;
+  width: 100%;
+}
+
+.repo-link-download {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  width: 100%;
+  border-top: 1px dashed var(--line);
+  padding-top: 0.9rem;
+}
+
+.repo-link-download h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.project-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: 100%;
+}
+
+.project-list > input {
+  max-width: 420px;
+}
+
+.project-table .project-group th {
+  padding: 0.75rem 0 0.3rem;
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.project-table .project-group .board-count {
+  margin-left: 0.4rem;
+}
+
+.repo-list li > .repo-replace {
+  margin: 0 0.7rem 0.5rem 2rem;
+}
+
+.repo-list li > .repo-folder-blocked {
+  margin: 0 0.7rem 0.6rem;
+  width: auto;
+}
+
+.repo-folder-blocked p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.repo-folder-blocked input {
+  background-color: var(--bg);
+}
+
+/* Holds the place of something that is loading, with its shape. */
+.skeleton {
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--muted) 18%, transparent);
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+.skeleton-text {
+  height: 0.8rem;
+  margin: 0.3rem 0;
+}
+
+.skeleton-field {
+  width: 100%;
+  max-width: 420px;
+  height: 2.2rem;
+}
+
+.skeleton-field.is-wide {
+  max-width: none;
+}
+
+.skeleton-button {
+  width: 190px;
+  height: 2.2rem;
+}
+
+.repo-list-skeleton {
+  height: 300px;
+  overflow: hidden;
+}
+
+.repo-list-skeleton li {
+  padding: 0.55rem 0.7rem;
+}
+
+@keyframes skeleton-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* Motion only says where something came from or went: short, and small. */
+.motion-enter {
+  animation: motion-enter 180ms ease-out;
+}
+
+@keyframes motion-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.motion-arrived > td,
+.motion-arrived > th {
+  animation: motion-arrived 900ms ease-out;
+}
+
+@keyframes motion-arrived {
+  from {
+    background-color: color-mix(in srgb, var(--client) 14%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton,
+  .motion-enter,
+  .motion-arrived > td,
+  .motion-arrived > th {
+    animation: none;
+  }
+}

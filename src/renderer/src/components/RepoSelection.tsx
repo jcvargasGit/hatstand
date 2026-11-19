@@ -5,6 +5,7 @@ import type { Company } from '../../../shared/schemas';
 import { useAction } from '../hooks/useAction';
 import { api } from '../lib/api';
 import { plural } from '../lib/text';
+import { RepoFolderBlocked } from './RepoFolderBlocked';
 
 const STATE_TEXT: Record<CloneProgress['state'], string> = {
   cloning: 'Downloading',
@@ -27,6 +28,8 @@ export function RepoSelection({ company, repos, onChangeConnection }: RepoSelect
   const [baseDir, setBaseDir] = useState(company.rootDir ?? `~/projects/${company.id}`);
   const [progress, setProgress] = useState<Record<string, CloneProgress>>({});
   const [summary, setSummary] = useState<string | null>(null);
+  const [downloadedTo, setDownloadedTo] = useState(baseDir);
+  const [replacing, setReplacing] = useState<string | null>(null);
   const { error, busy, run } = useAction();
   const visible = available.filter((repo) => repo.path.toLowerCase().includes(filter.trim().toLowerCase()));
 
@@ -57,7 +60,10 @@ export function RepoSelection({ company, repos, onChangeConnection }: RepoSelect
     void run(async () => {
       setProgress({});
       setSummary(null);
+      setReplacing(null);
+      setDownloadedTo(baseDir);
       const results = await api.downloadRepos(company.id, baseDir, [...selected]);
+      setProgress((current) => ({ ...current, ...Object.fromEntries(results.map((item) => [item.path, item])) }));
       const failed = results.filter((item) => item.state === 'failed');
       setSelected(new Set(failed.map((item) => item.path)));
       setSummary(
@@ -65,6 +71,15 @@ export function RepoSelection({ company, repos, onChangeConnection }: RepoSelect
           (failed.length ? ` ${failed.length} failed, and you can try them again.` : ''),
       );
     });
+
+  const downloadAgain = async (path: string) => {
+    const [result] = await api.downloadRepos(company.id, downloadedTo, [path]);
+    if (result) setProgress((current) => ({ ...current, [path]: result }));
+    setReplacing(null);
+    if (!result || result.state === 'failed') return;
+    setSelected((current) => new Set([...current].filter((item) => item !== path)));
+    setSummary(`Ready: ${path}, in place of the folder that is now in the trash.`);
+  };
 
   return (
     <div className="repo-selection">
@@ -105,6 +120,20 @@ export function RepoSelection({ company, repos, onChangeConnection }: RepoSelect
                   isAdded(repo.path) && <span className="repo-state">Added</span>
                 )}
               </label>
+              {item?.blocker && replacing !== repo.path && (
+                <button className="quiet repo-replace" disabled={busy} onClick={() => setReplacing(repo.path)}>
+                  Replace folder
+                </button>
+              )}
+              {item?.blocker && replacing === repo.path && (
+                <RepoFolderBlocked
+                  companyId={company.id}
+                  baseDir={downloadedTo}
+                  repoPath={repo.path}
+                  onDownload={() => downloadAgain(repo.path)}
+                  onCancel={() => setReplacing(null)}
+                />
+              )}
             </li>
           );
         })}

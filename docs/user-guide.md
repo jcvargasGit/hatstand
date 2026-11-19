@@ -70,7 +70,11 @@ The session opens at the top of the repository, and the agent is told to focus o
 
 The Repositories step of a client lists the repositories of its GitHub or GitLab organization and downloads the ones you choose. The token is the client's `GITHUB_TOKEN` or `GITLAB_TOKEN` under **Keys**. When it is already saved, Hatstand uses it and lists the repositories without asking again, and **Replace token** saves a new one.
 
-**Download one repository from its link** takes the address of a single repository, such as `https://github.com/company/repository`, and downloads it to the folder you choose, the client folder by default. The link must be on the client's GitHub or GitLab. A public repository needs no token.
+**Or download one repository from its link** takes the address of a single repository, such as `https://github.com/company/repository`, and downloads it to the folder you choose, the client folder by default. The link must be on the client's GitHub or GitLab. A public repository needs no token.
+
+A repository that is already in the folder is added to the client as it is, also when you cloned it over SSH or with a host alias. When the folder holds a different repository, or files that are not a repository, the download stops and offers **Replace folder**. It shows what is only on this computer, such as changes that are not committed, and asks you to type the name of the repository. Hatstand then moves the folder to the trash of this computer, where you can get it back, and downloads the repository in its place. It never deletes a folder.
+
+The repositories of the client are listed by area, with a filter by name. A repository that changes area moves to its new group.
 
 ### Planning repository
 

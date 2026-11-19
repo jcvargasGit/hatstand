@@ -12,19 +12,27 @@ import { RepoFolderMap } from './RepoFolderMap';
 type ProjectRowProps = {
   company: Company;
   project: Project;
+  /** The group of the table the row is in, so the row is marked for a moment when it lands in another one. */
+  group?: string;
+  /** Runs a change that takes the row out of the table, after showing the row leave. */
+  onLeave?: (change: () => Promise<void>) => Promise<void>;
   onSave: (company: Company) => Promise<void>;
   onChanged: () => Promise<void>;
 };
 
 const BY_FOLDER = 'by-folder';
 
-export function ProjectRow({ company, project, onSave, onChanged }: ProjectRowProps) {
+const leaveAtOnce = (change: () => Promise<void>) => change();
+
+export function ProjectRow({ company, project, group, onLeave = leaveAtOnce, onSave, onChanged }: ProjectRowProps) {
   const layout = useRepoLayout(company.id, project.id);
   const { error, run } = useAction();
-  const folderSwitch = useFolderSwitch(company.id, 'planning', async () => {
-    await api.setPlanningRepo(company.id, project.path);
-    await onChanged();
-  });
+  const folderSwitch = useFolderSwitch(company.id, 'planning', () =>
+    onLeave(async () => {
+      await api.setPlanningRepo(company.id, project.path);
+      await onChanged();
+    }),
+  );
   const undecided = !project.subdomainId && !project.splitByFolder;
   const isControl = isControlRepo(company, project);
 
@@ -33,7 +41,7 @@ export function ProjectRow({ company, project, onSave, onChanged }: ProjectRowPr
 
   return (
     <>
-      <tr>
+      <tr data-motion-key={project.id} data-motion-group={group}>
         <td title={project.path}>{project.name}</td>
         <td>
           <select aria-label={`Area for ${project.name}`} value={project.splitByFolder ? BY_FOLDER : (project.subdomainId ?? '')} onChange={(event) => void choose(event.target.value)}>
@@ -61,13 +69,13 @@ export function ProjectRow({ company, project, onSave, onChanged }: ProjectRowPr
           )}
           {folderSwitch.pending && <FolderSwitchWarning pending={folderSwitch.pending} defaultPath={undefined} busy={folderSwitch.busy} onConfirm={folderSwitch.confirm} onCancel={folderSwitch.cancel} />}
           {folderSwitch.error && <p className="error">{folderSwitch.error}</p>}
-          <button className="quiet" onClick={() => void run(() => onSave(removeRepo(company, project.id)))}>
+          <button className="quiet" onClick={() => void run(() => onLeave(() => onSave(removeRepo(company, project.id))))}>
             Remove
           </button>
         </td>
       </tr>
       {undecided && layout?.isMonorepo && (
-        <tr>
+        <tr data-motion-key={`${project.id}:layout`}>
           <td colSpan={3} className="repo-layout-notice">
             <span>
               This looks like a monorepo{layout.tool ? ` (${layout.tool})` : ''}, with {plural(layout.folders.length, 'folder', 'folders')}.
@@ -79,14 +87,14 @@ export function ProjectRow({ company, project, onSave, onChanged }: ProjectRowPr
         </tr>
       )}
       {project.splitByFolder && (
-        <tr>
+        <tr data-motion-key={`${project.id}:folders`}>
           <td colSpan={3}>
             <RepoFolderMap company={company} project={project} layout={layout} onSave={onSave} />
           </td>
         </tr>
       )}
       {error && (
-        <tr>
+        <tr data-motion-key={`${project.id}:error`}>
           <td colSpan={3}>
             <p className="error">{error}</p>
           </td>

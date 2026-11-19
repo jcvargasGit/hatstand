@@ -43,6 +43,31 @@ function linkUrl(link: string): URL {
   }
 }
 
+/** `git@host:company/repository.git`, where the host can be an alias of the person's SSH settings. */
+const SCP_ADDRESS = /^(?:[^@/\s]+@)?[^:/\s]+:(?!\/)(.+)$/;
+
+/**
+ * The repository an address points to, as `company/repository`, however it is reached: https, ssh, or an SSH alias.
+ * The host is left out on purpose, because an alias does not say which site it stands for.
+ * Null when the address is not one of a site, such as a folder on this computer.
+ */
+export function repoIdentity(address: string): string | null {
+  const trimmed = address.trim();
+  const scp = trimmed.includes('://') ? null : SCP_ADDRESS.exec(trimmed);
+  let path = scp?.[1];
+  if (!path) {
+    if (!trimmed.includes('://')) return null;
+    try {
+      path = new URL(trimmed).pathname;
+    } catch {
+      return null;
+    }
+  }
+  const segments = path.split('/').filter(Boolean);
+  if (segments.length < 2) return null;
+  return segments.join('/').replace(/\.git$/i, '').toLowerCase();
+}
+
 function repoSegments(pathname: string, provider: GitSource['provider']): string[] {
   const segments = pathname.split('/').filter(Boolean);
   if (provider === 'github') return segments.slice(0, 2);

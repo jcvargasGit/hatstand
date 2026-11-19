@@ -129,7 +129,7 @@ async function bootstrap(): Promise<void> {
   const store = new Store(paths);
   const secrets = new SecretStore(paths, electronCipher);
   const tools = await probeShellTools();
-  const ctx: ServiceContext = { store, paths, secrets, tools, emit, userHome: homedir(), fetch };
+  const ctx: ServiceContext = { store, paths, secrets, tools, emit, userHome: homedir(), fetch, trash: (path) => shell.trashItem(path) };
   const protection = createRepoProtection(ctx);
   prepareWorkspace(ctx, { protection });
 

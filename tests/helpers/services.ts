@@ -1,4 +1,6 @@
 // A ServiceContext for the services in src/main/services, built without Electron.
+import { mkdirSync, readdirSync, renameSync } from 'node:fs';
+import { basename, join } from 'node:path';
 import { vi } from 'vitest';
 import type { HatstandEvents } from '../../src/shared/api';
 import type { KeyCheck } from '../../src/shared/schemas';
@@ -64,6 +66,11 @@ export function makeServiceContext(home: TestHome, secrets = memorySecrets(), fe
     },
     userHome: home.folder('user'),
     fetch,
+    trash: async (path) => {
+      const bin = home.folder('trash');
+      mkdirSync(bin, { recursive: true });
+      renameSync(path, join(bin, `${readdirSync(bin).length}-${basename(path)}`));
+    },
   };
   /** How many times the interface was told to read the state again. */
   const stateChanges = () => emitted.filter((item) => item.event === 'state-changed').length;
