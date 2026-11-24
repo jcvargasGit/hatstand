@@ -31,10 +31,27 @@ export type RemoteRepo = {
   archived: boolean;
 };
 
+/** Why a folder that is already there stops a download. */
+export type CloneBlocker = 'other-repository' | 'not-a-repository';
+
 export type CloneProgress = {
   path: string;
   state: 'cloning' | 'cloned' | 'existing' | 'failed';
   error?: string;
+  /** Set when the folder of the repository is taken, so the person can move it to the trash and download again. */
+  blocker?: CloneBlocker;
+};
+
+/** A folder that stops a download, and the work in it that is only on this computer. */
+export type BlockedFolder = {
+  target: string;
+  blocker: CloneBlocker;
+  /** Where the repository in the folder comes from, when it is one and says so. */
+  origin?: string;
+  /** Files and folders at the top of a folder that is not a repository. */
+  entries: number;
+  uncommitted: number;
+  unpushed: number;
 };
 
 export type AgentStatus = {
@@ -191,6 +208,8 @@ export type HatstandApi = {
   connectGitSource(companyId: string, source: GitSource, token?: string): Promise<RemoteRepo[]>;
   downloadRepos(companyId: string, baseDir: string, repoPaths: string[]): Promise<CloneProgress[]>;
   downloadRepoByLink(companyId: string, link: string, baseDir: string): Promise<CloneProgress>;
+  inspectBlockedFolder(companyId: string, baseDir: string, repoPath: string): Promise<BlockedFolder>;
+  trashBlockedFolder(companyId: string, baseDir: string, repoPath: string, typedName: string): Promise<void>;
   checkAgent(accountId: string): Promise<AgentStatus>;
   startAgentSignIn(accountId: string): Promise<string>;
   saveCompany(company: Company): Promise<Company>;

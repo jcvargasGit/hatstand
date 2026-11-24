@@ -179,6 +179,33 @@ try {
   assert.ok(!readFileSync(join(target, 'tools', '.git', 'config')).includes(GOOD_TOKEN), 'a link leaves no token in the repository');
   await shot(page, '6f-downloaded-link');
 
+  // A folder cloned over SSH, with a host alias, is the same repository. Another repository there stops the download.
+  const tools = join(target, 'tools');
+  const toolsOrigin = execFileSync('git', ['remote', 'get-url', 'origin'], { cwd: tools, encoding: 'utf8' }).trim();
+  const setOrigin = (address) => execFileSync('git', ['remote', 'set-url', 'origin', address], { cwd: tools });
+  setOrigin('git@work-alias:partner/tools.git');
+  await page.getByLabel('Repository link').fill(`${origin}/partner/tools`);
+  await page.getByRole('button', { name: 'Download from link' }).click();
+  await page.getByText(`tools was already in ${target}, and is now in this client.`).waitFor();
+  setOrigin('git@work-alias:someone-else/tools.git');
+  writeFileSync(join(tools, 'draft.md'), 'not committed\n');
+  await page.getByLabel('Repository link').fill(`${origin}/partner/tools`);
+  await page.getByRole('button', { name: 'Download from link' }).click();
+  await page.getByText(`${tools} already holds a different repository.`).waitFor();
+  await page.getByRole('button', { name: 'Replace folder' }).click();
+  const blocked = page.getByRole('alert').filter({ hasText: 'holds another repository' });
+  await blocked.getByText('1 file has changes that are not committed').waitFor();
+  assert.ok(await blocked.getByRole('button', { name: 'Move to trash and download again' }).isDisabled(), 'the folder stays until its name is typed');
+  await blocked.evaluate((panel) => Promise.all(panel.getAnimations().map((animation) => animation.finished)));
+  await blocked.scrollIntoViewIfNeeded();
+  await shot(page, '6f-folder-taken');
+  // The trash of this computer is real, so the test stops before using it.
+  await blocked.getByRole('button', { name: 'Cancel' }).click();
+  assert.ok(existsSync(join(tools, 'draft.md')), 'cancelling leaves the folder as it was');
+  rmSync(join(tools, 'draft.md'));
+  setOrigin(toolsOrigin);
+  await page.getByLabel('Repository link').fill('');
+
   await page.getByRole('radio', { name: /Use a folder I already have/ }).check();
   await page.getByRole('radio', { name: /Download from GitHub or GitLab/ }).check();
   await page.getByText('Found 2 repositories in zenith').waitFor();
