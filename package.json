@@ -2,7 +2,7 @@
   "name": "hatstand",
   "version": "0.1.0",
   "private": true,
-  "description": "Agent orchestrator for contractors and freelancers: a workspace for every client, with areas of work, and context kept separate.",
+  "description": "Desktop workspace for contractors and freelancers: a space for every client, with areas of work, and context kept separate. It runs the coding agent you already use.",
   "license": "Apache-2.0",
   "author": "jcvargasGit",
   "homepage": "https://github.com/jcvargasGit/hatstand#readme",
