@@ -9,6 +9,7 @@ import { PlanningStep } from '../../src/renderer/src/components/PlanningStep';
 import { ProjectTable } from '../../src/renderer/src/components/ProjectTable';
 import { RemoveClientForm } from '../../src/renderer/src/components/RemoveClientForm';
 import { RepositoriesStep } from '../../src/renderer/src/components/RepositoriesStep';
+import { FlagsSection } from '../../src/renderer/src/components/FlagsSection';
 import { SettingsPage } from '../../src/renderer/src/components/SettingsPage';
 import { GuideSteps } from '../../src/renderer/src/components/GuideSteps';
 import { GuidesStep } from '../../src/renderer/src/components/GuidesStep';
@@ -20,6 +21,7 @@ import { TaskPanel } from '../../src/renderer/src/components/TaskPanel';
 import type { SidebarLayout } from '../../src/renderer/src/hooks/useSidebarLayout';
 import type { Bridge, Snapshot } from '../../src/shared/api';
 import type { Company, Session, Task, TaskGuide } from '../../src/shared/schemas';
+import { DEFAULT_FLAGS } from '../../src/shared/task-flags';
 
 vi.mock('../../src/renderer/src/components/TerminalView', () => ({
   TerminalView: () => <div data-testid="terminal" />,
@@ -68,6 +70,7 @@ const snapshot = (tasks: Task[]): Snapshot => ({
   guideNewTasks: true,
   guideUsage: {},
   autoSendPrompt: true,
+  flags: DEFAULT_FLAGS,
   localKnowledge: [],
   localPlugin: [],
   starterInstructions: [],
@@ -645,7 +648,7 @@ describe('Sidebar', () => {
       fireEvent.contextMenu(taskRow(/Fix login/));
       const menu = within(screen.getByRole('menu', { name: 'Flag for Fix login' }));
       expect(menu.queryByRole('menuitem', { name: 'Remove flag' })).toBeNull();
-      await userEvent.click(menu.getByRole('menuitemradio', { name: 'Flag with 🚩' }));
+      await userEvent.click(menu.getByRole('menuitemradio', { name: 'Flag with 🚩 Flagged' }));
       expect(invoke).toHaveBeenCalledWith('updateTask', 't', { flag: '🚩' });
       await waitFor(() => expect(onChanged).toHaveBeenCalled());
       expect(screen.queryByRole('menu')).toBeNull();
@@ -666,6 +669,25 @@ describe('Sidebar', () => {
       expect(screen.getByRole('menu')).toBeTruthy();
     });
 
+    it('keeps an emoji the person typed in the list, and not one that is there already', async () => {
+      renderSidebar([task()]);
+      fireEvent.contextMenu(taskRow(/Fix login/));
+      await userEvent.type(screen.getByLabelText('Other emoji'), '🎯{Enter}');
+      expect(invoke).toHaveBeenCalledWith('setFlags', [...DEFAULT_FLAGS, { emoji: '🎯', name: '' }]);
+      invoke.mockClear();
+      fireEvent.contextMenu(taskRow(/Fix login/));
+      await userEvent.type(screen.getByLabelText('Other emoji'), '🔥{Enter}');
+      expect(invoke).toHaveBeenCalledWith('updateTask', 't', { flag: '🔥' });
+      expect(invoke).not.toHaveBeenCalledWith('setFlags', expect.anything());
+    });
+
+    it('offers the flags of the person, with their names', () => {
+      render(<Sidebar snapshot={{ ...snapshot([task()]), flags: [{ emoji: '🎯', name: 'Goal' }, { emoji: '🧪', name: '' }] }} view={{ kind: 'today', companyId: null }} selectedTaskId={null} layout={layout()} onNavigate={vi.fn()} onSelectTask={vi.fn()} onOpenSearch={vi.fn()} onChanged={vi.fn(async () => {})} />);
+      fireEvent.contextMenu(taskRow(/Fix login/));
+      expect(screen.getAllByRole('menuitemradio').map((item) => item.getAttribute('aria-label'))).toEqual(['Flag with 🎯 Goal', 'Flag with 🧪']);
+      expect(screen.getByRole('menuitemradio', { name: 'Flag with 🎯 Goal' }).title).toBe('Goal');
+    });
+
     it('shows the flag on the row, marks it in the menu and removes it', async () => {
       renderSidebar([task({ title: 'Fix login', flag: '🔥' })]);
       const row = taskRow(/Fix login/);
@@ -673,8 +695,8 @@ describe('Sidebar', () => {
       expect(row.classList.contains('is-flagged')).toBe(true);
       expect(row.querySelector('.tree-task-title')?.textContent).toBe('Fix login');
       fireEvent.contextMenu(row);
-      expect(screen.getByRole('menuitemradio', { name: 'Flag with 🔥' }).getAttribute('aria-checked')).toBe('true');
-      expect(screen.getByRole('menuitemradio', { name: 'Flag with 🚩' }).getAttribute('aria-checked')).toBe('false');
+      expect(screen.getByRole('menuitemradio', { name: 'Flag with 🔥 Urgent' }).getAttribute('aria-checked')).toBe('true');
+      expect(screen.getByRole('menuitemradio', { name: 'Flag with 🚩 Flagged' }).getAttribute('aria-checked')).toBe('false');
       await userEvent.click(screen.getByRole('menuitem', { name: 'Remove flag' }));
       expect(invoke).toHaveBeenCalledWith('updateTask', 't', { flag: '' });
     });
@@ -728,12 +750,12 @@ describe('Sidebar', () => {
         />,
       );
       fireEvent.contextMenu(within(screen.getByRole('region', { name: 'Needs you' })).getByRole('button', { name: /Waiting one/ }));
-      await userEvent.click(screen.getByRole('menuitemradio', { name: 'Flag with ⭐' }));
+      await userEvent.click(screen.getByRole('menuitemradio', { name: 'Flag with ⭐ Important' }));
       expect(invoke).toHaveBeenCalledWith('updateTask', 'a', { flag: '⭐' });
 
       await userEvent.click(screen.getByRole('button', { name: 'Done and archived (1)' }));
       fireEvent.contextMenu(screen.getByRole('button', { name: /Finished one/ }));
-      await userEvent.click(screen.getByRole('menuitemradio', { name: 'Flag with ✅' }));
+      await userEvent.click(screen.getByRole('menuitemradio', { name: 'Flag with ✅ Ready' }));
       expect(invoke).toHaveBeenCalledWith('updateTask', 'b', { flag: '✅' });
     });
   });
@@ -893,6 +915,31 @@ describe('GuideSteps', () => {
       render(<GuideSteps task={task()} guide={value} session={{ ...session(live.state), ...live }} onChanged={vi.fn(async () => {})} />);
     const button = (name: string) => screen.getByRole<HTMLButtonElement>('button', { name });
 
+    it('turns on continuing by itself for this task, and says where it stops', async () => {
+      render3({ state: 'idle' });
+      const box = screen.getByRole<HTMLInputElement>('checkbox', { name: 'Continue by itself' });
+      expect(box.checked).toBe(false);
+      await userEvent.click(box);
+      expect(invoke).toHaveBeenCalledWith('setGuideAutoContinue', 't', true);
+    });
+
+    it('says it sends the next steps by itself while the agent works on one', () => {
+      render3({ state: 'idle' }, { ...publish, autoContinue: true });
+      expect(screen.getByRole<HTMLInputElement>('checkbox', { name: 'Continue by itself' }).checked).toBe(true);
+      expect(screen.getByText(/sends each next step by itself/)).toBeTruthy();
+    });
+
+    it('says it stopped before the step that needs approval, which the person still sends', () => {
+      render3({ state: 'idle' }, { ...publish, autoContinue: true, current: 1, done: [1, 2] });
+      expect(screen.getByText(/step 3 needs your OK, so you send it/)).toBeTruthy();
+      expect(button('Next step').disabled).toBe(false);
+    });
+
+    it('offers no continuing by itself once no step is left', () => {
+      render3({ state: 'idle' }, { ...publish, current: 2, done: [1, 2, 3] });
+      expect(screen.queryByRole('checkbox', { name: 'Continue by itself' })).toBeNull();
+    });
+
     it('keeps Next step off when the turn ended without the agent saying the step is finished', () => {
       render3({ state: 'idle' });
       expect(button('Next step').disabled).toBe(true);
@@ -1015,6 +1062,68 @@ describe('the client folder', () => {
     unmount();
     render(<RepositoriesStep company={company} defaultFolder="/code" onSave={vi.fn(async () => {})} onChanged={vi.fn(async () => {})} />);
     expect(screen.queryByRole('button', { name: 'Use default folder' })).toBeNull();
+  });
+});
+
+describe('the flags in the settings', () => {
+  const flags = [{ emoji: '🎯', name: 'Goal' }, { emoji: '🧪', name: '' }];
+  const show = (value = flags) => {
+    const onChanged = vi.fn(async () => {});
+    render(<FlagsSection flags={value} onChanged={onChanged} />);
+    return onChanged;
+  };
+  const saved = () => invoke.mock.calls.filter(([method]) => method === 'setFlags').map(([, list]) => list);
+
+  it('renames a flag when leaving the field', async () => {
+    const onChanged = show();
+    const name = screen.getByLabelText('Name of 🧪');
+    await userEvent.type(name, 'Experiment');
+    expect(saved()).toEqual([]);
+    fireEvent.blur(name);
+    await waitFor(() => expect(saved()).toEqual([[flags[0], { emoji: '🧪', name: 'Experiment' }]]));
+    await waitFor(() => expect(onChanged).toHaveBeenCalledOnce());
+  });
+
+  it('changes the emoji of a flag, keeping only the first one typed', async () => {
+    show();
+    const emoji = screen.getByLabelText('Emoji of flag 1');
+    fireEvent.change(emoji, { target: { value: '🏁 done' } });
+    fireEvent.blur(emoji);
+    await waitFor(() => expect(saved()).toEqual([[{ emoji: '🏁', name: 'Goal' }, flags[1]]]));
+  });
+
+  it('keeps the emoji a flag had when its field is left empty', async () => {
+    show();
+    const emoji = screen.getByLabelText<HTMLInputElement>('Emoji of flag 1');
+    fireEvent.change(emoji, { target: { value: '' } });
+    fireEvent.blur(emoji);
+    expect(emoji.value).toBe('🎯');
+    expect(saved()).toEqual([]);
+  });
+
+  it('adds a flag with its name, and not an emoji that is there already', async () => {
+    show();
+    const add = screen.getByRole<HTMLButtonElement>('button', { name: 'Add' });
+    expect(add.disabled).toBe(true);
+    await userEvent.type(screen.getByLabelText('New emoji'), '🎯');
+    expect(add.disabled).toBe(true);
+    await userEvent.clear(screen.getByLabelText('New emoji'));
+    await userEvent.type(screen.getByLabelText('New emoji'), '📌');
+    await userEvent.type(screen.getByLabelText('Name of the new flag'), 'Pinned{Enter}');
+    await waitFor(() => expect(saved()).toEqual([[...flags, { emoji: '📌', name: 'Pinned' }]]));
+    expect(screen.getByLabelText<HTMLInputElement>('New emoji').value).toBe('');
+  });
+
+  it('removes a flag, and puts back the ones Hatstand starts with', async () => {
+    show();
+    await userEvent.click(screen.getByRole('button', { name: 'Remove 🎯' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Put back the flags Hatstand starts with' }));
+    await waitFor(() => expect(saved()).toEqual([[flags[1]], DEFAULT_FLAGS]));
+  });
+
+  it('offers nothing to put back while the list is the first one', () => {
+    show(DEFAULT_FLAGS);
+    expect(screen.queryByRole('button', { name: 'Put back the flags Hatstand starts with' })).toBeNull();
   });
 });
 

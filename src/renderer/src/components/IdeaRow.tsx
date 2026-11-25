@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowRight, ArrowUp, GripVertical, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowRight, ArrowUp, GripVertical, PencilLine, Trash2, X } from 'lucide-react';
 import { useRef, useState, type MouseEvent } from 'react';
 import type { Task } from '../../../shared/schemas';
 import { useAction } from '../hooks/useAction';
@@ -83,6 +83,11 @@ export function IdeaRow({ task, selected, onSelect, picked, onPick, onChanged, o
         <button id={ideaTitleId(task.id)} className="idea-toggle" aria-expanded={selected} title={task.title}>
           <span>{task.title}</span>
         </button>
+        {task.draft && (
+          <span className="draft-tag" title="A task you were writing. Hatstand saved it so nothing is lost.">
+            Draft
+          </span>
+        )}
         {summary && <p className="idea-summary">{summary}</p>}
         {progress && <p className="idea-summary idea-summary-checklist">{progress}</p>}
         {error && <p className="error">{error}</p>}
@@ -129,13 +134,13 @@ export function IdeaRow({ task, selected, onSelect, picked, onPick, onChanged, o
             <>
               <button
                 className="quiet"
-                aria-label="Make it a task"
-                title="Make it a task"
+                aria-label={task.draft ? `Continue writing ${task.title}` : 'Make it a task'}
+                title={task.draft ? 'Open this draft in the New task form, as you left it' : 'Make it a task'}
                 disabled={busy}
                 onClick={onMakeTask}
               >
-                <ArrowRight size={14} />
-                <span className="idea-action-label">Make it a task</span>
+                {task.draft ? <PencilLine size={14} /> : <ArrowRight size={14} />}
+                <span className="idea-action-label">{task.draft ? 'Continue writing' : 'Make it a task'}</span>
               </button>
               <ImproveDescription
                 compact

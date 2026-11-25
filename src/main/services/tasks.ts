@@ -3,7 +3,7 @@ import type { HatstandApi } from '../../shared/api';
 import { parseIssueReference } from '../../shared/issue-reference';
 import type { DescriptionSuggester } from '../description-suggestion';
 import type { SessionManager } from '../sessions';
-import { createTaskWithGuide, makeTaskFromIdea } from '../task-setup';
+import { createTaskWithGuide, makeTaskFromIdea, saveTaskDraft } from '../task-setup';
 import { syncTrackers } from '../trackers/sync';
 import type { CodeCopies } from './code-copies';
 import type { ServiceContext } from './context';
@@ -12,6 +12,7 @@ export type TaskService = Pick<
   HatstandApi,
   | 'createTask'
   | 'makeTask'
+  | 'saveTaskDraft'
   | 'updateTask'
   | 'linkTaskIssue'
   | 'unlinkTaskIssue'
@@ -42,6 +43,11 @@ export function createTaskService({ store, paths, secrets, emit, fetch }: Servic
       const task = makeTaskFromIdea({ store, paths, changeGuide: (id, guide) => sessions.changeGuide(id, guide) }, taskId, setup);
       emit('state-changed', null);
       return task;
+    },
+    saveTaskDraft: async (draftId, form) => {
+      const saved = saveTaskDraft(store, draftId, form);
+      emit('state-changed', null);
+      return saved;
     },
     updateTask: async (taskId, patch) => store.updateTask(taskId, patch),
     linkTaskIssue: async (taskId, reference) => {

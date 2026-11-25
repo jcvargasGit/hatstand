@@ -1,3 +1,4 @@
+import { hasDraftText, newTaskDraftSchema, UNTITLED_DRAFT, type NewTaskDraft } from '../shared/new-task-draft';
 import { taskSetupSchema, type Task, type TaskGuide, type TaskSetup } from '../shared/schemas';
 import type { DataPaths } from './paths';
 import { findPlaybook, startGuide } from './playbooks';
@@ -31,10 +32,50 @@ export function makeTaskFromIdea({ store, paths, changeGuide }: TaskSetupDeps, t
     title,
     ...(title !== idea.title ? { customTitle: true } : {}),
     status: 'todo',
+    draft: undefined,
   });
   if (guide && playbookId) {
     changeGuide(taskId, guide);
     store.recordGuideUse(playbookId);
   }
   return store.findTask(taskId);
+}
+
+const savedDraft = (store: Store, draftId: string | null): Task | undefined => {
+  if (!draftId) return undefined;
+  try {
+    const task = store.findTask(draftId);
+    return task.status === 'idea' && task.draft ? task : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+/**
+ * Saves the New task form as a draft in the backlog of its client, and returns the id of the draft.
+ * The same draft is written again while the person types. A form moved to another client leaves the
+ * backlog of the first one, and a form emptied again leaves the backlog altogether: then there is no id.
+ */
+export function saveTaskDraft(store: Store, draftId: string | null, input: NewTaskDraft): string | null {
+  const form = newTaskDraftSchema.parse(input);
+  const existing = savedDraft(store, draftId);
+  if (!hasDraftText(form)) {
+    if (existing) store.deleteTask(existing.id);
+    return null;
+  }
+  const untitled = form.title.trim() === '';
+  const fields = {
+    title: untitled ? UNTITLED_DRAFT : form.title.trim(),
+    description: form.description,
+    subdomainId: form.areaId || undefined,
+    projectIds: form.projectIds,
+    accountId: form.accountId || undefined,
+    priority: form.priority,
+    isolated: form.isolated,
+  };
+  const draft = { playbookId: form.playbookId, guideChosen: form.guideChosen, areaChosen: form.areaChosen, untitled, suggestionKey: form.suggestionKey };
+  if (existing && existing.companyId === form.companyId) return store.updateTask(existing.id, { ...fields, draft }).id;
+  if (existing) store.deleteTask(existing.id);
+  const created = store.createTask({ companyId: form.companyId, ...fields }, undefined, 'idea');
+  return store.updateTask(created.id, { draft }).id;
 }

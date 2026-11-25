@@ -21,6 +21,7 @@ import {
   type TaskStatus,
   type TaskWorktree, subdomainSchema, type Subdomain, type BacklogPlanLink } from '../shared/schemas';
 import { preferencesSchema, type Preferences } from '../shared/schemas';
+import { DEFAULT_FLAGS } from '../shared/task-flags';
 import { parseTaskNotes, withNotesStatus } from '../shared/task-notes';
 import type { DataPaths } from './paths';
 import type { DownloadedPhoto } from './photos';
@@ -140,6 +141,7 @@ export class Store {
       guideNewTasks: this.readPreferences().guideNewTasks,
       guideUsage: this.readPreferences().guideUsage,
       autoSendPrompt: this.readPreferences().autoSendPrompt,
+      flags: this.readPreferences().flags ?? DEFAULT_FLAGS,
       localKnowledge: companies.filter((company) => this.hasLocalKnowledge(company.id)).map((company) => company.id),
       localPlugin: companies.filter((company) => this.hasLocalPlugin(company.id)).map((company) => company.id),
       starterInstructions: companies.filter((company) => this.usesStarterInstructions(company)).map((company) => company.id),

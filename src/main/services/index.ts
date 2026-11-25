@@ -69,6 +69,7 @@ export type ServiceDeps = PreferenceServiceDeps & {
     | 'sendPrompt'
     | 'changeGuide'
     | 'moveGuideStep'
+    | 'setGuideAutoContinue'
     | 'hasLiveSession'
     | 'hasLiveClientSession'
     | 'outsideChangesSettled'

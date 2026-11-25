@@ -10,6 +10,7 @@ import { TaskTree } from '../../src/renderer/src/components/TaskTree';
 import type { TodayItem } from '../../src/renderer/src/lib/today';
 import type { Bridge, Snapshot } from '../../src/shared/api';
 import { companySchema, taskSchema, type Task } from '../../src/shared/schemas';
+import { DEFAULT_FLAGS } from '../../src/shared/task-flags';
 
 vi.mock('../../src/renderer/src/components/MarkdownField', () => ({
   MarkdownField: ({ label, value, onChange, onCommit }: { label: string; value: string; onChange: (value: string) => void; onCommit?: (value: string) => void }) => (
@@ -36,6 +37,7 @@ const snapshotOf = (tasks: Task[], guideUsage: Record<string, number> = {}) =>
     accounts: { defaultAccountId: 'claude', accounts: [{ id: 'claude', name: 'Claude', type: 'claude-code', label: 'personal' }] },
     guideNewTasks: false,
     autoSendPrompt: true,
+    flags: DEFAULT_FLAGS,
     guideUsage,
   }) as unknown as Snapshot;
 const playbooks = [

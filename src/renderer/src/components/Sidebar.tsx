@@ -6,6 +6,7 @@ import type { View } from '../App';
 import type { SidebarLayout } from '../hooks/useSidebarLayout';
 import { useStayAwake } from '../hooks/useStayAwake';
 import { api } from '../lib/api';
+import { withFlag } from '../../../shared/task-flags';
 import { moveClient } from '../lib/client-order';
 import { shortcutLabel } from '../lib/shortcuts';
 import type { MenuPoint } from '../lib/task-flag';
@@ -324,7 +325,7 @@ export function Sidebar({ snapshot, view, selectedTaskId, layout, onNavigate, on
         </button>
       </div>
       {flagMenu && flagTask && (
-        <TaskFlagMenu task={flagTask} at={flagMenu.at} onPick={(flag) => void setFlag(flagTask.id, flag)} onClose={closeFlagMenu} />
+        <TaskFlagMenu task={flagTask} flags={snapshot.flags} at={flagMenu.at} onPick={(flag) => void setFlag(flagTask.id, flag)} onAdd={(flag) => void api.setFlags(withFlag(snapshot.flags, flag))} onClose={closeFlagMenu} />
       )}
     </nav>
   );

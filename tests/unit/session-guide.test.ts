@@ -2,10 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
-import { BUSY_FOR_STEP, guideAfterMove, SessionGuides, type GuideTerminals } from '../../src/main/session-guide';
+import { BUSY_FOR_STEP, CONTINUE_BY_ITSELF, guideAfterMove, SessionGuides, type GuideTerminals } from '../../src/main/session-guide';
 import { STEP_DONE_TOOL } from '../../src/main/step-done-tool';
 import { writePrivateFile } from '../../src/main/store';
-import type { TaskGuide } from '../../src/shared/schemas';
+import { autoContinueStep } from '../../src/shared/guide-progress';
+import type { SessionState, TaskGuide } from '../../src/shared/schemas';
 import { DRAFT_IN_THE_WAY } from '../../src/shared/task-summary';
 import { makeHome, type TestHome } from '../helpers/home';
 
@@ -22,6 +23,7 @@ let home: TestHome;
 let taskId: string;
 let onChange: Mock<() => void>;
 let offer: Mock<GuideTerminals['offerToRunningSession']>;
+let send: Mock<GuideTerminals['sendToRunningSession']>;
 let guides: SessionGuides;
 
 beforeEach(() => {
@@ -31,7 +33,8 @@ beforeEach(() => {
   home.store.updateTask(taskId, { guide });
   onChange = vi.fn<() => void>();
   offer = vi.fn<GuideTerminals['offerToRunningSession']>(() => false);
-  guides = new SessionGuides(home.paths, home.store, { onChange }, { offerToRunningSession: offer });
+  send = vi.fn<GuideTerminals['sendToRunningSession']>();
+  guides = new SessionGuides(home.paths, home.store, { onChange }, { offerToRunningSession: offer, sendToRunningSession: send });
 });
 afterEach(() => home.remove());
 
@@ -132,6 +135,143 @@ describe('steps the agent reports done', () => {
     guides.pollStepsDone(sessionId);
     expect(existsSync(home.paths.stepFile(sessionId))).toBe(false);
     expect(savedGuide()).toBeUndefined();
+  });
+});
+
+describe('the step a guide sends by itself', () => {
+  const byItself: TaskGuide = { ...guide, autoContinue: true, steps: [...guide.steps.slice(0, 2), { name: 'Post', prompt: 'Post it.', approval: true }, { name: 'Ask', you: 'Ask them.' }] };
+
+  it('is the next open step, once the agent finished the current one', () => {
+    expect(autoContinueStep({ ...byItself, done: [1] })).toBe(1);
+  });
+
+  it('is none while the current step is not finished, or when the guide waits for the person at every step', () => {
+    expect(autoContinueStep(byItself)).toBeNull();
+    expect(autoContinueStep({ ...byItself, autoContinue: false, done: [1] })).toBeNull();
+    expect(autoContinueStep({ ...guide, done: [1] })).toBeNull();
+  });
+
+  it('is none before a step that needs approval, a step the person does, and at the end', () => {
+    expect(autoContinueStep({ ...byItself, current: 1, done: [1, 2] })).toBeNull();
+    expect(autoContinueStep({ ...byItself, current: 2, done: [1, 2, 3] })).toBeNull();
+    expect(autoContinueStep({ ...byItself, steps: byItself.steps.slice(0, 2), current: 1, done: [1, 2] })).toBeNull();
+  });
+
+  it('skips a step the agent already finished while talking', () => {
+    const three: TaskGuide = { ...byItself, steps: [...guide.steps.slice(0, 2), { name: 'Test', prompt: 'Test it.' }] };
+    expect(autoContinueStep({ ...three, done: [1, 2] })).toBe(2);
+  });
+});
+
+describe('a guide that continues by itself', () => {
+  let sessionId: string;
+  /** A running session whose agent just reported step 1 as finished, on a guide that continues by itself. */
+  const reported = (change: Partial<TaskGuide> = {}) => {
+    sessionId = randomUUID();
+    const now = new Date().toISOString();
+    home.store.saveSession({ id: sessionId, taskId, companyId: 'acme', accountId: 'a', cwd: home.root, state: 'working', startedAt: now, updatedAt: now });
+    home.store.updateTask(taskId, { guide: { ...guide, autoContinue: true, ...change } });
+    writePrivateFile(home.paths.stepFile(sessionId), '1\n');
+    guides.pollStepsDone(sessionId);
+    offer.mockReturnValue(true);
+  };
+
+  it('moves to the next step and sends it, telling the agent not to stop for a confirmation', () => {
+    reported();
+    guides.continueByItself(taskId, 'idle', false);
+    expect(savedGuide()).toMatchObject({ current: 1, done: [1], autoContinue: true });
+    expect(offer).toHaveBeenCalledExactlyOnceWith(taskId, expect.stringMatching(/^Step 2 of 3, Fix: Fix it\..* Continue without asking me to confirm\./), BUSY_FOR_STEP);
+    expect(offer.mock.calls[0]?.[1]).toContain(CONTINUE_BY_ITSELF);
+    expect(send).toHaveBeenCalledExactlyOnceWith(taskId);
+  });
+
+  it('sends each step once', () => {
+    reported();
+    guides.continueByItself(taskId, 'idle', false);
+    guides.continueByItself(taskId, 'idle', false);
+    expect(send).toHaveBeenCalledOnce();
+  });
+
+  it.each<SessionState>(['working', 'needs-input', 'background', 'stopped'])('waits while the session is %s, and sends once the agent is back at its prompt', (state) => {
+    reported();
+    guides.continueByItself(taskId, state, false);
+    expect(offer).not.toHaveBeenCalled();
+    expect(savedGuide()?.current).toBe(0);
+    guides.continueByItself(taskId, 'idle', false);
+    expect(send).toHaveBeenCalledOnce();
+  });
+
+  it('waits while the person has text in the terminal', () => {
+    reported();
+    guides.continueByItself(taskId, 'idle', true);
+    expect(offer).not.toHaveBeenCalled();
+    guides.continueByItself(taskId, 'idle', false);
+    expect(send).toHaveBeenCalledOnce();
+  });
+
+  it('does nothing when the person did not ask for it', () => {
+    reported({ autoContinue: false });
+    guides.continueByItself(taskId, 'idle', false);
+    expect(offer).not.toHaveBeenCalled();
+  });
+
+  it('reads no task while nothing was reported, so a session that waits costs nothing', () => {
+    home.store.updateTask(taskId, { guide: { ...guide, autoContinue: true, done: [1] } });
+    const findTask = vi.spyOn(home.store, 'findTask');
+    guides.continueByItself(taskId, 'idle', false);
+    expect(findTask).not.toHaveBeenCalled();
+    expect(offer).not.toHaveBeenCalled();
+  });
+
+  it('stops before a step the person does', () => {
+    reported({ current: 1, done: [2] });
+    guides.continueByItself(taskId, 'idle', false);
+    expect(offer).not.toHaveBeenCalled();
+    expect(savedGuide()?.current).toBe(1);
+  });
+
+  it('leaves a finished task alone', () => {
+    reported();
+    home.store.updateTask(taskId, { status: 'done' });
+    guides.continueByItself(taskId, 'idle', false);
+    expect(offer).not.toHaveBeenCalled();
+  });
+
+  it('stays on the step when the terminal cannot take the prompt, and tries again later', () => {
+    reported();
+    offer.mockImplementationOnce(() => {
+      throw new Error(DRAFT_IN_THE_WAY);
+    });
+    guides.continueByItself(taskId, 'idle', false);
+    expect(savedGuide()?.current).toBe(0);
+    expect(send).not.toHaveBeenCalled();
+    guides.continueByItself(taskId, 'idle', false);
+    expect(savedGuide()?.current).toBe(1);
+    expect(send).toHaveBeenCalledOnce();
+  });
+
+  it('is turned on for a task, and sends a step that was already finished', () => {
+    home.store.updateTask(taskId, { guide: { ...guide, done: [1] } });
+    offer.mockReturnValue(true);
+    guides.setAutoContinue(taskId, true);
+    expect(savedGuide()?.autoContinue).toBe(true);
+    expect(onChange).toHaveBeenCalledOnce();
+    guides.continueByItself(taskId, 'idle', false);
+    expect(savedGuide()?.current).toBe(1);
+    expect(send).toHaveBeenCalledOnce();
+  });
+
+  it('is turned off, and then sends nothing', () => {
+    reported();
+    guides.setAutoContinue(taskId, false);
+    guides.continueByItself(taskId, 'idle', false);
+    expect(savedGuide()?.autoContinue).toBe(false);
+    expect(offer).not.toHaveBeenCalled();
+  });
+
+  it('cannot be turned on for a task without a guide', () => {
+    home.store.updateTask(taskId, { guide: undefined });
+    expect(() => guides.setAutoContinue(taskId, true)).toThrow('This task has no guide.');
   });
 });
 

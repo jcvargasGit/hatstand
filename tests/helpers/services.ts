@@ -98,6 +98,7 @@ export function fakeServiceDeps(overrides: Partial<ServiceDeps> = {}): ServiceDe
       sendPrompt: vi.fn(async () => {}),
       changeGuide: vi.fn(),
       moveGuideStep: vi.fn(),
+      setGuideAutoContinue: vi.fn(),
       hasLiveSession: vi.fn(() => false),
       hasLiveClientSession: vi.fn(() => false),
       outsideChangesSettled: vi.fn(async () => {}),

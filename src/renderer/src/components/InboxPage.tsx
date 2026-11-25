@@ -1,4 +1,4 @@
-import { ArrowDownWideNarrow, ArrowRight, Inbox, Sparkles } from 'lucide-react';
+import { ArrowDownWideNarrow, ArrowRight, Inbox, PencilLine, Sparkles } from 'lucide-react';
 import { useRef, useState } from 'react';
 import type { Snapshot } from '../../../shared/api';
 import { hasWorkspace } from '../../../shared/readiness';
@@ -36,6 +36,9 @@ export function InboxPage({ snapshot, companyId, onOpenTask, onMakeTask, onChang
   const { error, busy, run } = useAction();
   const visible = companyId ? snapshot.companies.filter((company) => company.id === companyId) : snapshot.companies;
   const pending = snapshot.tasks.filter((task) => isIdea(task) && !task.archivedAt && visible.some((company) => company.id === task.companyId));
+  const [draftsOnly, setDraftsOnly] = useState(false);
+  const draftCount = pending.filter((task) => task.draft).length;
+  const showsDrafts = draftsOnly && draftCount > 0;
   const selected = pending.find((task) => task.id === selectedId);
 
   const closeDetails = () => {
@@ -85,6 +88,12 @@ export function InboxPage({ snapshot, companyId, onOpenTask, onMakeTask, onChang
 
       <InboxCapture companies={snapshot.companies} companyId={companyId} onChanged={onChanged} />
       {error && <p className="error">{error}</p>}
+      {draftCount > 0 && (
+        <button className="quiet inbox-drafts" aria-pressed={showsDrafts} title="Tasks you were writing and did not create. Hatstand saved them here." onClick={() => setDraftsOnly(!showsDrafts)}>
+          <PencilLine size={14} />
+          {showsDrafts ? 'Show everything' : `Drafts (${draftCount})`}
+        </button>
+      )}
 
       {pending.length === 0 ? (
         <p className="empty">
@@ -93,15 +102,16 @@ export function InboxPage({ snapshot, companyId, onOpenTask, onMakeTask, onChang
       ) : (
         visible.map((company) => {
           const items = inboxOrder(pending.filter((task) => task.companyId === company.id));
-          const chosen = items.filter((item) => isPicked(item.id));
-          const allChosen = chosen.length === items.length;
+          const rows = showsDrafts ? items.filter((item) => item.draft) : items;
+          const chosen = rows.filter((item) => isPicked(item.id));
+          const allChosen = chosen.length === rows.length;
           return (
-            items.length > 0 && (
+            rows.length > 0 && (
               <section key={company.id} className="inbox-group" aria-label={`${company.name} backlog`}>
                 <h2 className="title-with-avatar">
                   <ClientAvatar company={company} size="small" />
                   {company.name}
-                  <span className="hint">{plural(items.length, 'task', 'tasks')} to review</span>
+                  <span className="hint">{showsDrafts ? plural(rows.length, 'draft', 'drafts') : `${plural(rows.length, 'task', 'tasks')} to review`}</span>
                   <span className="inbox-group-actions">
                     {chosen.length > 0 && <span className="hint">{chosen.length} selected</span>}
                     {items.some((item) => item.priority !== 'none') && (
@@ -150,7 +160,7 @@ export function InboxPage({ snapshot, companyId, onOpenTask, onMakeTask, onChang
                           ref={(box) => {
                             if (box) box.indeterminate = chosen.length > 0 && !allChosen;
                           }}
-                          onChange={() => pick(items.map((item) => item.id), !allChosen)}
+                          onChange={() => pick(rows.map((item) => item.id), !allChosen)}
                         />
                       </th>
                       <th className="idea-col-order">Order</th>
@@ -162,9 +172,9 @@ export function InboxPage({ snapshot, companyId, onOpenTask, onMakeTask, onChang
                     </tr>
                   </thead>
                   <tbody>
-                    {items.map((task, index) => {
-                      const before = items[index - 1];
-                      const after = items[index + 1];
+                    {rows.map((task, index) => {
+                      const before = rows[index - 1];
+                      const after = rows[index + 1];
                       return (
                         <IdeaRow
                           key={task.id}

@@ -167,7 +167,11 @@ describe('a planning repository', () => {
   it('is told to the agent, without permission to commit', () => {
     const company = { ...mono(), planning: { path: '/specs', places: [{ name: 'Tickets', folder: 'tickets' }] } };
     const prompt = buildSystemPrompt({ company, task: task(), repositories: [], companyInstructions: '', knowledgeDirs: [], planning: { ...company.planning, hasGit: true }, notesFile: '/tasks/t.md', notes: '' });
-    expect(prompt).toContain('/tasks/t.<short-name>.md');
+    expect(prompt).toContain('/tasks/t.<purpose>.md');
+    expect(prompt).toContain('questions-for-devops');
+    expect(prompt).toMatch(/give the path of that file, not (of )?the notes file/i);
+    expect(prompt).toContain('one short sentence, or up to three short bullets');
+    expect(prompt).toContain('write each file as a Markdown link to its full path');
     expect(prompt).toContain('live in /specs');
     expect(prompt).toContain('- Tickets: tickets');
     expect(prompt).toContain('Do not commit, push or open a pull request in this repository unless the person asks.');

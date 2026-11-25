@@ -10,10 +10,13 @@ type DescriptionSuggestionDialogProps = {
   onSend: (instructions: string) => void;
   onAccept: (description: string) => void;
   onRetry: () => void;
-  onClose: () => void;
+  /** Closes the dialog. A suggestion being written keeps running, and a finished one waits behind its button. */
+  onHide: () => void;
+  /** Stops the assistant if it is writing, and forgets the suggestion. */
+  onDrop: () => void;
 };
 
-export function DescriptionSuggestionDialog({ state, currentDescription, onSend, onAccept, onRetry, onClose }: DescriptionSuggestionDialogProps) {
+export function DescriptionSuggestionDialog({ state, currentDescription, onSend, onAccept, onRetry, onHide, onDrop }: DescriptionSuggestionDialogProps) {
   const [showOriginal, setShowOriginal] = useState(false);
   const changedMeanwhile = currentDescription !== state.request.description;
   const asking = state.phase === 'loading' || state.phase === 'composing';
@@ -25,21 +28,21 @@ export function DescriptionSuggestionDialog({ state, currentDescription, onSend,
     // The prompt editor already used this Escape to stop editing.
     if (event.defaultPrevented) return;
     event.preventDefault();
-    onClose();
+    onHide();
   };
 
   return (
-    <div className="palette-backdrop suggestion-backdrop" onMouseDown={onClose}>
+    <div className="palette-backdrop suggestion-backdrop" onMouseDown={onHide}>
       <div className="suggestion-dialog" role="dialog" aria-modal="true" aria-label={title} onKeyDown={onKeyDown} onMouseDown={(event) => event.stopPropagation()}>
         <div className="suggestion-head">
           <h3>{title}</h3>
-          <button type="button" className="quiet" aria-label="Close" title="Close" onClick={onClose}>
+          <button type="button" className="quiet" aria-label="Close" title={state.phase === 'working' ? 'Close. The assistant keeps writing, and the button shows when it is ready.' : 'Close'} onClick={onHide}>
             <X size={14} />
           </button>
         </div>
 
         {state.phase === 'composing' ? (
-          <DescriptionPromptStep instructions={state.instructions} defaults={state.defaults} onSend={onSend} onClose={onClose} />
+          <DescriptionPromptStep instructions={state.instructions} defaults={state.defaults} onSend={onSend} onClose={onHide} />
         ) : (
           <>
             <div className="suggestion-body">
@@ -52,7 +55,7 @@ export function DescriptionSuggestionDialog({ state, currentDescription, onSend,
               {state.phase === 'working' && (
                 <p className="suggestion-working" role="status">
                   <LoaderCircle size={16} className="spin" />
-                  Reading the project and writing a better description. This can take a few minutes.
+                  Reading the project and writing a better description. This can take a few minutes. You can close this and keep working: the button shows when it is ready.
                 </p>
               )}
               {state.phase === 'failed' && (
@@ -92,7 +95,12 @@ export function DescriptionSuggestionDialog({ state, currentDescription, onSend,
                   Try again
                 </button>
               )}
-              <button type="button" className="quiet" autoFocus={state.phase === 'working' || state.phase === 'loading'} onClick={onClose}>
+              {state.phase === 'working' && (
+                <button type="button" autoFocus onClick={onHide}>
+                  Continue in the background
+                </button>
+              )}
+              <button type="button" className="quiet" autoFocus={state.phase === 'loading'} onClick={onDrop}>
                 {state.phase === 'working' || state.phase === 'loading' ? 'Cancel' : 'Discard'}
               </button>
             </div>

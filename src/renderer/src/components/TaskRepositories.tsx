@@ -2,9 +2,11 @@ import { FolderGit2, GitBranch } from 'lucide-react';
 import type { Company, Task } from '../../../shared/schemas';
 import { taskRepositories } from '../../../shared/work-repos';
 import { useAction } from '../hooks/useAction';
+import { useRepositoryLinks } from '../hooks/useRepositoryLinks';
 import { api } from '../lib/api';
 import { baseLabel } from '../lib/text';
 import { OpenInEditorButton } from './OpenInEditorButton';
+import { RepoSiteButton } from './RepoSiteButton';
 
 type TaskRepositoriesProps = {
   task: Task;
@@ -18,6 +20,7 @@ export function TaskRepositories({ task, company, isLive, onChanged }: TaskRepos
   const { error, busy, run } = useAction();
   const repos = taskRepositories(company, task);
   const copies = task.isolated ? task.worktrees : [];
+  const webUrls = useRepositoryLinks(company.id);
 
   if (repos.length === 0) {
     return (
@@ -52,6 +55,7 @@ export function TaskRepositories({ task, company, isLive, onChanged }: TaskRepos
                 ) : (
                   <OpenInEditorButton companyId={company.id} path={repo.path} what={repo.name} />
                 )}
+                {webUrls[repo.id] && <RepoSiteButton name={repo.name} webUrl={webUrls[repo.id] ?? ''} />}
               </span>
             </li>
           );

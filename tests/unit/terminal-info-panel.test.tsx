@@ -295,6 +295,71 @@ describe('what the agent did, beside the terminal', () => {
     expect(invoke.mock.calls.filter(([method]) => method === 'taskChanges')).toHaveLength(1);
   });
 
+  it('opens the notes of the task and the files written outside git from the files created', async () => {
+    const outside = { folders: [{ folder: '/data/knowledge', changes: [{ path: '/data/knowledge/report.md', status: 'added' }, { path: '/data/knowledge/old.md', status: 'deleted' }] }], truncated: false };
+    invoke.mockImplementation(async (method: string) => (method === 'taskOutsideChanges' ? outside : answer(changes)(method)));
+    renderPanel('idle', SUMMARY, copy);
+    const created = within(screen.getByRole('region', { name: 'Files created' }));
+    await userEvent.click(created.getByRole('button', { name: 'Task notes' }));
+    expect(invoke).toHaveBeenCalledWith('openTaskNotesInEditor', 't');
+    const folder = within(await created.findByRole('group', { name: 'Written in /data/knowledge' }));
+    expect(folder.queryByText('old.md')).toBeNull();
+    await userEvent.click(folder.getByRole('button', { name: 'report.md' }));
+    expect(invoke).toHaveBeenCalledWith('openTaskChangedFile', 't', '/data/knowledge/report.md');
+  });
+
+  it('offers no notes to open before the agent wrote any', async () => {
+    renderPanel('idle', '');
+    await screen.findByLabelText('Task note');
+    expect(screen.queryByRole('button', { name: 'Task notes' })).toBeNull();
+  });
+
+  it('opens each repository with an icon that keeps its name, and its page on GitHub when it has one', async () => {
+    invoke.mockImplementation(async (method: string) => (method === 'repositoryLinks' ? { api: 'https://github.com/acme/api' } : answer(changes)(method)));
+    renderPanel('idle', SUMMARY, { ...copy, projectIds: ['api'] });
+    const repos = within(screen.getByRole('region', { name: 'Repositories' }));
+    const editor = await repos.findByRole('button', { name: 'Open the copy of api in Cursor' });
+    expect(editor.textContent).toBe('');
+    await userEvent.click(await repos.findByRole('button', { name: 'Open api on GitHub' }));
+    expect(invoke).toHaveBeenCalledWith('openLink', 'https://github.com/acme/api');
+  });
+
+  it('shows no site icon for a repository without a page', async () => {
+    invoke.mockImplementation(answer(changes));
+    renderPanel('idle', SUMMARY, copy);
+    const repos = within(screen.getByRole('region', { name: 'Repositories' }));
+    await repos.findByRole('button', { name: 'Open the copy of api in Cursor' });
+    expect(repos.queryByRole('button', { name: /Open api on/ })).toBeNull();
+  });
+
+  it.each(['TL;DR', 'Repositories', 'Files changed', 'Files created', 'Your note'])('folds away %s, and keeps it folded for the next task', async (title) => {
+    const first = renderPanel();
+    await screen.findByLabelText('Task note');
+    const section = () => screen.getByRole('region', { name: title });
+    const body = section().querySelector('.panel-section-body');
+    expect(body).not.toBeNull();
+    await userEvent.click(within(section()).getByRole('button', { name: title }));
+    expect(section().querySelector('.panel-section-body')).toBeNull();
+    expect(within(section()).getByRole('button', { name: title }).getAttribute('aria-expanded')).toBe('false');
+    first.unmount();
+    renderPanel('idle', SUMMARY, { ...task, id: 'other' });
+    expect(section().querySelector('.panel-section-body')).toBeNull();
+    await userEvent.click(within(section()).getByRole('button', { name: title }));
+    expect(section().querySelector('.panel-section-body')).not.toBeNull();
+  });
+
+  it('opens a file named in the TL;DR in the editor, and leaves a web link to the browser', async () => {
+    const notes = '## TL;DR\n- Plan in [plan.md](/data/tasks/t.plan.md).\n- See `/code/api/src/login.ts:12` and [the ticket](https://example.com/t/1).\n- Run `pnpm test`.\n';
+    invoke.mockImplementation(answer([]));
+    renderPanel('idle', notes);
+    const summary = within(screen.getByRole('region', { name: 'TL;DR' }));
+    await userEvent.click(summary.getByRole('button', { name: 'plan.md' }));
+    await userEvent.click(summary.getByRole('button', { name: '/code/api/src/login.ts:12' }));
+    expect(opened()).toEqual([['acme', '/data/tasks/t.plan.md'], ['acme', '/code/api/src/login.ts']]);
+    expect(summary.getByRole('link', { name: 'the ticket' }).getAttribute('href')).toBe('https://example.com/t/1');
+    expect(summary.queryByRole('button', { name: 'pnpm test' })).toBeNull();
+  });
+
   it('folds away your note', async () => {
     renderPanel();
     await screen.findByLabelText('Task note');

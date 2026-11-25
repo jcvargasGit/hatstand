@@ -98,6 +98,10 @@ export class SessionManager {
     this.env = new SessionEnv(paths, store, secrets, shellPath, protection);
     this.guides = new SessionGuides(paths, store, events, {
       offerToRunningSession: (taskId, prompt, busyMessage) => this.offerToRunningSession(taskId, prompt, busyMessage),
+      sendToRunningSession: (taskId) => {
+        const running = this.runningSession(taskId);
+        if (running) this.sendDraft(running.id);
+      },
     });
   }
 
@@ -251,6 +255,7 @@ export class SessionManager {
       watcher: setInterval(() => {
         this.states.poll(session.id);
         this.guides.pollStepsDone(session.id);
+        this.guides.continueByItself(session.taskId, live.state, live.draftLength > 0);
         if (copies.requestsFolder) this.copies.pollRequests(session, copies.requestsFolder);
         if (planChecks) answerPlanChecks(this.store, this.paths, session, planChecks.folder);
       }, STATUS_POLL_MS),
@@ -347,6 +352,10 @@ export class SessionManager {
 
   moveGuideStep(taskId: string, index: number): void {
     this.guides.moveStep(taskId, index);
+  }
+
+  setGuideAutoContinue(taskId: string, enabled: boolean): void {
+    this.guides.setAutoContinue(taskId, enabled);
   }
 
   changeGuide(taskId: string, guide: TaskGuide): void {
