@@ -18,8 +18,23 @@ export function startDraft(snapshot: Clients, companyId: string, areaId?: string
   };
 }
 
-/** The form filled in with a backlog item, which becomes the task when the form is saved. */
+/**
+ * The form filled in with a backlog item, which becomes the task when the form is saved.
+ * A draft opens as the new task it was: with the choices the person had made, and saved again as they write.
+ */
 export function draftFromIdea(task: Task, snapshot: Clients): NewTaskDraft {
+  if (task.draft) {
+    return {
+      ...choicesOf(task, snapshot),
+      playbookId: task.draft.playbookId,
+      title: task.draft.untitled ? '' : task.title,
+      description: task.description,
+      guideChosen: task.draft.guideChosen,
+      areaChosen: task.draft.areaChosen,
+      draftId: task.id,
+      suggestionKey: task.draft.suggestionKey,
+    };
+  }
   return {
     ...choicesOf(task, snapshot),
     title: task.title,

@@ -3,9 +3,9 @@ import { createPlaybook, customizePlaybook, findPlaybook, listPlaybooks, removeP
 import type { SessionManager } from '../sessions';
 import type { ServiceContext } from './context';
 
-export type GuideService = Pick<HatstandApi, 'listPlaybooks' | 'customizePlaybook' | 'createPlaybook' | 'removePlaybook' | 'setTaskGuide' | 'moveGuideStep'>;
+export type GuideService = Pick<HatstandApi, 'listPlaybooks' | 'customizePlaybook' | 'createPlaybook' | 'removePlaybook' | 'setTaskGuide' | 'moveGuideStep' | 'setGuideAutoContinue'>;
 
-export function createGuideService({ store, paths }: Pick<ServiceContext, 'store' | 'paths'>, { sessions }: { sessions: Pick<SessionManager, 'changeGuide' | 'moveGuideStep'> }): GuideService {
+export function createGuideService({ store, paths }: Pick<ServiceContext, 'store' | 'paths'>, { sessions }: { sessions: Pick<SessionManager, 'changeGuide' | 'moveGuideStep' | 'setGuideAutoContinue'> }): GuideService {
   return {
     listPlaybooks: async (companyId) => listPlaybooks(paths, companyId),
     customizePlaybook: async (companyId, playbookId) => customizePlaybook(paths, companyId, playbookId),
@@ -20,5 +20,6 @@ export function createGuideService({ store, paths }: Pick<ServiceContext, 'store
       store.updateTask(taskId, { type: undefined });
     },
     moveGuideStep: async (taskId, index) => sessions.moveGuideStep(taskId, index),
+    setGuideAutoContinue: async (taskId, enabled) => sessions.setGuideAutoContinue(taskId, enabled === true),
   };
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { clientTree, groupToday, inkOn, nextWaiting, sharedSubdomain, taskStateText, waitingByClient, waitingCount } from '../../src/renderer/src/lib/today';
 import type { Snapshot } from '../../src/shared/api';
 import type { Company, Session, SessionState, Task } from '../../src/shared/schemas';
+import { DEFAULT_FLAGS } from '../../src/shared/task-flags';
 
 const company = (id: string): Company => ({
   id,
@@ -50,6 +51,7 @@ const snapshot = (tasks: Task[], sessions: Session[]): Snapshot => ({
   guideNewTasks: true,
   guideUsage: {},
   autoSendPrompt: true,
+  flags: DEFAULT_FLAGS,
   localKnowledge: [],
   localPlugin: [],
   starterInstructions: [],

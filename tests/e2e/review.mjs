@@ -409,6 +409,42 @@ try {
   await createdFiles.getByRole('button', { name: 'second-file.txt' }).waitFor({ timeout: 15000 });
   assert.equal(await work.getByText('unrelated.txt').count(), 0, 'A file changed before the agent started is not its work.');
   await shot('agent-work');
+
+  // A long list of repositories scrolls inside its section, so every other section keeps its title in view.
+  const titlesInView = () =>
+    page.evaluate(() => {
+      const panel = document.querySelector('.agent-work').closest('aside').getBoundingClientRect();
+      return [...document.querySelectorAll('.panel-section-head')].filter((head) => {
+        const box = head.getBoundingClientRect();
+        return box.top >= panel.top && box.bottom <= panel.bottom;
+      }).length;
+    });
+  await page.evaluate(() => {
+    const list = document.querySelector('.agent-work-repos');
+    for (let index = 0; index < 40; index += 1) {
+      const copy = list.firstElementChild.cloneNode(true);
+      copy.dataset.e2eCopy = 'yes';
+      list.append(copy);
+    }
+  });
+  assert.equal(await titlesInView(), 5, 'With forty repositories, the five sections still show their titles.');
+  assert.ok(
+    await page.evaluate(() => {
+      const body = document.querySelector('.agent-work-repos').closest('.panel-section-body');
+      return body.scrollHeight > body.clientHeight;
+    }),
+    'The long list scrolls inside its own section.',
+  );
+  await shot('agent-work-many-repositories');
+  await page.evaluate(() => document.querySelectorAll('[data-e2e-copy]').forEach((copy) => copy.remove()));
+
+  // A section folds away from its title, and Hatstand remembers it.
+  const repositories = work.getByRole('region', { name: 'Repositories' });
+  await repositories.getByRole('button', { name: 'Repositories' }).click();
+  assert.equal(await repositories.getByRole('button', { name: 'Open web in VS Code' }).count(), 0, 'A folded section hides its content.');
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('hatstand.agent-work-sections') ?? 'null') !== null), true, 'The folded section is remembered.');
+  await repositories.getByRole('button', { name: 'Repositories' }).click();
+  await repositories.getByRole('button', { name: 'Open web in VS Code' }).waitFor();
   rmSync(join(web, 'second-file.txt'));
 
   await page.keyboard.press(shortcut('1'));

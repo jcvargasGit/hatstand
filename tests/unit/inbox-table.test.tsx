@@ -128,3 +128,37 @@ describe('the backlog table', () => {
     expect(details()).toBeNull();
   });
 });
+
+describe('drafts in the backlog', () => {
+  const draft = idea('three', 'Half a title', { draft: { playbookId: '', guideChosen: false, areaChosen: false, untitled: false } });
+  const titles = () => screen.getAllByRole('button', { expanded: false }).filter((button) => button.classList.contains('idea-toggle')).map((button) => button.textContent);
+
+  it('marks a draft in its row, and offers to continue writing it', async () => {
+    render(show([first, draft]));
+    const row = within(screen.getByRole('button', { name: 'Half a title' }).closest('tr') as HTMLElement);
+    expect(row.getByText('Draft')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Half a title' }).textContent).toBe('Half a title');
+    await userEvent.click(row.getByRole('button', { name: 'Continue writing Half a title' }));
+    expect(onMakeTask).toHaveBeenCalledWith('three', 'c');
+    expect(within(screen.getByRole('button', { name: 'Fix the login' }).closest('tr') as HTMLElement).queryByText('Draft')).toBeNull();
+  });
+
+  it('shows only the drafts when asked, and everything again', async () => {
+    render(show([first, second, draft]));
+    await userEvent.click(screen.getByRole('button', { name: 'Drafts (1)' }));
+    expect(titles()).toEqual(['Half a title']);
+    expect(screen.getByText('1 draft')).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Show everything' }));
+    expect(titles()).toHaveLength(3);
+  });
+
+  it('offers no filter while there is no draft, and drops it when the last draft is gone', async () => {
+    const view = render(show());
+    expect(screen.queryByRole('button', { name: /Drafts/ })).toBeNull();
+    view.rerender(show([first, draft]));
+    await userEvent.click(screen.getByRole('button', { name: 'Drafts (1)' }));
+    view.rerender(show([first]));
+    expect(titles()).toEqual(['Fix the login']);
+  });
+});
+

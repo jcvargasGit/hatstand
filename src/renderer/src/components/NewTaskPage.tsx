@@ -1,20 +1,22 @@
-import { ArrowRight, ExternalLink, Play, Plus, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { ArrowRight, ExternalLink, Play, Plus, Trash2, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Snapshot } from '../../../shared/api';
 import type { NewTaskDraft } from '../../../shared/new-task-draft';
 import { hasWorkspace } from '../../../shared/readiness';
 import { suggestedRepositoryIds } from '../../../shared/work-repos';
 import { useAction } from '../hooks/useAction';
+import { useDraftSaving } from '../hooks/useDraftSaving';
 import { usePlaybooks } from '../hooks/usePlaybooks';
 import { api } from '../lib/api';
 import { startDraft } from '../lib/new-task-draft';
+import { suggestions } from '../lib/suggestion-store';
 import { suggestedArea, suggestedGuide, type TaskChoices } from '../lib/task-form';
 import { TaskForm } from './TaskForm';
 import { TaskSettingsFields } from './TaskSettingsFields';
 
 type NewTaskPageProps = {
   snapshot: Snapshot;
-  /** What the form starts with: empty, a backlog item, or a draft moved from the side panel. */
+  /** What the form starts with: empty, a backlog item, a draft saved in the backlog, or a form moved from the side panel. */
   initialDraft: NewTaskDraft;
   /** Told every change, so a window of its own can keep the draft safe. */
   onDraftChange?: (draft: NewTaskDraft) => void;
@@ -31,7 +33,7 @@ const STARTS_AT_ONCE = 'The agent starts working on the task as soon as the sess
 /** Writes a task: a new one, or a backlog item that becomes one. It opens in the side panel, and can move to a window of its own. */
 export function NewTaskPage({ snapshot, initialDraft, onDraftChange, onMoveToWindow, onClose, onCreated, onChanged }: NewTaskPageProps) {
   const [draft, setDraft] = useState(initialDraft);
-  const [suggestionKey] = useState(() => initialDraft.ideaId ?? `new-task-${crypto.randomUUID()}`);
+  const [suggestionKey] = useState(() => initialDraft.ideaId ?? initialDraft.suggestionKey ?? `new-task-${crypto.randomUUID()}`);
   const { playbooks } = usePlaybooks(draft.companyId);
   const { error, busy, run } = useAction();
   const company = snapshot.companies.find((item) => item.id === draft.companyId);
@@ -44,9 +46,13 @@ export function NewTaskPage({ snapshot, initialDraft, onDraftChange, onMoveToWin
     areaId: draft.areaChosen ? draft.areaId : suggestedArea(company, draft.projectIds),
   };
 
+  const form = useMemo(() => ({ ...draft, suggestionKey }), [draft, suggestionKey]);
+  const saving = useDraftSaving(form, !isIdea);
+  const { draftId } = saving;
+
   useEffect(() => {
-    onDraftChange?.(draft);
-  }, [draft, onDraftChange]);
+    onDraftChange?.({ ...form, draftId: draftId ?? undefined });
+  }, [form, draftId, onDraftChange]);
 
   const change = (next: Partial<TaskChoices>) => {
     if (next.companyId !== undefined && next.companyId !== draft.companyId) {
@@ -73,16 +79,30 @@ export function NewTaskPage({ snapshot, initialDraft, onDraftChange, onMoveToWin
       isolated: current.isolated,
       priority: current.priority,
     };
-    if (draft.ideaId) return (await api.makeTask(draft.ideaId, { ...choices, description: draft.description })).id;
+    const savedId = draft.ideaId ?? (await saving.finish());
+    if (savedId) return (await api.makeTask(savedId, { ...choices, description: draft.description })).id;
     return (await api.createTask({ ...choices, companyId: current.companyId, description: draft.description.trim() || undefined })).id;
   };
 
   const create = (startNow: boolean) =>
     run(async () => {
       if (!company || !draft.title.trim()) return;
-      const taskId = await save();
+      const taskId = await save().catch((caught: unknown) => {
+        saving.resume();
+        throw caught;
+      });
+      suggestions.drop(suggestionKey);
       if (startNow) await api.startSession(taskId);
       await onCreated(taskId, current.companyId);
+    });
+
+  const discard = () =>
+    run(async () => {
+      const savedId = await saving.stop();
+      suggestions.drop(suggestionKey);
+      if (savedId) await api.deleteTask(savedId);
+      await onChanged();
+      onClose?.();
     });
 
   return (
@@ -93,7 +113,7 @@ export function NewTaskPage({ snapshot, initialDraft, onDraftChange, onMoveToWin
         </div>
         <div className="panel-actions">
           {onMoveToWindow && (
-            <button type="button" className="quiet" title="Keep writing in a window of its own. Nothing you wrote is lost." disabled={busy} onClick={() => void run(() => onMoveToWindow(draft))}>
+            <button type="button" className="quiet" title="Keep writing in a window of its own. Nothing you wrote is lost." disabled={busy} onClick={() => void run(async () => onMoveToWindow({ ...form, draftId: (await saving.flush()) ?? undefined }))}>
               <ExternalLink size={14} />
               Open in new window
             </button>
@@ -131,7 +151,14 @@ export function NewTaskPage({ snapshot, initialDraft, onDraftChange, onMoveToWin
           <>
             {company && !canStart && <p className="warning">Add an area, a repository or a client folder to {company.name} before starting a session.</p>}
             {error && <p className="error">{error}</p>}
+            {draftId && <p className="hint draft-saved">Saved as a draft in the backlog of {company?.name ?? 'this client'}. You can leave and continue later.</p>}
             {canStart && <p className="hint">{snapshot.autoSendPrompt ? STARTS_AT_ONCE : WAITS_FOR_ENTER}</p>}
+            {draftId && onClose && (
+              <button type="button" className="quiet" disabled={busy} title="Deletes this draft from the backlog." onClick={() => void discard()}>
+                <Trash2 size={14} />
+                Discard draft
+              </button>
+            )}
             <button type="button" className={canStart ? 'quiet' : undefined} disabled={busy || !draft.title.trim()} onClick={() => void create(false)}>
               {isIdea ? <ArrowRight size={14} /> : <Plus size={15} />}
               {isIdea ? 'Make it a task' : 'Create task'}

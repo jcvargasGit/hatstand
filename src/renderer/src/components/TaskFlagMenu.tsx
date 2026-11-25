@@ -1,15 +1,20 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
-import type { Task } from '../../../shared/schemas';
-import { FLAG_CHOICES, flagFrom, menuPlace, type MenuPoint } from '../lib/task-flag';
+import type { FlagChoice, Task } from '../../../shared/schemas';
+import { flagLabel } from '../../../shared/task-flags';
+import { flagFrom, menuPlace, type MenuPoint } from '../lib/task-flag';
 
 type TaskFlagMenuProps = {
   task: Task;
+  /** The flags to offer, in order. */
+  flags: FlagChoice[];
   at: MenuPoint;
   onPick: (flag: string) => void;
+  /** Told when the person types an emoji that is not in the list, so it is there the next time. */
+  onAdd?: (flag: string) => void;
   onClose: () => void;
 };
 
-export function TaskFlagMenu({ task, at, onPick, onClose }: TaskFlagMenuProps) {
+export function TaskFlagMenu({ task, flags, at, onPick, onAdd, onClose }: TaskFlagMenuProps) {
   const menu = useRef<HTMLDivElement>(null);
   const [place, setPlace] = useState(at);
   const [other, setOther] = useState('');
@@ -59,9 +64,9 @@ export function TaskFlagMenu({ task, at, onPick, onClose }: TaskFlagMenuProps) {
   return (
     <div ref={menu} className="flag-menu" role="menu" aria-label={`Flag for ${task.title}`} style={{ left: place.x, top: place.y }} onKeyDown={onKeyDown}>
       <div className="flag-menu-choices">
-        {FLAG_CHOICES.map((flag) => (
-          <button key={flag} type="button" role="menuitemradio" aria-checked={task.flag === flag} aria-label={`Flag with ${flag}`} onClick={() => pick(flag)}>
-            {flag}
+        {flags.map((flag) => (
+          <button key={flag.emoji} type="button" role="menuitemradio" aria-checked={task.flag === flag.emoji} aria-label={`Flag with ${flagLabel(flag)}`} title={flag.name || undefined} onClick={() => pick(flag.emoji)}>
+            {flag.emoji}
           </button>
         ))}
       </div>
@@ -69,10 +74,13 @@ export function TaskFlagMenu({ task, at, onPick, onClose }: TaskFlagMenuProps) {
         className="flag-menu-other"
         aria-label="Other emoji"
         placeholder="Other emoji, then Enter"
+        title="It is added to this list. Change the list in Settings."
         value={other}
         onChange={(event) => setOther(event.target.value)}
         onKeyDown={(event) => {
-          if (event.key === 'Enter' && typed) pick(typed);
+          if (event.key !== 'Enter' || !typed) return;
+          if (!flags.some((flag) => flag.emoji === typed)) onAdd?.(typed);
+          pick(typed);
         }}
       />
       {task.flag && (
