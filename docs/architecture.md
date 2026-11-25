@@ -2,6 +2,8 @@
 
 Hatstand is an Electron app. The main process owns all data, secrets and terminals. The renderer is React, sandboxed, and reaches the main process through one typed bridge.
 
+Hatstand has no model and calls no model API. A session starts the agent CLI the person installed, such as Claude Code, in a terminal, through an adapter.
+
 ```
 src/shared     Zod schemas with inferred types, and the API contract
 src/main       store, secrets, sessions, services, guard, trackers, agents
@@ -28,11 +30,15 @@ A handler that opens something on the desktop is split in two: `services/desktop
 
 ## Adding an agent
 
-Implement `AgentAdapter` in `src/main/agents`: how to launch or resume it with client context, and how it reports status. Add its type to `accountSchema` and to `adapters` in `sessions.ts`.
+Hatstand is agent-agnostic: an agent is a CLI on the person's computer plus an adapter. Claude Code and GitHub Copilot CLI are the two adapters today.
+
+Implement `AgentAdapter` in `src/main/agents`: how to launch or resume it with client context, and how it reports status. Add its type to `accountSchema`, to `adapters` in `sessions.ts`, and to `AGENT_INFO` in `src/shared/agents.ts`, which holds its name, its command, and how to install it and sign in.
+
+Some features work with Claude Code only for now, such as the subagent panel and the description suggestion (`description-suggestion.ts`).
 
 ## Session status
 
-Claude Code hooks, passed with `--settings`, write the state to the file in `HATSTAND_STATUS_FILE`. The main process polls that file. No file is added to the repository.
+Each adapter gives the agent hooks that write the state to the file in `HATSTAND_STATUS_FILE`. Claude Code gets them with `--settings`, and GitHub Copilot CLI from a plugin folder of the session. The main process polls that file. No file is added to the repository.
 
 ## Session modules
 

@@ -1,14 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { FLAG_CHOICES, flagFrom, menuPlace } from '../../src/renderer/src/lib/task-flag';
+import { flagFrom, menuPlace } from '../../src/renderer/src/lib/task-flag';
+import { cleanFlags, DEFAULT_FLAGS, flagLabel, MAX_FLAGS, withFlag } from '../../src/shared/task-flags';
 import { taskFlagSchema } from '../../src/shared/schemas';
 
 describe('the flag of a task', () => {
   it('offers the red flag first, and only choices the task can store', () => {
-    expect(FLAG_CHOICES[0]).toBe('🚩');
-    expect(new Set(FLAG_CHOICES).size).toBe(FLAG_CHOICES.length);
-    FLAG_CHOICES.forEach((flag) => {
-      expect(taskFlagSchema.parse(flag)).toBe(flag);
-      expect(flagFrom(flag)).toBe(flag);
+    const emojis = DEFAULT_FLAGS.map((flag) => flag.emoji);
+    expect(emojis[0]).toBe('🚩');
+    expect(new Set(emojis).size).toBe(emojis.length);
+    DEFAULT_FLAGS.forEach((flag) => {
+      expect(taskFlagSchema.parse(flag.emoji)).toBe(flag.emoji);
+      expect(flagFrom(flag.emoji)).toBe(flag.emoji);
+      expect(flag.name).not.toBe('');
     });
   });
 
@@ -44,5 +47,29 @@ describe('placing the menu of a task', () => {
 
   it('stays inside the window near its left and top edges', () => {
     expect(menuPlace({ x: 0, y: -5 }, menu, viewport)).toEqual({ x: 8, y: 8 });
+  });
+});
+
+describe('the list of flags a person keeps', () => {
+  it('adds an emoji the person typed, once, without a name', () => {
+    const added = withFlag(DEFAULT_FLAGS, '🎯');
+    expect(added.at(-1)).toEqual({ emoji: '🎯', name: '' });
+    expect(withFlag(added, '🎯')).toBe(added);
+    expect(withFlag(DEFAULT_FLAGS, '')).toBe(DEFAULT_FLAGS);
+  });
+
+  it('adds nothing once the menu is full', () => {
+    const full = Array.from({ length: MAX_FLAGS }, (_item, index) => ({ emoji: `e${index}`, name: '' }));
+    expect(withFlag(full, '🎯')).toBe(full);
+  });
+
+  it('saves each emoji once, without empty ones, and no more than the menu holds', () => {
+    expect(cleanFlags([{ emoji: ' 🎯 ', name: ' Goal ' }, { emoji: '🎯', name: 'Again' }, { emoji: '  ', name: 'Empty' }])).toEqual([{ emoji: '🎯', name: 'Goal' }]);
+    expect(cleanFlags(Array.from({ length: MAX_FLAGS + 3 }, (_item, index) => ({ emoji: `e${index}`, name: '' })))).toHaveLength(MAX_FLAGS);
+  });
+
+  it('names a flag by its emoji and its name, or by the emoji alone', () => {
+    expect(flagLabel({ emoji: '🎯', name: 'Goal' })).toBe('🎯 Goal');
+    expect(flagLabel({ emoji: '🎯', name: '' })).toBe('🎯');
   });
 });

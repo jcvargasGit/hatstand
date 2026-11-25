@@ -4,7 +4,7 @@ import type { BacklogPlan, BacklogPlanInput } from './backlog-plan';
 import type { DescriptionSuggestion, SuggestionRequest } from './description-suggestion';
 import type { NewTaskDraft } from './new-task-draft';
 import type { ClientChange } from './task-client';
-import type { Account, AccountsFile, Company, GitSource, Idea, KeyInfo, NewTask, OutsideChanges, Playbook, Session, StayAwakeMode, SubagentRun, Task, TaskPatch, TaskReview, TaskSetup, TodayLayout, Subdomain, GitIdentityInput } from './schemas';
+import type { Account, AccountsFile, Company, FlagChoice, GitSource, Idea, KeyInfo, NewTask, OutsideChanges, Playbook, Session, StayAwakeMode, SubagentRun, Task, TaskPatch, TaskReview, TaskSetup, TodayLayout, Subdomain, GitIdentityInput } from './schemas';
 
 export type Snapshot = {
   companies: Company[];
@@ -17,6 +17,8 @@ export type Snapshot = {
   /** How many tasks used each guide, by guide id. */
   guideUsage: Record<string, number>;
   autoSendPrompt: boolean;
+  /** The flags the menu of a task offers, in order. */
+  flags: FlagChoice[];
   localKnowledge: string[];
   localPlugin: string[];
   starterInstructions: string[];
@@ -216,6 +218,8 @@ export type HatstandApi = {
   saveCompany(company: Company): Promise<Company>;
   resetClientFolder(companyId: string): Promise<void>;
   inspectRepoLayout(companyId: string, projectId: string): Promise<RepoLayout>;
+  /** The web page of each repository of a client that has one, by repository id. */
+  repositoryLinks(companyId: string): Promise<Record<string, string>>;
   setPlanningRepo(companyId: string, path: string): Promise<void>;
   createPlanningRepo(companyId: string, path: string): Promise<void>;
   defaultPlanningFolder(companyId: string): Promise<string>;
@@ -238,6 +242,11 @@ export type HatstandApi = {
   saveNewTaskDraft(draftId: string, draft: NewTaskDraft): Promise<void>;
   /** The window created its task: the main window selects it, and this window closes. */
   finishNewTaskWindow(draftId: string, taskId: string): Promise<void>;
+  /**
+   * Saves the New task form as a draft in the backlog, and gives the id of the draft to save it again.
+   * Null when the form has no text, so there is nothing to keep.
+   */
+  saveTaskDraft(draftId: string | null, form: NewTaskDraft): Promise<string | null>;
   updateTask(taskId: string, patch: TaskPatch): Promise<Task>;
   /** Moves a task that was not started to another client. A started one stays, and a copy of it is created there. */
   changeTaskClient(taskId: string, companyId: string): Promise<{ task: Task; change: ClientChange }>;
@@ -287,6 +296,8 @@ export type HatstandApi = {
   removePlaybook(companyId: string, playbookId: string): Promise<void>;
   setTaskGuide(taskId: string, playbookId: string | null): Promise<void>;
   moveGuideStep(taskId: string, index: number): Promise<void>;
+  /** Whether Hatstand sends each next step of the guide of a task by itself, up to a step that waits for the person. */
+  setGuideAutoContinue(taskId: string, enabled: boolean): Promise<void>;
   readSubagents(sessionId: string): Promise<SubagentRun[]>;
   guardStatus(companyId: string): Promise<RepoGuardStatus[]>;
   installGuard(companyId: string, keepExistingHooks?: string[]): Promise<GuardReport>;
@@ -298,6 +309,8 @@ export type HatstandApi = {
   setClientOrder(companyIds: string[]): Promise<void>;
   setTodayLayout(layout: TodayLayout): Promise<void>;
   setGuideNewTasks(enabled: boolean): Promise<void>;
+  /** Saves the flags the menu of a task offers. An empty list puts back the ones Hatstand starts with. */
+  setFlags(flags: FlagChoice[]): Promise<void>;
   setAutoSendPrompt(enabled: boolean): Promise<void>;
   searchEverything(query: string): Promise<SearchReport>;
   createDocument(companyId: string, where: string, name: string): Promise<string>;

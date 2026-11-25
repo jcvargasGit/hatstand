@@ -1,7 +1,9 @@
+import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { isAbsolute, relative } from 'node:path';
+import { promisify } from 'node:util';
 import type { CloneProgress, HatstandApi, RemoteRepo } from '../../shared/api';
-import { GITHUB_HOST, gitOrigin, gitTokenName, parseRepoLink } from '../../shared/git-source';
+import { GITHUB_HOST, gitOrigin, gitTokenName, parseRepoLink, repoWebUrl } from '../../shared/git-source';
 import { gitSourceSchema, type GitSource } from '../../shared/schemas';
 import { listRemoteRepos } from '../git-hosts';
 import { noteAcceptedKey, noteRejectedKey } from '../key-rejected';
@@ -13,8 +15,10 @@ import type { ServiceContext } from './context';
 
 export type RepositoryService = Pick<
   HatstandApi,
-  'connectGitSource' | 'downloadRepos' | 'downloadRepoByLink' | 'inspectBlockedFolder' | 'trashBlockedFolder' | 'inspectRepoLayout' | 'scanRepos' | 'isInsideGitRepo' | 'resolvePath'
+  'connectGitSource' | 'downloadRepos' | 'downloadRepoByLink' | 'inspectBlockedFolder' | 'trashBlockedFolder' | 'inspectRepoLayout' | 'repositoryLinks' | 'scanRepos' | 'isInsideGitRepo' | 'resolvePath'
 >;
+
+const runFile = promisify(execFile);
 
 const errorText = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
@@ -153,6 +157,16 @@ export function createRepositoryService({ store, paths, secrets, tools, emit, us
       const project = store.readCompany(companyId).projects.find((item) => item.id === projectId);
       if (!project) throw new Error('This repository is no longer part of this client.');
       return detectRepoLayout(project.path);
+    },
+    repositoryLinks: async (companyId) => {
+      const projects = store.readCompany(companyId).projects;
+      const origin = (path: string) =>
+        runFile('git', ['remote', 'get-url', 'origin'], { cwd: path, env: { ...process.env, PATH: tools.path } }).then(
+          ({ stdout }) => repoWebUrl(stdout),
+          () => null,
+        );
+      const links = await Promise.all(projects.map(async (project) => [project.id, existsSync(project.path) ? await origin(project.path) : null] as const));
+      return Object.fromEntries(links.filter((link): link is readonly [string, string] => link[1] !== null));
     },
     scanRepos: async (dir) => scanRepos(dir),
     isInsideGitRepo: async (path) => findGitRoot(path) !== null,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GITHUB_HOST, parseRepoLink, repoIdentity, type GitHost } from '../../src/shared/git-source';
+import { repoWebUrl, GITHUB_HOST, parseRepoLink, repoIdentity, type GitHost } from '../../src/shared/git-source';
 
 const GITLAB: GitHost = { provider: 'gitlab', host: 'gitlab.acme.dev' };
 
@@ -78,5 +78,21 @@ describe('telling which repository an address reaches', () => {
 
   it.each(['', '/srv/git/api.git', '../api', 'api', 'https://github.com/acme', 'git@github.com:api.git'])('does not guess for "%s"', (address) => {
     expect(repoIdentity(address)).toBeNull();
+  });
+});
+
+describe('the web page of a repository', () => {
+  it.each([
+    ['https://github.com/acme/api.git', 'https://github.com/acme/api'],
+    ['https://token@github.com/acme/api', 'https://github.com/acme/api'],
+    ['git@github.com:acme/api.git', 'https://github.com/acme/api'],
+    ['ssh://git@gitlab.example.com/acme/tools/api.git', 'https://gitlab.example.com/acme/tools/api'],
+    ['  https://gitlab.com/acme/tools/api.git\n', 'https://gitlab.com/acme/tools/api'],
+  ])('reads %s', (address, page) => {
+    expect(repoWebUrl(address)).toBe(page);
+  });
+
+  it.each(['/code/api', '../api', 'git@work:acme/api.git', 'https://github.com/acme', 'file:///code/api', ''])('finds none for %s', (address) => {
+    expect(repoWebUrl(address)).toBeNull();
   });
 });

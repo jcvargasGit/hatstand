@@ -93,5 +93,7 @@ describe('the guide of a task', () => {
     const { guides, sessions } = setup();
     await guides.moveGuideStep('task-1', 2);
     expect(sessions.moveGuideStep).toHaveBeenCalledExactlyOnceWith('task-1', 2);
+    await guides.setGuideAutoContinue('task-1', true);
+    expect(sessions.setGuideAutoContinue).toHaveBeenCalledExactlyOnceWith('task-1', true);
   });
 });

@@ -89,3 +89,23 @@ export function parseRepoLink(link: string, host: GitHost): { cloneUrl: string; 
   if (!name || segments.length < 2 || !segments.every(isSafePathSegment)) throw new Error(NOT_A_REPOSITORY);
   return { cloneUrl: `${origin}/${segments.join('/')}.git`, name };
 }
+
+/**
+ * The web page of a repository, from the address of its origin, reached over https or ssh.
+ * Null when the address names no site: a folder on this computer, or an SSH alias, which does not say which site it stands for.
+ */
+export function repoWebUrl(address: string): string | null {
+  const trimmed = address.trim();
+  const ssh = SSH_LINK.exec(trimmed);
+  const candidate = ssh ? `https://${ssh[1]}/${ssh[2]}` : trimmed;
+  if (!/^(https|ssh):\/\//.test(candidate)) return null;
+  let url: URL;
+  try {
+    url = new URL(candidate);
+  } catch {
+    return null;
+  }
+  const segments = url.pathname.split('/').filter(Boolean);
+  if (!url.hostname.includes('.') || segments.length < 2 || !segments.every((segment) => isSafePathSegment(segment))) return null;
+  return `https://${url.hostname}/${segments.join('/').replace(/\.git$/i, '')}`;
+}

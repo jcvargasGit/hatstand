@@ -22,3 +22,16 @@ export function nextOpenStep(guide: TaskGuide): number | null {
 export const stepsDoneAhead = (guide: TaskGuide): number[] => guide.done.filter((step) => step > guide.current + 1);
 
 export const allStepsDone = (guide: TaskGuide): boolean => guide.steps.every((_step, index) => isGuideStepDone(guide, index));
+
+/**
+ * The step Hatstand sends by itself, for a guide that continues without asking: the next open one, once the
+ * agent reported the current step as finished. Null when the person has to act first: the guide does not
+ * continue by itself, the current step is not finished, nothing is left, or the next step needs their approval or is theirs to do.
+ */
+export function autoContinueStep(guide: TaskGuide): number | null {
+  if (!guide.autoContinue || !isGuideStepDone(guide, guide.current)) return null;
+  const next = nextOpenStep(guide);
+  const step = next === null ? undefined : guide.steps[next];
+  if (next === null || !step?.prompt || step.approval || step.you) return null;
+  return next;
+}

@@ -6,6 +6,7 @@ import { IdeaDetails } from '../../src/renderer/src/components/IdeaDetails';
 import { IdeaRow } from '../../src/renderer/src/components/IdeaRow';
 import { NewTaskPage } from '../../src/renderer/src/components/NewTaskPage';
 import { startDraft } from '../../src/renderer/src/lib/new-task-draft';
+import { suggestions } from '../../src/renderer/src/lib/suggestion-store';
 import type { Bridge, Snapshot } from '../../src/shared/api';
 import type { SuggestionRequest } from '../../src/shared/description-suggestion';
 import { companySchema, taskSchema } from '../../src/shared/schemas';
@@ -42,6 +43,7 @@ vi.mock('../../src/renderer/src/components/MarkdownEditor', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  suggestions.reset();
   window.hatstand = { invoke: vi.fn(), on: () => () => {} } as unknown as Bridge;
 });
 afterEach(cleanup);
@@ -197,6 +199,121 @@ describe('improving the description of a backlog item', () => {
     expect(calls.suggest).toHaveBeenLastCalledWith(expect.objectContaining({ description: 'Staging only and prod' }));
     await within(await dialog()).findByText('A fuller description');
     expect(screen.queryByRole('note')).toBeNull();
+  });
+});
+
+describe('a suggestion that continues in the background', () => {
+  const pending = () => {
+    let finish: (value: { description: string }) => void = () => {};
+    calls.suggest.mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)));
+    return (description: string) => finish({ description });
+  };
+  const backdrop = () => document.querySelector<HTMLElement>('.suggestion-backdrop') as HTMLElement;
+
+  it('keeps running when the person clicks outside the dialog, and the button shows it', async () => {
+    pending();
+    renderDetails();
+    await ask();
+    await within(await dialog()).findByRole('status');
+    await userEvent.click(backdrop());
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(calls.cancel).not.toHaveBeenCalled();
+    const button = screen.getByRole<HTMLButtonElement>('button', { name: 'Writing suggestion' });
+    expect(button.getAttribute('aria-busy')).toBe('true');
+    expect(button.disabled).toBe(false);
+  });
+
+  it.each(['Close', 'Continue in the background'])('keeps running when closed with "%s", and with Escape', async (name) => {
+    pending();
+    renderDetails();
+    await ask();
+    await userEvent.click(await within(await dialog()).findByRole('button', { name }));
+    await userEvent.click(screen.getByRole('button', { name: 'Writing suggestion' }));
+    await within(await dialog()).findByRole('status');
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(calls.cancel).not.toHaveBeenCalled();
+  });
+
+  it('shows the dialog again while it is still writing, and stops only with Cancel', async () => {
+    pending();
+    renderDetails();
+    await ask();
+    await userEvent.click(backdrop());
+    await userEvent.click(screen.getByRole('button', { name: 'Writing suggestion' }));
+    await userEvent.click(await within(await dialog()).findByRole('button', { name: 'Cancel' }));
+    expect(calls.cancel).toHaveBeenCalledExactlyOnceWith('one');
+    expect(screen.getByRole('button', { name: 'Improve description' })).toBeTruthy();
+  });
+
+  it('waits behind the button when it finishes while hidden, and opens on the text to accept', async () => {
+    const finish = pending();
+    renderDetails();
+    await ask();
+    await userEvent.click(backdrop());
+    finish('Written meanwhile');
+    await userEvent.click(await screen.findByRole('button', { name: 'See suggestion' }));
+    await userEvent.click(await within(await dialog()).findByRole('button', { name: 'Accept' }));
+    await waitFor(() => expect(calls.updateTask).toHaveBeenCalledWith('one', { description: 'Written meanwhile' }));
+    expect(screen.getByRole('button', { name: 'Improve description' })).toBeTruthy();
+  });
+
+  it('opens by itself on the suggestion when the dialog stayed open', async () => {
+    const finish = pending();
+    renderDetails();
+    await ask();
+    finish('Written while watching');
+    await within(await dialog()).findByText('Written while watching');
+  });
+
+  it('survives leaving the page: coming back shows it is still writing, then the suggestion', async () => {
+    const finish = pending();
+    const first = renderDetails();
+    await ask();
+    await userEvent.click(backdrop());
+    first.unmount();
+    expect(calls.cancel).not.toHaveBeenCalled();
+    renderDetails();
+    expect(screen.getByRole('button', { name: 'Writing suggestion' })).toBeTruthy();
+    finish('Written while away');
+    await userEvent.click(await screen.findByRole('button', { name: 'See suggestion' }));
+    await within(await dialog()).findByText('Written while away');
+  });
+
+  it('keeps a finished suggestion when its dialog is closed, until it is discarded', async () => {
+    renderDetails();
+    await ask();
+    await within(await dialog()).findByText('A fuller description');
+    await userEvent.click(backdrop());
+    await userEvent.click(screen.getByRole('button', { name: 'See suggestion' }));
+    await userEvent.click(await within(await dialog()).findByRole('button', { name: 'Discard' }));
+    expect(screen.getByRole('button', { name: 'Improve description' })).toBeTruthy();
+    expect(calls.cancel).not.toHaveBeenCalled();
+    expect(calls.updateTask).not.toHaveBeenCalled();
+  });
+
+  it('ignores the answer of a suggestion that was cancelled', async () => {
+    const finish = pending();
+    renderDetails();
+    await ask();
+    await userEvent.click(await within(await dialog()).findByRole('button', { name: 'Cancel' }));
+    finish('Too late');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Improve description' })).toBeTruthy());
+    expect(screen.queryByRole('button', { name: 'See suggestion' })).toBeNull();
+  });
+
+  it('shows it on a backlog row with a name that says what is happening', async () => {
+    pending();
+    render(
+      <table>
+        <tbody>
+          <IdeaRow task={task} selected={false} onSelect={() => {}} picked={false} onPick={() => {}} onChanged={async () => undefined} onMakeTask={() => {}} onDragStart={() => {}} onDropHere={() => {}} />
+        </tbody>
+      </table>,
+    );
+    await ask('Improve the description of Fix the login');
+    await userEvent.click(backdrop());
+    expect(screen.getByRole('button', { name: 'Writing a suggestion for Fix the login. Show it' })).toBeTruthy();
   });
 });
 

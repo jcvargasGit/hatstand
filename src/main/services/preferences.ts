@@ -1,9 +1,10 @@
 import type { HatstandApi } from '../../shared/api';
-import { stayAwakeModeSchema, todayLayoutSchema } from '../../shared/schemas';
+import { flagChoiceSchema, stayAwakeModeSchema, todayLayoutSchema } from '../../shared/schemas';
+import { cleanFlags } from '../../shared/task-flags';
 import type { StayAwake } from '../stay-awake';
 import type { ServiceContext } from './context';
 
-export type PreferenceService = Pick<HatstandApi, 'getStayAwake' | 'setStayAwake' | 'setClientOrder' | 'setTodayLayout' | 'setGuideNewTasks' | 'setAutoSendPrompt'>;
+export type PreferenceService = Pick<HatstandApi, 'getStayAwake' | 'setStayAwake' | 'setClientOrder' | 'setTodayLayout' | 'setGuideNewTasks' | 'setAutoSendPrompt' | 'setFlags'>;
 
 export type PreferenceServiceDeps = {
   stayAwake: Pick<StayAwake, 'active'>;
@@ -29,6 +30,11 @@ export function createPreferenceService({ store, emit }: Pick<ServiceContext, 's
     },
     setGuideNewTasks: async (enabled) => {
       store.savePreferences({ guideNewTasks: enabled === true });
+      emit('state-changed', null);
+    },
+    setFlags: async (flags) => {
+      const cleaned = cleanFlags(flagChoiceSchema.array().parse(flags));
+      store.savePreferences({ flags: cleaned.length > 0 ? cleaned : undefined });
       emit('state-changed', null);
     },
     setAutoSendPrompt: async (enabled) => {

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createTaskWithGuide, makeTaskFromIdea } from '../../src/main/task-setup';
+import { createTaskWithGuide, makeTaskFromIdea, saveTaskDraft } from '../../src/main/task-setup';
+import { newTaskDraftSchema, UNTITLED_DRAFT, type NewTaskDraft } from '../../src/shared/new-task-draft';
 import type { TaskGuide } from '../../src/shared/schemas';
 import { makeHome, type TestHome } from '../helpers/home';
 
@@ -62,5 +63,79 @@ describe('turning an inbox item into a task', () => {
     expect(() => makeTaskFromIdea(deps(), item.id, { title: '  ' })).toThrow('Write a task title.');
     makeTaskFromIdea(deps(), item.id, { title: 'Export is slow' });
     expect(() => makeTaskFromIdea(deps(), item.id, { title: 'Again' })).toThrow('This is already a task.');
+  });
+});
+
+describe('saving the New task form as a draft', () => {
+  const form = (fields: Partial<NewTaskDraft> = {}): NewTaskDraft => newTaskDraftSchema.parse({ companyId: 'acme', title: 'Half a title', description: 'Half a sentence', ...fields });
+  const backlog = (companyId = 'acme') => testHome.store.listTasks(companyId).filter((task) => task.status === 'idea');
+
+  it('keeps it in the backlog of its client, marked as a draft, with the choices of the form', () => {
+    const area = testHome.store.readCompany('acme').defaultAreaId;
+    const id = saveTaskDraft(testHome.store, null, form({ playbookId: 'bug', guideChosen: true, areaId: area, areaChosen: true, projectIds: ['r-api'], priority: 'high', isolated: false, suggestionKey: 'new-task-1' }));
+    expect(backlog()).toHaveLength(1);
+    expect(testHome.store.findTask(id as string)).toMatchObject({
+      status: 'idea',
+      title: 'Half a title',
+      description: 'Half a sentence',
+      subdomainId: area,
+      projectIds: ['r-api'],
+      priority: 'high',
+      isolated: false,
+      draft: { playbookId: 'bug', guideChosen: true, areaChosen: true, untitled: false, suggestionKey: 'new-task-1' },
+    });
+  });
+
+  it('writes the same draft again as the person types, and never a second one', () => {
+    const id = saveTaskDraft(testHome.store, null, form());
+    expect(saveTaskDraft(testHome.store, id, form({ title: 'A whole title' }))).toBe(id);
+    expect(backlog().map((task) => task.title)).toEqual(['A whole title']);
+  });
+
+  it('gives a draft without a title a placeholder, and remembers the person wrote none', () => {
+    const id = saveTaskDraft(testHome.store, null, form({ title: '  ' })) as string;
+    expect(testHome.store.findTask(id)).toMatchObject({ title: UNTITLED_DRAFT, draft: { untitled: true } });
+    saveTaskDraft(testHome.store, id, form({ title: 'Now it has one' }));
+    expect(testHome.store.findTask(id)).toMatchObject({ title: 'Now it has one', draft: { untitled: false } });
+  });
+
+  it('keeps nothing for an empty form, and removes the draft of a form emptied again', () => {
+    expect(saveTaskDraft(testHome.store, null, form({ title: '', description: ' ' }))).toBeNull();
+    expect(backlog()).toEqual([]);
+    const id = saveTaskDraft(testHome.store, null, form());
+    expect(saveTaskDraft(testHome.store, id, form({ title: '', description: '' }))).toBeNull();
+    expect(backlog()).toEqual([]);
+  });
+
+  it('moves to the backlog of another client when the form changes client', () => {
+    testHome.store.createCompany('Other', '#445566');
+    const id = saveTaskDraft(testHome.store, null, form());
+    const moved = saveTaskDraft(testHome.store, id, form({ companyId: 'other' }));
+    expect(moved).not.toBe(id);
+    expect(backlog()).toEqual([]);
+    expect(backlog('other').map((task) => task.id)).toEqual([moved]);
+  });
+
+  it('starts a new draft when the one it had is gone or is no longer a draft, and leaves that one alone', () => {
+    const kept = idea();
+    const id = saveTaskDraft(testHome.store, kept.id, form());
+    expect(id).not.toBe(kept.id);
+    expect(testHome.store.findTask(kept.id)).toMatchObject({ title: 'Export is slow' });
+    expect(saveTaskDraft(testHome.store, 'missing', form())).not.toBeNull();
+    expect(backlog()).toHaveLength(3);
+  });
+
+  it('never deletes a backlog item that is not a draft, even for an empty form', () => {
+    const kept = idea();
+    expect(saveTaskDraft(testHome.store, kept.id, form({ title: '', description: '' }))).toBeNull();
+    expect(testHome.store.findTask(kept.id).title).toBe('Export is slow');
+  });
+
+  it('stops being a draft once it becomes a task', () => {
+    const id = saveTaskDraft(testHome.store, null, form({ playbookId: 'bug', guideChosen: true })) as string;
+    const task = makeTaskFromIdea(deps(), id, { title: 'Half a title', playbookId: 'bug' });
+    expect(task).toMatchObject({ id, status: 'todo' });
+    expect(task.draft).toBeUndefined();
+    expect(testHome.store.findTask(id).draft).toBeUndefined();
   });
 });

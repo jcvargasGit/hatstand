@@ -1,6 +1,6 @@
 # Hatstand
 
-**Run AI coding agents across all your clients, without mixing their context.**
+**One workspace for all your clients, without mixing their context.**
 
 Hatstand is a desktop workspace for contractors and freelancers who work for several clients at once. Each client gets its own repositories, knowledge, skills, keys, agent account and tasks. An agent working for one client sees only that client, and commit checks help keep client data out of your repositories.
 
@@ -23,6 +23,12 @@ Hatstand is a desktop workspace for contractors and freelancers who work for sev
 - **Assigned work** comes in from Jira, GitHub and GitLab with each client's keys.
 - **Commit protection** blocks commits that contain the keys or knowledge of any client.
 - **Agent accounts** belong to you. Choose a personal or company account per client or per task.
+
+## What Hatstand is not
+
+- **It is not a model, an assistant, a chatbot or an agent.** Hatstand has no model of its own, and no model API, SDK or API key. It organizes your clients and starts an agent in a terminal.
+- **It does not generate code by itself.** It needs an agent CLI that you installed and signed in to. Without one, you can still organize clients, tasks and keys, but no session runs.
+- **The agent is your choice.** Hatstand is agent-agnostic. Claude Code and GitHub Copilot CLI are the two adapters that exist today, and you choose which one a client or a task uses. A few features work with Claude Code only for now. To add another agent, see [Adding an agent](docs/architecture.md#adding-an-agent).
 
 ## Get started
 

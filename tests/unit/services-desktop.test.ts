@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDesktopTargets, webLink } from '../../src/main/services/desktop-targets';
@@ -38,6 +38,27 @@ describe('what the editor may open for a client', () => {
     writeFileSync(report, '# Report');
     expect(targets().inEditor('acme', copy)).toEqual({ kind: 'folder', path: copy });
     expect(targets().inEditor('acme', report)).toEqual({ kind: 'file', path: report });
+  });
+
+  it('opens the notes of a task, and a file in the knowledge, planning and area folders of the client', () => {
+    const task = home.store.createTask({ companyId: 'acme', title: 'Fix it' });
+    home.store.writeNotes(task, '## TL;DR');
+    const notes = home.paths.notesFile('acme', task.id);
+    expect(targets().inEditor('acme', notes)).toEqual({ kind: 'file', path: notes });
+    for (const folder of [home.paths.knowledgeDir('acme'), home.paths.planningDir('acme'), join(home.paths.areasDir('acme'), 'core')]) {
+      mkdirSync(folder, { recursive: true });
+      writeFileSync(join(folder, 'report.md'), '');
+      expect(targets().inEditor('acme', join(folder, 'report.md')).kind).toBe('file');
+    }
+  });
+
+  it('refuses the files Hatstand keeps for the client, and the files of another client', () => {
+    const task = home.store.createTask({ companyId: 'acme', title: 'Fix it' });
+    expect(() => targets().inEditor('acme', home.paths.taskFile('acme', task.id))).toThrow('This is not part of this client.');
+    home.store.createCompany('Other', '#445566');
+    mkdirSync(home.paths.knowledgeDir('other'), { recursive: true });
+    writeFileSync(join(home.paths.knowledgeDir('other'), 'secret.md'), '');
+    expect(() => targets().inEditor('acme', join(home.paths.knowledgeDir('other'), 'secret.md'))).toThrow('This is not part of this client.');
   });
 
   it('refuses a path outside the client', () => {

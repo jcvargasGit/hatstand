@@ -61,6 +61,12 @@ export const projectSchema = z.object({
 export const stayAwakeModeSchema = z.enum(['off', 'sessions', 'always']);
 export const todayLayoutSchema = z.enum(['list', 'board']);
 
+/** A flag a task can get, with the name the person gave it. */
+export const flagChoiceSchema = z.object({
+  emoji: z.string().trim().min(1).max(16),
+  name: z.string().trim().max(40).default(''),
+});
+
 export const preferencesSchema = z.object({
   stayAwake: stayAwakeModeSchema.default('off'),
   clientOrder: z.array(z.string()).default([]),
@@ -70,6 +76,8 @@ export const preferencesSchema = z.object({
   guideUsage: z.record(z.string(), z.number().int().min(0)).default({}),
   /** Sends the opening prompt of a task's first session without waiting for Enter. */
   autoSendPrompt: z.boolean().default(true),
+  /** The flags the menu of a task offers. Without it, the menu offers the ones Hatstand starts with. */
+  flags: z.array(flagChoiceSchema).optional(),
 });
 
 export const planningPlaceSchema = z.object({
@@ -282,6 +290,8 @@ export const taskGuideSchema = z.object({
   promptPending: z.boolean(),
   /** The steps the agent reported as finished, by number from 1, in any order. */
   done: z.array(z.number().int().positive()).default([]),
+  /** Hatstand sends each next step by itself when the agent finishes one, up to a step that waits for the person. */
+  autoContinue: z.boolean().optional(),
 });
 
 export const backlogPlanApprovalSchema = z.object({
@@ -300,6 +310,20 @@ export const backlogPlanLinkSchema = z.object({
 });
 
 export const taskFlagSchema = z.string().trim().max(16);
+
+/**
+ * Marks a backlog item as a task still being written in the New task form, saved by itself so nothing is lost.
+ * It keeps what the form holds and a backlog item does not.
+ */
+export const taskDraftSchema = z.object({
+  playbookId: z.string().default(''),
+  guideChosen: z.boolean().default(false),
+  areaChosen: z.boolean().default(false),
+  /** The person wrote no title yet, so the title of the item is a placeholder. */
+  untitled: z.boolean().default(false),
+  /** The key of the description suggestion asked for in the form, so it is found again when the draft is opened. */
+  suggestionKey: z.string().optional(),
+});
 
 export const taskSchema = z.object({
   id: z.string().min(1),
@@ -321,6 +345,7 @@ export const taskSchema = z.object({
   checklist: z.array(checklistItemSchema).default([]),
   priority: taskPrioritySchema.default('none'),
   flag: taskFlagSchema.optional(),
+  draft: taskDraftSchema.optional(),
   rank: z.number().optional(),
   boardLane: boardLaneSchema.optional(),
   isolated: z.boolean().default(false),
@@ -374,6 +399,7 @@ export const taskPatchSchema = z
     checklist: z.array(checklistItemSchema),
     priority: taskPrioritySchema,
     flag: taskFlagSchema,
+    draft: taskDraftSchema,
     rank: z.number(),
     boardLane: boardLaneSchema,
   })
@@ -450,6 +476,7 @@ export type Subdomain = z.infer<typeof subdomainSchema>;
 export type StayAwakeMode = z.infer<typeof stayAwakeModeSchema>;
 export type TodayLayout = z.infer<typeof todayLayoutSchema>;
 export type Preferences = z.infer<typeof preferencesSchema>;
+export type FlagChoice = z.infer<typeof flagChoiceSchema>;
 export type Project = z.infer<typeof projectSchema>;
 export type PlanningPlace = z.infer<typeof planningPlaceSchema>;
 export type PlanningRepo = z.infer<typeof planningRepoSchema>;
@@ -458,6 +485,7 @@ export type ClientPhoto = z.infer<typeof clientPhotoSchema>;
 export type GitSource = z.infer<typeof gitSourceSchema>;
 export type Company = z.infer<typeof companySchema>;
 export type Task = z.infer<typeof taskSchema>;
+export type TaskDraft = z.infer<typeof taskDraftSchema>;
 export type BacklogPlanLink = z.infer<typeof backlogPlanLinkSchema>;
 export type AssistantRun = z.infer<typeof assistantRunSchema>;
 

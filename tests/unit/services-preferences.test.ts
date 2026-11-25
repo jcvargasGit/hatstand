@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPreferenceService } from '../../src/main/services/preferences';
 import type { StayAwakeMode, TodayLayout } from '../../src/shared/schemas';
+import { DEFAULT_FLAGS } from '../../src/shared/task-flags';
 import { makeHome, type TestHome } from '../helpers/home';
 import { makeServiceContext } from '../helpers/services';
 
@@ -66,5 +67,34 @@ describe('the other preferences', () => {
     await preferences.setGuideNewTasks('yes' as unknown as boolean);
     await preferences.setAutoSendPrompt(1 as unknown as boolean);
     expect(home.store.readPreferences()).toMatchObject({ guideNewTasks: false, autoSendPrompt: false });
+  });
+});
+
+describe('the flags of the task menu', () => {
+  it('offers the ones Hatstand starts with until the person changes the list', () => {
+    expect(home.store.snapshot().flags).toEqual(DEFAULT_FLAGS);
+    expect(home.store.readPreferences().flags).toBeUndefined();
+  });
+
+  it('saves the list of the person, each emoji once, and tells the interface', async () => {
+    const { preferences, stateChanges } = setup();
+    await preferences.setFlags([{ emoji: '🎯', name: ' Goal ' }, { emoji: '🎯', name: 'Again' }, { emoji: '🧪', name: '' }]);
+    expect(home.store.snapshot().flags).toEqual([{ emoji: '🎯', name: 'Goal' }, { emoji: '🧪', name: '' }]);
+    expect(stateChanges()).toBe(1);
+  });
+
+  it('puts back the first ones when the list is emptied', async () => {
+    const { preferences } = setup();
+    await preferences.setFlags([{ emoji: '🎯', name: 'Goal' }]);
+    await preferences.setFlags([]);
+    expect(home.store.snapshot().flags).toEqual(DEFAULT_FLAGS);
+  });
+
+  it('refuses a flag that is not an emoji and a name, and changes nothing', async () => {
+    const { preferences, stateChanges } = setup();
+    await expect(preferences.setFlags([{ emoji: '', name: 'Empty' }])).rejects.toThrow();
+    await expect(preferences.setFlags([{ emoji: 'x'.repeat(17), name: '' }])).rejects.toThrow();
+    expect(home.store.readPreferences().flags).toBeUndefined();
+    expect(stateChanges()).toBe(0);
   });
 });

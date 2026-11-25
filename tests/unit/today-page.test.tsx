@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TodayPage } from '../../src/renderer/src/components/TodayPage';
 import type { Snapshot } from '../../src/shared/api';
 import { companySchema } from '../../src/shared/schemas';
+import { DEFAULT_FLAGS } from '../../src/shared/task-flags';
 
 beforeEach(() => {
   vi.stubGlobal('hatstand', { invoke: () => new Promise(() => undefined), on: () => () => undefined });
@@ -27,6 +28,7 @@ const snapshot = (todayLayout: Snapshot['todayLayout']): Snapshot => ({
   guideNewTasks: true,
   guideUsage: {},
   autoSendPrompt: true,
+  flags: DEFAULT_FLAGS,
   localKnowledge: [],
   localPlugin: [],
   starterInstructions: [],

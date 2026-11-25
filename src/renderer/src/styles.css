@@ -492,6 +492,33 @@ code {
   background: color-mix(in srgb, var(--client) 22%, transparent);
 }
 
+.flag-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.flag-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+}
+
+.flag-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.flag-row input.flag-row-emoji {
+  flex: 0 0 3.2rem;
+  text-align: center;
+}
+
 .flag-menu-other {
   width: 100%;
 }
@@ -510,6 +537,28 @@ code {
   color: var(--muted);
   font-size: 0.76rem;
   text-overflow: ellipsis;
+}
+
+.draft-tag {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.35rem;
+  border: 1px dashed var(--muted);
+  border-radius: 999px;
+  padding: 0 0.45rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.inbox-drafts {
+  align-self: flex-start;
+}
+
+.inbox-drafts[aria-pressed='true'] {
+  border-color: var(--client);
 }
 
 .task-type-tag {
@@ -1150,7 +1199,7 @@ button.danger {
   .page-narrow > .settings-columns {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 620px));
-    grid-template-rows: repeat(3, auto) 1fr;
+    grid-template-rows: repeat(4, auto) 1fr;
     gap: 0.9rem 1.5rem;
     align-items: start;
   }
@@ -2364,6 +2413,15 @@ button.danger {
   gap: 0.3rem;
   padding: 0.25rem 0.6rem;
   font-size: 0.85rem;
+}
+
+.guide-continue {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  white-space: nowrap;
 }
 
 .guide-note {
@@ -4833,31 +4891,7 @@ html input[type='radio'] {
   font-size: 0.76rem;
 }
 
-.terminal-notes-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
-.terminal-notes-head button {
-  flex: none;
-  min-height: 24px;
-  padding: 0.1rem 0.45rem;
-  font-size: 0.78rem;
-}
-
-.terminal-summary {
-  display: flex;
-  flex-direction: column;
-  flex: 0 1 auto;
-  max-height: 40%;
-  min-height: 0;
-  gap: 0.3rem;
-}
-
 .terminal-summary-body {
-  overflow-y: auto;
   font-size: 0.82rem;
 }
 
@@ -4867,15 +4901,6 @@ html input[type='radio'] {
   background: none;
 }
 
-.terminal-note {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  gap: 0.3rem;
-  padding-top: 0.6rem;
-  border-top: 1px solid var(--line);
-}
 
 .markdown-editor {
   flex: 1;
@@ -5070,6 +5095,11 @@ html input[type='radio'] {
   gap: 6px;
 }
 
+button.quiet.improve-description.is-ready {
+  border-color: var(--success);
+  color: var(--success);
+}
+
 .suggestion-dialog {
   display: flex;
   flex-direction: column;
@@ -5143,28 +5173,77 @@ html input[type='radio'] {
 /* Beside the terminal: what the agent made, with everything a click away from the editor. */
 .agent-work {
   flex-basis: min(340px, 42%);
+  gap: 0;
+  overflow-y: auto;
 }
 
-.agent-work-scroll {
+/* Each section keeps a minimum of room and scrolls inside itself, so a long one never pushes the others out. */
+.panel-section {
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-height: 5.5rem;
+  max-height: none;
+  padding: 0.55rem 0;
+  border-top: 1px solid var(--line);
+  font-size: 0.82rem;
+}
+
+.panel-section:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.panel-section.is-closed {
+  flex: none;
+  min-height: 0;
+}
+
+.panel-section-head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.panel-section-head h3 .link-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.panel-section-head > button {
+  flex: none;
+  min-height: 24px;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.78rem;
+}
+
+.panel-section-body {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
-  gap: 0.7rem;
+  gap: 0.25rem;
   min-height: 0;
   overflow-y: auto;
 }
 
-.agent-work .terminal-summary {
-  max-height: none;
+.agent-work .terminal-note {
+  flex: 1 1 11rem;
+  min-height: 9rem;
 }
 
-.agent-work-section {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  padding-top: 0.6rem;
-  border-top: 1px solid var(--line);
-  font-size: 0.82rem;
+.agent-work .terminal-note.is-closed {
+  flex: none;
+  min-height: 0;
+}
+
+.agent-work .terminal-note .panel-section-body {
+  overflow: visible;
 }
 
 .agent-work-section h4 {
@@ -5172,7 +5251,8 @@ html input[type='radio'] {
   font-size: 0.78rem;
 }
 
-.agent-work-repo p {
+.agent-work-repo p,
+.agent-work-notes {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -5209,32 +5289,53 @@ html input[type='radio'] {
 
 .agent-work-repos li {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.2rem 0.5rem;
+  gap: 0.5rem;
 }
 
 .agent-work-repo-name {
-  display: inline-flex;
+  display: flex;
+  flex: 1 1 auto;
   align-items: center;
   gap: 0.35rem;
   min-width: 0;
 }
 
-.agent-work .terminal-note {
-  flex: 0 1 40%;
+.agent-work-repo-name strong,
+.agent-work-repo-name .hint {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.agent-work .terminal-note.is-closed {
-  flex: none;
+.agent-work-repo-name strong {
+  flex: 0 1 auto;
 }
 
-.agent-work .terminal-note h3 .link-button {
+.agent-work-repo-name .hint {
+  flex: 1 1 0;
+}
+
+.repository-links {
   display: inline-flex;
+  flex: none;
   align-items: center;
-  gap: 0.2rem;
-  font-weight: 600;
+  gap: 0.25rem;
+}
+
+button.icon-button {
+  flex: none;
+  min-width: 26px;
+  min-height: 26px;
+  padding: 0.2rem;
+  justify-content: center;
+}
+
+.path-link code {
+  text-decoration: underline;
+  text-decoration-color: var(--muted);
+  text-underline-offset: 2px;
 }
 
 /* The sidebar tree: client, then guide, then tasks. */

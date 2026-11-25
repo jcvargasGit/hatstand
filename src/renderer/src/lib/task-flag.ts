@@ -1,5 +1,3 @@
-export const FLAG_CHOICES = ['🚩', '⭐', '🔥', '⚠️', '👀', '✅', '💡', '🐛'];
-
 export type MenuPoint = { x: number; y: number };
 
 const firstSymbol = (text: string): string => {

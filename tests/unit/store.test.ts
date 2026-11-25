@@ -360,6 +360,13 @@ describe('moving a task that was not started to another client', () => {
     expect(move(idea.id, globex.id)).toMatchObject({ status: 'idea', rank: 4 });
   });
 
+  it('forgets the area chosen for a task still being written, because areas belong to a client', () => {
+    const { acme, globex } = setup();
+    const draft = { playbookId: '', guideChosen: false, areaChosen: true, untitled: false };
+    const written = store.updateTask(store.createTask({ companyId: acme.id, title: 'Half written' }, undefined, 'idea').id, { draft });
+    expect(move(written.id, globex.id).draft).toEqual({ ...draft, areaChosen: false });
+  });
+
   it('keeps its issue, unless a task there is linked to the same one', () => {
     const { acme, globex, task } = setup();
     const source = { kind: 'github' as const, key: 'acme/api#7' };

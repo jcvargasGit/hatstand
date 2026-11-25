@@ -7,7 +7,7 @@ Hatstand runs from source, so you build it on your own computer. There are no si
 - Git
 - Node.js 22
 - pnpm
-- At least one agent: [Claude Code](https://claude.ai/code), signed in, or GitHub Copilot CLI (`npm install -g @github/copilot`)
+- At least one agent, installed and signed in: [Claude Code](https://claude.ai/code) or GitHub Copilot CLI (`npm install -g @github/copilot`). Hatstand has no model of its own: it starts the agent you choose.
 
 ## Run it
 

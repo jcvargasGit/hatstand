@@ -409,3 +409,20 @@ describe('a folder that stops a download', () => {
     expect(result.blocker).toBeUndefined();
   });
 });
+
+describe('the web page of each repository of a client', () => {
+  it('gives it for a repository with an origin on a site, and leaves out the others', async () => {
+    const api = checkout(home.folder('code', 'api'), 'git@github.com:acme/api.git');
+    const local = home.folder('code', 'local');
+    makeGitRepo(local);
+    home.store.saveCompany({
+      ...home.store.readCompany('acme'),
+      projects: [
+        { id: 'api', name: 'api', path: api },
+        { id: 'local', name: 'local', path: local },
+        { id: 'gone', name: 'gone', path: join(home.root, 'gone') },
+      ],
+    });
+    expect(await setup().repositories.repositoryLinks('acme')).toEqual({ api: 'https://github.com/acme/api' });
+  });
+});

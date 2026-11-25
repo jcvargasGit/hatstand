@@ -375,6 +375,44 @@ describe('the agent saying a step is finished', () => {
     expect(store.findTask(taskId).guide).toMatchObject({ current: 1, done: [1] });
   });
 
+  it('sends the next step by itself for a guide that continues, once the agent is back at its prompt', async () => {
+    const { taskId, sessionId, setAgent } = await startTask();
+    sessions.setGuideAutoContinue(taskId, true);
+    setAgent('working');
+    written.length = 0;
+    writeFileSync(paths.stepFile(sessionId), '1\n');
+    vi.advanceTimersByTime(1000);
+    expect(written).toEqual([]);
+    setAgent('idle');
+    vi.advanceTimersByTime(1000);
+    expect(written.join('')).toContain('Step 2 of 3, Fix: Fix it.');
+    expect(written.join('')).toContain('Continue without asking me to confirm.');
+    expect(written.at(-1)).toBe('\r');
+    expect(store.findTask(taskId).guide).toMatchObject({ current: 1, done: [1] });
+  });
+
+  it('stops by itself before the step the person does, and waits when the agent asks something', async () => {
+    const { taskId, sessionId, setAgent } = await startTask();
+    sessions.setGuideAutoContinue(taskId, true);
+    setAgent('working');
+    writeFileSync(paths.stepFile(sessionId), '1\n');
+    setAgent('needs-input');
+    written.length = 0;
+    vi.advanceTimersByTime(3000);
+    expect(written).toEqual([]);
+    expect(store.findTask(taskId).guide?.current).toBe(0);
+    setAgent('idle');
+    vi.advanceTimersByTime(1000);
+    expect(store.findTask(taskId).guide?.current).toBe(1);
+    setAgent('working');
+    writeFileSync(paths.stepFile(sessionId), '2\n');
+    setAgent('idle');
+    written.length = 0;
+    vi.advanceTimersByTime(3000);
+    expect(written).toEqual([]);
+    expect(store.findTask(taskId).guide).toMatchObject({ current: 1, done: [1, 2] });
+  });
+
   it('ignores a step the guide does not have', async () => {
     const { taskId, sessionId } = await startTask();
     writeFileSync(paths.stepFile(sessionId), '9\n2\n');

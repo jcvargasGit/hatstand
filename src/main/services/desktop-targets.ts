@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import type { ClientFolderSection } from '../../shared/api';
 import { areaFolder } from '../../shared/areas';
-import { activeFolder, activePluginDir } from '../active-folders';
+import { activeFolder, activeKnowledgeDir, activePlanning, activePluginDir } from '../active-folders';
 import { allowedFile } from '../client-files';
 import { editorTarget, type EditorTarget } from '../editor-target';
 import { recordedChange } from '../outside-changes';
@@ -13,7 +13,7 @@ import type { ServiceContext } from './context';
  * so it lives here, and src/main/index.ts only opens what it is given.
  */
 export type DesktopTargets = {
-  /** A folder or a file of the client. A path outside the client is refused. */
+  /** A folder or a file of the client: its repositories, its knowledge, planning and area folders, and the notes and documents of its tasks. A path outside the client is refused. */
   inEditor(companyId: string, path: string): EditorTarget;
   clientFolder(companyId: string, folder: ClientFolderSection | 'instructions'): string;
   clientFile(companyId: string, path: string): string;
@@ -35,8 +35,9 @@ export function createDesktopTargets({ store, paths }: Pick<ServiceContext, 'sto
       const company = store.readCompany(companyId);
       const tasks = store.listTasks(companyId);
       const copies = tasks.flatMap((task) => task.worktrees.map((worktree) => worktree.path));
-      const folders = [...company.projects.map((project) => project.path), company.planning?.path, company.rootDir, ...copies].filter((folder) => folder !== undefined);
-      const documents = tasks.flatMap((task) => store.listTaskOutputs(task).map((output) => output.path));
+      const ownFolders = [activeKnowledgeDir(paths, company), activePlanning(paths, company).path, paths.areasDir(companyId)];
+      const folders = [...company.projects.map((project) => project.path), company.rootDir, ...ownFolders, ...copies].filter((folder) => folder !== undefined);
+      const documents = tasks.flatMap((task) => [paths.notesFile(companyId, task.id), ...store.listTaskOutputs(task).map((output) => output.path)]);
       const target = editorTarget(folders, documents, path);
       if (!target) throw new Error('This is not part of this client.');
       return target;

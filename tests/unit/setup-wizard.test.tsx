@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SetupWizard } from '../../src/renderer/src/components/SetupWizard';
 import type { Bridge, Snapshot } from '../../src/shared/api';
 import type { Company } from '../../src/shared/schemas';
+import { DEFAULT_FLAGS } from '../../src/shared/task-flags';
 
 const invoke = vi.fn();
 
@@ -31,6 +32,7 @@ const snapshotOf = (company: Company): Snapshot => ({
   guideNewTasks: true,
   guideUsage: {},
   autoSendPrompt: true,
+  flags: DEFAULT_FLAGS,
   localKnowledge: [],
   localPlugin: [],
   starterInstructions: [],
