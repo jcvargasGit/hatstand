@@ -477,6 +477,56 @@ export class Store {
     return task;
   }
 
+  /** A client a task can go to: one that exists and is not archived. */
+  requireActiveCompany(companyId: string): Company {
+    const company = this.listCompanies().find((item) => item.id === companyId);
+    if (!company) throw new Error('This client no longer exists.');
+    if (company.archivedAt) throw new Error(`${company.name} is archived. Restore it to give it tasks.`);
+    return company;
+  }
+
+  /**
+   * Moves a task that was not started to another client, with its notes and documents.
+   * It gets a number there, the default area and no repositories, because those belong to the client it leaves.
+   */
+  moveTask(taskId: string, companyId: string, carried: Pick<Task, 'accountId' | 'guide'>): Task {
+    const current = this.findTask(taskId);
+    if (current.companyId === companyId) throw new Error('This task is already in this client.');
+    const destination = this.requireActiveCompany(companyId);
+    if (current.backlogPlan) throw new Error('A task that plans the backlog stays with its client.');
+    const planner = this.listTasks(current.companyId).find((task) => task.status !== 'done' && !task.archivedAt && task.backlogPlan?.items.some((item) => item.id === taskId));
+    if (planner) throw new Error(`This item is part of the backlog plan #${planner.number ?? planner.title}, so it stays with its client.`);
+    const arrived = this.listTasks(companyId);
+    const { source } = current;
+    const linked = source && arrived.find((task) => task.source?.kind === source.kind && task.source.key === source.key);
+    if (linked) throw new Error(`${source.key} is already linked to task #${linked.number ?? linked.title} of ${destination.name}.`);
+
+    const ranks = arrived.flatMap((task) => (task.rank !== undefined ? [task.rank] : []));
+    const moved: Task = {
+      ...current,
+      accountId: carried.accountId,
+      guide: carried.guide,
+      companyId,
+      subdomainId: this.defaultAreaId(companyId),
+      projectIds: [],
+      rank: current.status === 'idea' ? Math.max(-1, ...ranks) + 1 : undefined,
+      boardLane: undefined,
+      updatedAt: new Date().toISOString(),
+    };
+    const files = [
+      [this.paths.notesFile(current.companyId, taskId), this.paths.notesFile(companyId, taskId)],
+      [this.paths.feedbackFile(current.companyId, taskId), this.paths.feedbackFile(companyId, taskId)],
+      ...this.listTaskOutputs(current).map((output) => [output.path, join(this.paths.tasksDir(companyId), basename(output.path))]),
+    ] as const;
+    mkdirSync(this.paths.tasksDir(companyId), { recursive: true, mode: PRIVATE_DIR });
+    const number = this.claimTaskNumber(companyId, (claimed) => {
+      for (const [from, to] of files) if (existsSync(from)) renameSync(from, to);
+      this.writeTask({ ...moved, number: claimed });
+    });
+    rmSync(this.paths.taskFile(current.companyId, taskId), { force: true });
+    return { ...moved, number };
+  }
+
   setTaskCode(taskId: string, worktrees: TaskWorktree[], projectIds?: string[]): Task {
     const current = this.findTask(taskId);
     const task = { ...current, worktrees, projectIds: projectIds ?? current.projectIds, updatedAt: new Date().toISOString() };

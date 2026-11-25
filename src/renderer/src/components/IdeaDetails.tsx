@@ -1,8 +1,10 @@
 import { ArrowRight, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import type { Snapshot } from '../../../shared/api';
 import type { Task } from '../../../shared/schemas';
 import { useAction } from '../hooks/useAction';
 import { api } from '../lib/api';
+import { ChangeClient } from './ChangeClient';
 import { ImproveDescription } from './ImproveDescription';
 import { MarkdownField } from './MarkdownField';
 import { PrioritySelect } from './PrioritySelect';
@@ -10,6 +12,7 @@ import { TaskChecklist } from './TaskChecklist';
 import { TaskReferenceCopy } from './TaskReferenceCopy';
 
 type IdeaDetailsProps = {
+  snapshot: Pick<Snapshot, 'companies' | 'sessions'>;
   task: Task;
   onClose: () => void;
   onChanged: () => Promise<void>;
@@ -17,7 +20,7 @@ type IdeaDetailsProps = {
   onMakeTask: () => void;
 };
 
-export function IdeaDetails({ task, onClose, onChanged, onMakeTask }: IdeaDetailsProps) {
+export function IdeaDetails({ snapshot, task, onClose, onChanged, onMakeTask }: IdeaDetailsProps) {
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description);
   const { error, busy, run } = useAction();
@@ -84,6 +87,7 @@ export function IdeaDetails({ task, onClose, onChanged, onMakeTask }: IdeaDetail
           }
         />
       </label>
+      <ChangeClient snapshot={snapshot} task={task} onChanged={onChanged} />
       <div className="idea-details-checklist">
         <h4>Checklist</h4>
         <TaskChecklist task={task} onChanged={onChanged} />

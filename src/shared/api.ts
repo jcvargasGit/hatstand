@@ -3,6 +3,7 @@ import type { ReleaseState } from './schemas';
 import type { BacklogPlan, BacklogPlanInput } from './backlog-plan';
 import type { DescriptionSuggestion, SuggestionRequest } from './description-suggestion';
 import type { NewTaskDraft } from './new-task-draft';
+import type { ClientChange } from './task-client';
 import type { Account, AccountsFile, Company, GitSource, Idea, KeyInfo, NewTask, OutsideChanges, Playbook, Session, StayAwakeMode, SubagentRun, Task, TaskPatch, TaskReview, TaskSetup, TodayLayout, Subdomain, GitIdentityInput } from './schemas';
 
 export type Snapshot = {
@@ -238,6 +239,8 @@ export type HatstandApi = {
   /** The window created its task: the main window selects it, and this window closes. */
   finishNewTaskWindow(draftId: string, taskId: string): Promise<void>;
   updateTask(taskId: string, patch: TaskPatch): Promise<Task>;
+  /** Moves a task that was not started to another client. A started one stays, and a copy of it is created there. */
+  changeTaskClient(taskId: string, companyId: string): Promise<{ task: Task; change: ClientChange }>;
   linkTaskIssue(taskId: string, reference: string): Promise<Task>;
   unlinkTaskIssue(taskId: string): Promise<Task>;
   openTaskWorktree(taskId: string, projectId: string): Promise<void>;
@@ -337,7 +340,7 @@ export type HatstandApi = {
 export type HatstandEvents = {
   'session-data': { sessionId: string; data: string; end: number };
   'state-changed': null;
-  /** A task was created in a window of its own, for the main window to select. */
+  /** A task was created in a window of its own, or arrived in another client, for the main window to select. */
   'task-created': { taskId: string; companyId: string };
   'clone-progress': CloneProgress & { companyId: string };
 };

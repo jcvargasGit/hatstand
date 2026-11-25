@@ -195,7 +195,7 @@ export function InboxPage({ snapshot, companyId, onOpenTask, onMakeTask, onChang
         })
       )}
       </div>
-      {selected && <IdeaDetails key={selected.id} task={selected} onClose={closeDetails} onChanged={onChanged} onMakeTask={() => onMakeTask(selected.id, selected.companyId)} />}
+      {selected && <IdeaDetails key={selected.id} snapshot={snapshot} task={selected} onClose={closeDetails} onChanged={onChanged} onMakeTask={() => onMakeTask(selected.id, selected.companyId)} />}
     </main>
   );
 }

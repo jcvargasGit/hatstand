@@ -3,6 +3,7 @@ import type { PlaybookSummary, Snapshot } from '../../../shared/api';
 import type { Company, Task, TaskPatch } from '../../../shared/schemas';
 import { TASK_TYPE_CHOICES, taskTypeName, taskTypeOf } from '../../../shared/task-types';
 import { choicesOf, type TaskChoices } from '../lib/task-form';
+import { ChangeClient } from './ChangeClient';
 import { GuideStepSelect } from './GuideStepSelect';
 import { TaskForm } from './TaskForm';
 import { TaskIssueLink } from './TaskIssueLink';
@@ -53,6 +54,7 @@ export function TaskSettings({ snapshot, task, company, playbooks, isLive, effec
             company={company}
             choices={choices}
             playbooks={playbooks}
+            lead={<ChangeClient snapshot={snapshot} task={task} onChanged={onChanged} />}
             changing={task.worktrees.map((worktree) => worktree.projectId)}
             note={isLive ? 'Changes to the agent or repositories apply to the next session.' : undefined}
             guideStep={task.guide && <GuideStepSelect task={task} guide={task.guide} onChanged={onChanged} />}

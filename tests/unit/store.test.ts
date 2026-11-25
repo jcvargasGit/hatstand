@@ -297,6 +297,102 @@ describe('Store', () => {
   });
 });
 
+describe('moving a task that was not started to another client', () => {
+  const setup = () => {
+    const acme = store.createCompany('Acme', '#112233');
+    const globex = store.createCompany('Globex', '#445566');
+    store.saveCompany({ ...store.readCompany(acme.id), projects: [{ id: 'api', name: 'api', path: '/code/api' }] });
+    store.createTask({ companyId: globex.id, title: 'Already there' });
+    const task = store.createTask({ companyId: acme.id, title: 'In the wrong client', description: 'Details', projectIds: ['api'], checklist: ['One'], priority: 'high' });
+    return { acme, globex, task };
+  };
+  const move = (taskId: string, companyId: string) => store.moveTask(taskId, companyId, {});
+
+  it('gives it the next number there, the default area and no repositories, and keeps its content', () => {
+    const { acme, globex, task } = setup();
+    const moved = move(task.id, globex.id);
+
+    expect(moved).toMatchObject({ id: task.id, companyId: globex.id, number: 2, title: 'In the wrong client', description: 'Details', priority: 'high', projectIds: [] });
+    expect(moved.subdomainId).toBe(store.readCompany(globex.id).defaultAreaId);
+    expect(moved.checklist.map((item) => item.text)).toEqual(['One']);
+    expect(store.listTasks(globex.id).map((item) => item.number)).toEqual(expect.arrayContaining([1, 2]));
+    expect(store.listTasks(acme.id)).toEqual([]);
+    expect(store.findTask(task.id).companyId).toBe(globex.id);
+  });
+
+  it('takes its notes and documents along', () => {
+    const { acme, globex, task } = setup();
+    store.writeNotes(task, 'my notes');
+    writeFileSync(join(paths.tasksDir(acme.id), `${task.id}.report.md`), 'report');
+    const moved = move(task.id, globex.id);
+
+    expect(store.readNotes(moved)).toBe('my notes');
+    expect(store.listTaskOutputs(moved).map((output) => output.name)).toEqual(['report.md']);
+    expect(existsSync(paths.notesFile(acme.id, task.id))).toBe(false);
+    expect(existsSync(join(paths.tasksDir(acme.id), `${task.id}.report.md`))).toBe(false);
+  });
+
+  it('changes its reference, and never gives its old number to another task', () => {
+    const { acme, globex, task } = setup();
+    move(task.id, globex.id);
+
+    expect(store.findTaskByReference('globex#2').id).toBe(task.id);
+    expect(() => store.findTaskByReference('acme#1')).toThrow('has no task #1');
+    expect(store.createTask({ companyId: acme.id, title: 'Next' }).number).toBe(2);
+  });
+
+  it('keeps the agent and the guide it is given, and drops them otherwise', () => {
+    const { globex, task } = setup();
+    const guide = { playbookId: 'implement', name: 'Implement a task', steps: [{ name: 'Understand', prompt: 'Read it.' }], current: 0, promptPending: true, done: [] };
+    const guided = store.updateTask(task.id, { accountId: 'claude-default', guide });
+
+    expect(store.moveTask(guided.id, globex.id, { accountId: 'claude-default', guide })).toMatchObject({ accountId: 'claude-default', guide });
+    const other = store.updateTask(store.createTask({ companyId: 'acme', title: 'Another' }).id, { accountId: 'claude-default', guide });
+    const moved = move(other.id, globex.id);
+    expect(moved.accountId).toBeUndefined();
+    expect(moved.guide).toBeUndefined();
+  });
+
+  it('puts a backlog item at the end of the backlog there', () => {
+    const { acme, globex } = setup();
+    store.createTask({ companyId: globex.id, title: 'Last there', rank: 3 }, undefined, 'idea');
+    const idea = store.createTask({ companyId: acme.id, title: 'An idea', rank: 0 }, undefined, 'idea');
+    expect(move(idea.id, globex.id)).toMatchObject({ status: 'idea', rank: 4 });
+  });
+
+  it('keeps its issue, unless a task there is linked to the same one', () => {
+    const { acme, globex, task } = setup();
+    const source = { kind: 'github' as const, key: 'acme/api#7' };
+    store.linkTaskSource(task.id, source);
+    const twin = store.linkTaskSource(store.createTask({ companyId: acme.id, title: 'Twin' }).id, { kind: 'github', key: 'acme/api#8' });
+    store.linkTaskSource(store.findTaskByReference('globex#1').id, { kind: 'github', key: 'acme/api#8' });
+
+    expect(move(task.id, globex.id).source).toEqual(source);
+    expect(() => move(twin.id, globex.id)).toThrow('acme/api#8 is already linked to task #1 of Globex.');
+    expect(store.findTask(twin.id).companyId).toBe(acme.id);
+  });
+
+  it('refuses the same client, a client that is gone, and an archived one', () => {
+    const { acme, globex, task } = setup();
+    expect(() => move(task.id, acme.id)).toThrow('already in this client');
+    expect(() => move(task.id, 'nowhere')).toThrow('no longer exists');
+    store.saveCompany({ ...store.readCompany(globex.id), archivedAt: 'now' });
+    expect(() => move(task.id, globex.id)).toThrow('Globex is archived');
+    expect(store.findTask(task.id).companyId).toBe(acme.id);
+  });
+
+  it('leaves a task that plans the backlog, and the items of its plan, where they are', () => {
+    const { acme, globex } = setup();
+    const idea = store.createTask({ companyId: acme.id, title: 'Planned idea' }, undefined, 'idea');
+    const planner = store.setBacklogPlan(store.createTask({ companyId: acme.id, title: 'Plan the backlog' }).id, { items: [{ id: idea.id, number: idea.number ?? 0 }] });
+
+    expect(() => move(planner.id, globex.id)).toThrow('plans the backlog');
+    expect(() => move(idea.id, globex.id)).toThrow(`part of the backlog plan #${planner.number}`);
+    store.updateTask(planner.id, { status: 'done' });
+    expect(move(idea.id, globex.id).companyId).toBe(globex.id);
+  });
+});
+
 describe('SecretStore', () => {
   it('never writes plain values and keeps clients apart', () => {
     const secrets = new SecretStore(paths, reversingCipher);
