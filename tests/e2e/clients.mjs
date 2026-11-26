@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -33,6 +33,13 @@ writeFileSync(
 const fs = require('node:fs');
 if (process.argv.includes('--version')) { console.log('1.0.0'); process.exit(0); }
 if (process.argv.includes('auth')) { console.log(JSON.stringify({ loggedIn: true })); process.exit(0); }
+if (process.argv[2] === '-p' && process.argv.includes('--tools')) {
+  const input = fs.readFileSync(0, 'utf8');
+  fs.writeFileSync(${JSON.stringify(join(root, 'chat.json'))}, JSON.stringify({ cwd: process.cwd(), args: process.argv.slice(2), input }));
+  const related = /^### (\\S+) Primera tarea$/m.exec(input)?.[1];
+  process.stdout.write(JSON.stringify({ type: 'result', is_error: false, result: JSON.stringify({ answer: 'Eso **ya está planeado**.', related: [related, '#9999'] }) }));
+  process.exit(0);
+}
 if (process.argv[2] === '-p') {
   fs.writeFileSync(${JSON.stringify(join(root, 'suggestion.json'))}, JSON.stringify({ cwd: process.cwd(), args: process.argv.slice(2) }));
   process.stdout.write(JSON.stringify({ type: 'result', is_error: false, result: JSON.stringify({ description: 'Mejor descripción **sugerida**' }) }));
@@ -159,6 +166,30 @@ try {
   assert.ok(suggestionRun.args[1].includes('Lo que se sabe **hasta ahora**'), 'The assistant gets the current description.');
   assert.ok(suggestionRun.args[1].includes('Nombra los archivos que cambian.'), 'The assistant gets what the person added to the prompt.');
   assert.ok(suggestionRun.args[1].includes('Keep every fact and decision'), 'The rest of the default prompt stays.');
+  await page.keyboard.press('Escape');
+  await details.waitFor({ state: 'detached' });
+
+  // The chat answers from the tasks of the client and nothing else, and its related task opens from the answer.
+  const chat = page.getByRole('region', { name: 'Backlog chat' });
+  await chat.getByRole('button', { name: 'Already done or planned?' }).click();
+  await chat.getByLabel('Client to ask about').selectOption(platform.id);
+  await chat.getByRole('textbox').fill('¿Ya pensamos en la primera tarea?');
+  await chat.getByRole('button', { name: 'Ask' }).click();
+  await chat.getByText('ya está planeado').waitFor();
+  const relatedTasks = chat.getByRole('list', { name: 'Related tasks' }).getByRole('button');
+  assert.equal(await relatedTasks.count(), 1, 'A task the agent made up is not shown.');
+  assert.match(await relatedTasks.innerText(), /Primera tarea\s+backlog/, 'A related task shows its real status.');
+  const chatRun = JSON.parse(readFileSync(join(root, 'chat.json'), 'utf8'));
+  assert.equal(chatRun.args[chatRun.args.indexOf('--tools') + 1], '', 'The chat has no tool.');
+  assert.equal(chatRun.args.includes('--add-dir'), false, 'The chat gets no folder.');
+  assert.deepEqual(readdirSync(chatRun.cwd), [], 'The chat runs in an empty folder.');
+  assert.ok(chatRun.input.includes('Primera tarea\nStatus: backlog'), 'The chat gets the tasks with their status.');
+  assert.ok(chatRun.input.includes('Mejor descripción **sugerida**'), 'The chat gets the descriptions.');
+  assert.ok(chatRun.input.includes('¿Ya pensamos en la primera tarea?'), 'The chat gets the question.');
+  assert.equal(chatRun.input.includes(repo), false, 'The chat is told about no repository.');
+  await shot('inbox-chat');
+  await relatedTasks.click();
+  await details.getByRole('textbox', { name: 'Title' }).waitFor();
   await page.keyboard.press('Escape');
   await details.waitFor({ state: 'detached' });
 

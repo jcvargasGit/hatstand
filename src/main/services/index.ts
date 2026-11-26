@@ -3,6 +3,7 @@
 // Store and fakes. src/main/index.ts composes them with the handlers that need Electron.
 import type { HatstandApi } from '../../shared/api';
 import type { AgentSignIn, checkAgent } from '../agent-status';
+import type { BacklogChat } from '../backlog-chat';
 import type { DescriptionSuggester } from '../description-suggestion';
 import type { ReviewMonitor } from '../review-monitor';
 import type { SessionManager } from '../sessions';
@@ -77,6 +78,7 @@ export type ServiceDeps = PreferenceServiceDeps & {
   checkAgent: typeof checkAgent;
   reviews: Pick<ReviewMonitor, 'all' | 'check' | 'checkAll' | 'get' | 'failureLogs'>;
   suggester: Pick<DescriptionSuggester, 'suggest' | 'cancel' | 'instructionsFor'>;
+  backlogChat: Pick<BacklogChat, 'ask' | 'cancel'>;
   windows: NewTaskWindows;
   installedApp: InstalledApp;
 };
@@ -106,7 +108,7 @@ export function serviceParts(ctx: ServiceContext, deps: ServiceDeps) {
     accounts: createAccountService(ctx, deps),
     planning: createPlanningService(ctx, { protection }),
     tasks: createTaskService(ctx, { sessions, copies, suggester: deps.suggester }),
-    backlog: createBacklogService(ctx),
+    backlog: createBacklogService(ctx, deps),
     reviews: createReviewService(ctx, deps),
     sessions: createSessionService(deps),
     guides: createGuideService(ctx, deps),

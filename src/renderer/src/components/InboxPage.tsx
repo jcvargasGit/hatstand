@@ -11,6 +11,7 @@ import { byPriority, ideaTitleId, inboxOrder } from '../lib/inbox';
 import { plural } from '../lib/text';
 import { isIdea } from '../lib/today';
 import { AssistantRunConfirm } from './AssistantRunConfirm';
+import { BacklogChat } from './BacklogChat';
 import { ClientAvatar } from './ClientAvatar';
 import { IdeaDetails } from './IdeaDetails';
 import { IdeaRow } from './IdeaRow';
@@ -42,6 +43,9 @@ export function InboxPage({ snapshot, companyId, onOpenTask, onMakeTask, onChang
     setSelectedId(null);
     if (selectedId) requestAnimationFrame(() => document.getElementById(ideaTitleId(selectedId))?.focus());
   };
+
+  /** A backlog item opens its details here; any other task opens as a task. */
+  const openRelated = (taskId: string, taskCompanyId: string) => (pending.some((task) => task.id === taskId) ? setSelectedId(taskId) : onOpenTask(taskId, taskCompanyId));
 
   const reorder = (items: Task[]) =>
     run(async () => {
@@ -84,6 +88,7 @@ export function InboxPage({ snapshot, companyId, onOpenTask, onMakeTask, onChang
       <p className="hint">Keep work you have not defined yet. It stays out of your tasks until you make it one.</p>
 
       <InboxCapture companies={snapshot.companies} companyId={companyId} onChanged={onChanged} />
+      <BacklogChat companies={snapshot.companies} companyId={companyId} onOpenTask={openRelated} />
       {error && <p className="error">{error}</p>}
 
       {pending.length === 0 ? (

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { readAgentResult } from './agent-output';
 import { MAX_DESCRIPTION_INSTRUCTIONS } from './description-instructions';
 
 export const SUGGESTION_TIMEOUT_MS = 5 * 60_000;
@@ -20,40 +21,16 @@ export const suggestionReplySchema = z.object({
   description: z.string().trim().min(1, 'The agent returned an empty description.'),
 });
 
-const envelopeSchema = z.looseObject({
-  result: z.string().optional(),
-  is_error: z.boolean().optional(),
-});
-
 export type SuggestionRequest = z.input<typeof suggestionRequestSchema>;
 export type DescriptionSuggestion = z.infer<typeof suggestionReplySchema>;
 export type SuggestionParse = { ok: true; description: string } | { ok: false; problem: string };
 
 const UNUSABLE = 'The agent did not return a description Hatstand can use. Try again.';
 
-function parseJson(text: string): unknown {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return undefined;
-  }
-}
-
-function replyJson(result: string): unknown {
-  const fenced = /```(?:json)?\s*([\s\S]*?)```/.exec(result)?.[1];
-  const direct = parseJson((fenced ?? result).trim());
-  if (direct !== undefined) return direct;
-  const start = result.indexOf('{');
-  const end = result.lastIndexOf('}');
-  return start >= 0 && end > start ? parseJson(result.slice(start, end + 1)) : undefined;
-}
-
 export function parseSuggestionOutput(stdout: string): SuggestionParse {
-  const envelope = envelopeSchema.safeParse(parseJson(stdout.trim()));
-  if (!envelope.success) return { ok: false, problem: UNUSABLE };
-  const { result = '', is_error: failed } = envelope.data;
-  if (failed) return { ok: false, problem: `The agent could not finish: ${result.trim() || 'no reason given'}.` };
-  const reply = suggestionReplySchema.safeParse(replyJson(result));
+  const result = readAgentResult(stdout);
+  if (!result.ok) return { ok: false, problem: result.problem ?? UNUSABLE };
+  const reply = suggestionReplySchema.safeParse(result.reply);
   if (!reply.success) {
     const [issue] = reply.error.issues;
     return { ok: false, problem: issue?.code === 'too_small' ? issue.message : UNUSABLE };

@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, Notification, powerSaveBlocker, safeStorage, shell } from 'electron';
 import type { HatstandApi, HatstandEvents } from '../shared/api';
 import { AgentSignIn, checkAgent } from './agent-status';
+import { BacklogChat } from './backlog-chat';
 import { DescriptionSuggester } from './description-suggestion';
 import { openFileInEditor, openInEditor } from './editor';
 import type { EditorTarget } from './editor-target';
@@ -164,9 +165,10 @@ async function bootstrap(): Promise<void> {
     onExit: () => emit('state-changed', null),
   });
   const suggester = new DescriptionSuggester(paths, store, tools.path);
+  const backlogChat = new BacklogChat(paths, store, tools.path);
   const installedApp = { platform: process.platform, isPackaged: app.isPackaged, appRoot: app.getAppPath() };
 
-  const services = createServices(ctx, { protection, sessions, signIn, checkAgent, reviews, suggester, stayAwake, applyStayAwake, windows, installedApp });
+  const services = createServices(ctx, { protection, sessions, signIn, checkAgent, reviews, suggester, backlogChat, stayAwake, applyStayAwake, windows, installedApp });
   const targets = createDesktopTargets(ctx);
 
   // The editor of the person when they have one, and the desktop's own app or file browser when they do not.
@@ -213,6 +215,7 @@ async function bootstrap(): Promise<void> {
     reviews.stop();
     signIn.stopAll();
     suggester.stopAll();
+    backlogChat.stopAll();
     if (confirmedQuit || sessions.liveCount() === 0 || headless || process.env.HATSTAND_SKIP_QUIT_PROMPT) {
       sessions.stopAll();
       return;

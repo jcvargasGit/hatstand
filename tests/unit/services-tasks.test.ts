@@ -128,7 +128,7 @@ describe('adding ideas to the backlog', () => {
     home.store.createTask({ companyId: 'acme', title: 'First', rank: 0 });
     home.store.createTask({ companyId: 'acme', title: 'Last', rank: 4 });
     home.store.createTask({ companyId: 'acme', title: 'Unranked' });
-    await createBacklogService(ctx).addIdeas('acme', [{ title: 'Export', description: 'As CSV', checklist: ['Header row'] }, { title: 'Email it' }]);
+    await createBacklogService(ctx, fakeServiceDeps()).addIdeas('acme', [{ title: 'Export', description: 'As CSV', checklist: ['Header row'] }, { title: 'Email it' }]);
 
     const ideas = home.store.listTasks('acme').filter((task) => task.status === 'idea').sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
     expect(ideas.map(({ title, rank }) => ({ title, rank }))).toEqual([{ title: 'Export', rank: 5 }, { title: 'Email it', rank: 6 }]);
@@ -137,13 +137,13 @@ describe('adding ideas to the backlog', () => {
   });
 
   it('starts an empty backlog at the top', async () => {
-    await createBacklogService(makeServiceContext(home).ctx).addIdeas('acme', [{ title: 'First' }]);
+    await createBacklogService(makeServiceContext(home).ctx, fakeServiceDeps()).addIdeas('acme', [{ title: 'First' }]);
     expect(home.store.listTasks('acme').map((task) => task.rank)).toEqual([0]);
   });
 
   it('adds none when one of them is not valid', async () => {
     const { ctx, stateChanges } = makeServiceContext(home);
-    await expect(createBacklogService(ctx).addIdeas('acme', [{ title: 'Fine' }, { title: '' }])).rejects.toThrow();
+    await expect(createBacklogService(ctx, fakeServiceDeps()).addIdeas('acme', [{ title: 'Fine' }, { title: '' }])).rejects.toThrow();
     expect(home.store.listTasks('acme')).toEqual([]);
     expect(stateChanges()).toBe(0);
   });

@@ -1,11 +1,16 @@
 import type { HatstandApi } from '../../shared/api';
 import { ideaSchema } from '../../shared/schemas';
+import type { BacklogChat } from '../backlog-chat';
 import { createBacklogPlanTask, readPlanReport, savePlan, setPlanApproval } from '../backlog-plan';
 import type { ServiceContext } from './context';
 
-export type BacklogService = Pick<HatstandApi, 'addIdeas' | 'planBacklog' | 'readBacklogPlan' | 'saveBacklogPlan' | 'setBacklogPlanApproval'>;
+export type BacklogService = Pick<HatstandApi, 'addIdeas' | 'planBacklog' | 'readBacklogPlan' | 'saveBacklogPlan' | 'setBacklogPlanApproval' | 'askBacklogChat' | 'cancelBacklogChat'>;
 
-export function createBacklogService({ store, paths, emit }: ServiceContext): BacklogService {
+export type BacklogServiceDeps = {
+  backlogChat: Pick<BacklogChat, 'ask' | 'cancel'>;
+};
+
+export function createBacklogService({ store, paths, emit }: ServiceContext, { backlogChat }: BacklogServiceDeps): BacklogService {
   return {
     addIdeas: async (companyId, ideas) => {
       // New ideas go to the end of the backlog, in the order given.
@@ -32,5 +37,7 @@ export function createBacklogService({ store, paths, emit }: ServiceContext): Ba
       emit('state-changed', null);
       return report;
     },
+    askBacklogChat: async (request) => backlogChat.ask(request),
+    cancelBacklogChat: async (key) => backlogChat.cancel(key),
   };
 }
