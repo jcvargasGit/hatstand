@@ -22,7 +22,7 @@ A handler that opens something on the desktop is split in two: `services/desktop
 ## Model
 
 - **Company** (shown as client): subdomains, projects, context, default account.
-- **Task**: belongs to a company, with an optional subdomain, project and account. Its notes live next to it.
+- **Task**: belongs to a company, with an optional subdomain, project and account. Its notes live next to it. A task changes company only before it starts (`Store.moveTask`); a started one stays, and `changeTaskClient` creates a copy in the other company, so sessions and branches never cross clients.
 - **Session**: one agent process for a task. Tasks and sessions are separate, so a task can have many sessions over time.
 - **Account**: owned by the developer. The order is task, then company, then global default.
 

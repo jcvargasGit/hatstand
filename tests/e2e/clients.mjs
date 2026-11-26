@@ -289,6 +289,29 @@ try {
   assert.ok(second.prompt.includes('Acme Dev <dev@acme.dev>'));
   assert.equal(git(second.cwd, 'config', 'user.email'), 'dev@acme.dev', 'The task copy uses the rule of the folder.');
 
+  // A task created in the wrong client moves to the right one before it starts.
+  const misplaced = await invoke('createTask', { companyId: platform.id, title: 'Tarea en otro cliente' });
+  await invoke('reorderTasks', []);
+  await page.getByRole('region', { name: 'Harbor Studio tasks' }).locator('.tree-task[title="Tarea en otro cliente"]').click();
+  await page.getByRole('tab', { name: 'Task settings' }).click();
+  await page.getByRole('combobox', { name: /^Client/ }).selectOption(acme.id);
+  await page.getByRole('alert').getByText('Move to Acme? It gets a new number there').waitFor();
+  await shot('move-task-confirm');
+  await page.getByRole('button', { name: 'Move task' }).click();
+  await until(async () => (await invoke('getSnapshot')).tasks.find((item) => item.id === misplaced.id)?.companyId === acme.id, 'the task to move to Acme');
+  await page.getByRole('region', { name: 'Acme tasks' }).locator('.tree-task[title="Tarea en otro cliente"]').waitFor();
+  assert.equal(await page.getByRole('combobox', { name: /^Client/ }).inputValue(), acme.id, 'The task stays open, now in its new client.');
+  assert.equal(existsSync(join(home, 'companies', platform.id, 'tasks', `${misplaced.id}.json`)), false, 'Nothing of the task stays in the client it left.');
+  await shot('move-task-done');
+
+  // A task that already has a session is copied instead, and stays where it is.
+  await page.getByRole('region', { name: 'Acme tasks' }).locator('.tree-task[title="Con identidad"]').click();
+  await page.getByRole('tab', { name: 'Task settings' }).click();
+  await page.getByRole('combobox', { name: /^Client/ }).selectOption(platform.id);
+  await page.getByRole('alert').getByText('already started, so it cannot be moved').waitFor();
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  assert.equal((await invoke('getSnapshot')).tasks.find((item) => item.id === task.id).companyId, acme.id);
+
   // Nothing of this client reached the repository.
   assert.equal(git(repo, 'status', '--porcelain'), '');
   assert.deepEqual(failures, []);

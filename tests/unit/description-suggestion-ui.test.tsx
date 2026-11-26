@@ -49,7 +49,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 const task = taskSchema.parse({ id: 'one', companyId: 'c', title: 'Fix the login', description: 'Staging only', status: 'idea', projectIds: ['api'], createdAt: 'x', updatedAt: 'x' });
-const renderDetails = () => render(<IdeaDetails task={task} onClose={() => {}} onChanged={async () => undefined} onMakeTask={() => {}} />);
+const renderDetails = () => render(<IdeaDetails snapshot={{ companies: [], sessions: [] }} task={task} onClose={() => {}} onChanged={async () => undefined} onMakeTask={() => {}} />);
 const dialog = () => screen.findByRole('dialog', { name: 'Suggested description' });
 const promptDialog = () => screen.findByRole('dialog', { name: 'Improve description' });
 const openPrompt = async (name = 'Improve description') => {
@@ -65,7 +65,7 @@ const promptField = async () => within(await promptDialog()).findByLabelText<HTM
 
 describe('writing the prompt before the assistant runs', () => {
   it('opens the prompt of the area of the task, and does not run the assistant yet', async () => {
-    render(<IdeaDetails task={{ ...task, subdomainId: 'billing' }} onClose={() => {}} onChanged={async () => undefined} onMakeTask={() => {}} />);
+    render(<IdeaDetails snapshot={{ companies: [], sessions: [] }} task={{ ...task, subdomainId: 'billing' }} onClose={() => {}} onChanged={async () => undefined} onMakeTask={() => {}} />);
     await openPrompt();
     expect((await promptField()).value).toBe('Keep every fact.');
     expect(calls.instructions).toHaveBeenCalledWith('c', 'billing');

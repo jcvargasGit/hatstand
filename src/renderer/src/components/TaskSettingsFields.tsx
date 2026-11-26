@@ -16,6 +16,8 @@ type TaskSettingsFieldsProps = {
   playbooks: PlaybookSummary[];
   /** The clients to choose from. Without them, the client is fixed. */
   clients?: Company[];
+  /** Shown first, such as the client of a task that already exists. */
+  lead?: ReactNode;
   /** Repositories with a copy of the code, which stay selected. */
   changing?: string[];
   note?: string;
@@ -27,7 +29,7 @@ type TaskSettingsFieldsProps = {
 };
 
 /** Client, guide, area, agent, priority, code and repositories: the settings beside the description of a task. */
-export function TaskSettingsFields({ snapshot, company, choices, playbooks, clients, changing = [], note, guideStep, children, onChange, onAreaCreated }: TaskSettingsFieldsProps) {
+export function TaskSettingsFields({ snapshot, company, choices, playbooks, clients, lead, changing = [], note, guideStep, children, onChange, onAreaCreated }: TaskSettingsFieldsProps) {
   const [choosingRepos, setChoosingRepos] = useState(false);
   const guides = orderGuidesByUse(playbooks, snapshot.guideUsage ?? {});
   const repos = company ? workRepositories(company) : [];
@@ -38,6 +40,7 @@ export function TaskSettingsFields({ snapshot, company, choices, playbooks, clie
 
   return (
     <div className="task-settings-fields">
+      {lead}
       {clients && (
         <label className="stacked-field">
           Client

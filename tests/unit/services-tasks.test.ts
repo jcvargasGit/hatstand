@@ -1,4 +1,5 @@
-import { existsSync, writeFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBacklogService } from '../../src/main/services/backlog';
@@ -119,6 +120,113 @@ describe('the task handlers that remove copies', () => {
     expect(home.store.listTasks('acme')).toEqual([]);
     expect(existsSync(task.worktrees[0]?.path ?? '')).toBe(false);
     expect(stateChanges()).toBe(1);
+  });
+});
+
+describe('changing the client of a task', () => {
+  const setup = () => {
+    const { ctx, emitted, stateChanges } = makeServiceContext(home);
+    home.store.createCompany('Globex', '#445566');
+    return { tasks: createTaskService(ctx, { ...fakeServiceDeps(), copies: fakeCopies() }), emitted, stateChanges };
+  };
+  const stoppedSession = (task: Task) => {
+    const session = { id: randomUUID(), taskId: task.id, companyId: task.companyId, accountId: 'claude-default', cwd: home.root, state: 'stopped' as const, startedAt: 'x', updatedAt: 'x' };
+    home.store.saveSession(session);
+    return session;
+  };
+
+  it('moves a task that was never started, and selects it in its new client', async () => {
+    const { tasks, emitted, stateChanges } = setup();
+    const task = home.store.createTask({ companyId: 'acme', title: 'Wrong client', projectIds: ['api'] });
+    home.store.updateTask(task.id, { accountId: 'claude-default' });
+
+    const result = await tasks.changeTaskClient(task.id, 'globex');
+
+    expect(result.change).toBe('move');
+    expect(result.task).toMatchObject({ id: task.id, companyId: 'globex', number: 1, projectIds: [], accountId: 'claude-default' });
+    expect(home.store.listTasks('acme')).toEqual([]);
+    expect(stateChanges()).toBe(1);
+    expect(emitted).toContainEqual({ event: 'task-created', payload: { taskId: task.id, companyId: 'globex' } });
+  });
+
+  it('restarts the guide when the other client has it, and drops an agent only the first client can use', async () => {
+    const { tasks } = setup();
+    home.store.saveAccount({ id: 'acme-only', name: 'Acme agent', type: 'claude-code', label: 'company', companyId: 'acme' });
+    const task = await tasks.createTask({ companyId: 'acme', title: 'Guided', playbookId: 'implement', accountId: 'acme-only' });
+    if (!task.guide) throw new Error('The task has no guide.');
+    home.store.updateTask(task.id, { guide: { ...task.guide, current: 2, promptPending: false, done: [1, 2] } });
+
+    const { task: moved } = await tasks.changeTaskClient(task.id, 'globex');
+
+    expect(moved.guide).toMatchObject({ playbookId: 'implement', current: 0, done: [] });
+    expect(moved.accountId).toBeUndefined();
+  });
+
+  it('drops a guide that only the first client has', async () => {
+    const { tasks } = setup();
+    mkdirSync(home.paths.playbooksDir('acme'), { recursive: true });
+    writeFileSync(join(home.paths.playbooksDir('acme'), 'acme-way.yaml'), 'name: The Acme way\nsteps:\n  - name: Read\n    prompt: Read it.\n');
+    const task = await tasks.createTask({ companyId: 'acme', title: 'Guided', playbookId: 'acme-way' });
+    expect(task.guide?.playbookId).toBe('acme-way');
+
+    expect((await tasks.changeTaskClient(task.id, 'globex')).task.guide).toBeUndefined();
+  });
+
+  it('moves a backlog item without leaving the backlog', async () => {
+    const { tasks, emitted } = setup();
+    const idea = home.store.createTask({ companyId: 'acme', title: 'An idea' }, undefined, 'idea');
+    expect((await tasks.changeTaskClient(idea.id, 'globex')).task).toMatchObject({ companyId: 'globex', status: 'idea' });
+    expect(emitted.map((item) => item.event)).toEqual(['state-changed']);
+  });
+
+  it('copies a task that has a session, and leaves the task and its session alone', async () => {
+    const { tasks, emitted } = setup();
+    const task = home.store.updateTask(home.store.createTask({ companyId: 'acme', title: 'Started', description: 'Details', projectIds: ['api'], checklist: ['One', 'Two'], priority: 'high' }).id, {
+      status: 'doing',
+      type: 'investigation',
+      flag: '🔥',
+      checklist: [{ id: 'a', text: 'One', done: true }, { id: 'b', text: 'Two', done: false }],
+    });
+    home.store.saveTaskNote(task.id, 'my note');
+    home.store.writeNotes(task, 'agent notes');
+    const session = stoppedSession(task);
+    const original = readFileSync(home.paths.taskFile('acme', task.id), 'utf8');
+
+    const result = await tasks.changeTaskClient(task.id, 'globex');
+
+    expect(result.change).toBe('clone');
+    expect(result.task.id).not.toBe(task.id);
+    expect(result.task).toMatchObject({ companyId: 'globex', number: 1, title: 'Started', description: 'Details', note: 'my note', status: 'todo', type: 'investigation', flag: '🔥', priority: 'high', projectIds: [], worktrees: [] });
+    expect(result.task.checklist.map(({ text, done }) => ({ text, done }))).toEqual([{ text: 'One', done: false }, { text: 'Two', done: false }]);
+    expect(home.store.readNotes(result.task)).toBe('');
+    expect(readFileSync(home.paths.taskFile('acme', task.id), 'utf8')).toBe(original);
+    expect(home.store.readNotes(home.store.findTask(task.id))).toBe('agent notes');
+    expect(home.store.readSession(session.id)).toMatchObject({ taskId: task.id, companyId: 'acme' });
+    expect(emitted).toContainEqual({ event: 'task-created', payload: { taskId: result.task.id, companyId: 'globex' } });
+  });
+
+  it('copies a task that has a copy of the code, without its issue, and keeps that copy', async () => {
+    const { tasks } = setup();
+    const task = home.store.linkTaskSource((await taskWithCopy()).id, { kind: 'github', key: 'acme/api#7' });
+
+    const result = await tasks.changeTaskClient(task.id, 'globex');
+
+    expect(result.change).toBe('clone');
+    expect(result.task.source).toBeUndefined();
+    expect(home.store.findTask(task.id)).toMatchObject({ companyId: 'acme', worktrees: task.worktrees, source: { key: 'acme/api#7' } });
+    expect(existsSync(task.worktrees[0]?.path ?? '')).toBe(true);
+  });
+
+  it('copies nothing into the same client or an archived one', async () => {
+    const { tasks, stateChanges } = setup();
+    const task = home.store.createTask({ companyId: 'acme', title: 'Started' });
+    stoppedSession(task);
+    home.store.saveCompany({ ...home.store.readCompany('globex'), archivedAt: 'now' });
+
+    await expect(tasks.changeTaskClient(task.id, 'acme')).rejects.toThrow('already in this client');
+    await expect(tasks.changeTaskClient(task.id, 'globex')).rejects.toThrow('Globex is archived');
+    expect(home.store.listTasks('globex')).toEqual([]);
+    expect(stateChanges()).toBe(0);
   });
 });
 

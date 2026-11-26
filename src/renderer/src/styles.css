@@ -5513,6 +5513,27 @@ button.icon-button {
   max-width: none;
 }
 
+.client-change {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.client-change-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.5rem 0.7rem;
+}
+
+.client-change-confirm span {
+  flex: 1 1 100%;
+}
+
 .task-repos-field {
   display: flex;
   flex-direction: column;
