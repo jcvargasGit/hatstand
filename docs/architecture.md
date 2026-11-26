@@ -73,6 +73,13 @@ Reopening a closed task writes `in progress` in its notes, so an old report does
 
 `buildAgentEnv` starts from a short allowlist rather than the app's environment, then adds the keys of that client. Keys of other clients and anything else in the app's environment do not reach the agent.
 
+## One-shot agent runs
+
+Some features ask the agent one question and read its answer, with no terminal. They run `claude -p --output-format json` through `execFileRunner` in `src/main/agent-run.ts`, which a test replaces with a fake. `src/shared/agent-output.ts` reads what the run printed.
+
+- **Improve a description** (`description-suggestion.ts`): the agent may read the knowledge, the area and the repositories of the task, and change nothing.
+- **Backlog chat** (`backlog-chat.ts`): the agent answers whether work is already done, planned or in progress. It gets the tasks of one client inside the prompt and nothing else: no tool, no MCP server, no folder, no key of the client, and it starts in an empty folder. `buildTaskContext` in `src/shared/backlog-chat.ts` writes that list. The tasks the answer names are matched against the real ones, so a status shown to the person always comes from the task.
+
 ## Keys
 
 `SecretStore` in `src/main/secrets.ts` owns two files per client. `secrets.enc` holds names and values, sealed with the system keychain. `keys.yaml` holds what is not secret about each key: when it was saved, a note, and the last check. Saving a new value starts that key over, so a replaced key has no old check.

@@ -1,5 +1,6 @@
 import type { PastFolderRecord } from './schemas';
 import type { ReleaseState } from './schemas';
+import type { ChatAnswer, ChatRequest } from './backlog-chat';
 import type { BacklogPlan, BacklogPlanInput } from './backlog-plan';
 import type { DescriptionSuggestion, SuggestionRequest } from './description-suggestion';
 import type { NewTaskDraft } from './new-task-draft';
@@ -345,6 +346,9 @@ export type HatstandApi = {
   readBacklogPlan(taskId: string): Promise<BacklogPlanReport>;
   saveBacklogPlan(taskId: string, plan: BacklogPlanInput): Promise<BacklogPlanReport>;
   setBacklogPlanApproval(taskId: string, approved: boolean): Promise<BacklogPlanReport>;
+  /** Answers from the tasks of the client only: whether related work is done, planned or in progress. */
+  askBacklogChat(request: ChatRequest): Promise<ChatAnswer>;
+  cancelBacklogChat(key: string): Promise<void>;
   suggestDescription(request: SuggestionRequest): Promise<DescriptionSuggestion>;
   cancelDescriptionSuggestion(key: string): Promise<void>;
   descriptionInstructions(companyId: string, subdomainId?: string): Promise<string>;

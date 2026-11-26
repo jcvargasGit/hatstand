@@ -1,10 +1,10 @@
-import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { parseSuggestionOutput, SUGGESTION_TIMEOUT_MS, suggestionRequestSchema, type DescriptionSuggestion } from '../shared/description-suggestion';
 import { areaFolder as areaFolderName } from '../shared/areas';
 import { descriptionInstructionsFor } from '../shared/description-instructions';
 import type { Account } from '../shared/schemas';
 import { activeKnowledgeDir } from './active-folders';
+import { execFileRunner, type AgentLaunch, type AgentRunner, type RunResult } from './agent-run';
 import { buildDescriptionPrompt } from './agents/description-prompt';
 import { buildAgentEnv } from './env';
 import type { DataPaths } from './paths';
@@ -16,12 +16,10 @@ import { taskArea, taskRepositories } from './task-folders';
 
 export const READ_TOOLS = ['Read', 'Grep', 'Glob'];
 export const BLOCKED_TOOLS = ['Bash', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'WebFetch', 'WebSearch', 'Agent', 'Task'];
-const MAX_OUTPUT_BYTES = 10 * 1024 * 1024;
 const CANCELLED = 'The suggestion was cancelled.';
 
-export type SuggestionLaunch = { args: string[]; env: Record<string, string> };
-export type RunResult = { stdout: string; failure?: 'timeout' | 'cancelled' | 'failed'; detail?: string };
-export type SuggestionRunner = (executable: string, launch: SuggestionLaunch, cwd: string, signal: AbortSignal) => Promise<RunResult>;
+export type SuggestionLaunch = AgentLaunch;
+export type SuggestionRunner = AgentRunner;
 
 export function buildSuggestionLaunch(account: Account, prompt: string, addDirs: string[], shellPath: string): SuggestionLaunch {
   if (account.type !== 'claude-code') throw new Error('Only Claude Code accounts can improve descriptions for now.');
@@ -47,15 +45,7 @@ export function buildSuggestionLaunch(account: Account, prompt: string, addDirs:
   };
 }
 
-export const runWithExecFile: SuggestionRunner = (executable, launch, cwd, signal) =>
-  new Promise((resolve) => {
-    execFile(executable, launch.args, { cwd, env: launch.env, signal, timeout: SUGGESTION_TIMEOUT_MS, maxBuffer: MAX_OUTPUT_BYTES }, (error, stdout, stderr) => {
-      if (!error) return resolve({ stdout });
-      if (signal.aborted) return resolve({ stdout, failure: 'cancelled' });
-      if ('killed' in error && error.killed) return resolve({ stdout, failure: 'timeout' });
-      resolve({ stdout, failure: 'failed', detail: stderr.trim() || error.message });
-    });
-  });
+export const runWithExecFile: SuggestionRunner = execFileRunner(SUGGESTION_TIMEOUT_MS);
 
 function failureMessage(result: RunResult): string {
   if (result.failure === 'cancelled') return CANCELLED;

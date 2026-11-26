@@ -98,6 +98,8 @@ export function dataPaths(home: string) {
     sessionsDir: join(home, 'sessions'),
     sessionFile: (sessionId: string) => join(home, 'sessions', `${sessionId}.json`),
     runDir: join(home, 'run'),
+    /** Where the backlog chat runs. It stays empty, so the agent starts with no file in reach. */
+    chatDir: join(home, 'run', 'backlog-chat'),
     statusFile: (sessionId: string) => join(home, 'run', `${sessionId}.status`),
     sessionDir: (sessionId: string) => join(home, 'run', sessionId),
     promptFile: (sessionId: string) => join(home, 'run', `${sessionId}.prompt.md`),

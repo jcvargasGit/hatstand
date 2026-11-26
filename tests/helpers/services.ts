@@ -114,6 +114,7 @@ export function fakeServiceDeps(overrides: Partial<ServiceDeps> = {}): ServiceDe
     checkAgent: vi.fn(async () => ({ installed: true, signedIn: true })),
     reviews: { all: vi.fn(() => ({})), check: vi.fn(async () => {}), checkAll: vi.fn(async () => {}), get: vi.fn(() => undefined), failureLogs: vi.fn(async () => new Map<string, string>()) },
     suggester: { suggest: vi.fn(), cancel: vi.fn(), instructionsFor: vi.fn() },
+    backlogChat: { ask: vi.fn(), cancel: vi.fn() },
     stayAwake: { active: false },
     applyStayAwake: vi.fn(),
     windows: { open: vi.fn(), close: vi.fn() },

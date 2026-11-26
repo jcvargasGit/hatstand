@@ -3173,6 +3173,131 @@ details.field-block > form {
   gap: 8px;
 }
 
+.backlog-chat {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+
+.backlog-chat.is-open {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.backlog-chat-toggle {
+  justify-self: start;
+}
+
+.backlog-chat > * {
+  min-width: 0;
+  margin: 0;
+}
+
+.backlog-chat label {
+  display: grid;
+  gap: 4px;
+}
+
+.backlog-chat-turns {
+  display: grid;
+  gap: 12px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 0;
+  list-style: none;
+}
+
+.backlog-chat-turn {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.backlog-chat-question {
+  justify-self: end;
+  max-width: min(100%, 560px);
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--sidebar);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.backlog-chat-answer {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.backlog-chat-answer .file-preview {
+  max-height: none;
+}
+
+.backlog-chat-skeleton-short {
+  width: 60%;
+}
+
+.backlog-chat-related {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.backlog-chat-related li {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.backlog-chat-related button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  text-align: left;
+}
+
+.backlog-chat-related-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.backlog-chat-status {
+  flex: none;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.backlog-chat-status.is-doing {
+  color: var(--warn);
+}
+
+.backlog-chat-status.is-done {
+  color: var(--success);
+}
+
+.backlog-chat-failed,
+.backlog-chat-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.backlog-chat-form {
+  display: grid;
+  gap: 8px;
+}
+
 .inbox-preview {
   margin: 0;
   padding: 10px 14px;
